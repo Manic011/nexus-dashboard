@@ -64,7 +64,30 @@ test('setup, authentication, tile CRUD, persistence and logout', async () => {
     assert.equal((await request('admin/backup')).status, 401);
     assert.equal((await request('tiles')).status, 401);
     assert.equal((await request('login', 'POST', { ...credentials, password: 'wrong password' })).status, 401);
-    assert.equal((await request('login', 'POST', credentials)).status, 200);
+    const renewed = await request('login', 'POST', credentials);
+    assert.equal(renewed.status, 200);
+    cookie = renewed.headers.get('set-cookie')!.split(';')[0];
+    const administrator = cookie;
+    for (const [username, role] of [['member', 'editor'], ['shared', 'viewer']] as const) {
+      cookie = administrator;
+      const created = await request('admin/users', 'POST', { username, role, password: credentials.password });
+      assert.equal(created.status, 201);
+      const { id } = await created.json();
+      cookie = '';
+      const login = await request('login', 'POST', { username, password: credentials.password });
+      assert.equal(login.status, 200);
+      assert.equal((await login.json()).role, role);
+      cookie = login.headers.get('set-cookie')!.split(';')[0];
+      const accountCookie = cookie;
+      assert.equal((await request('tiles')).status, 200);
+      assert.equal((await request('admin/users')).status, 403);
+      assert.equal((await request('admin/discovery/mdns', 'POST', {})).status, 403);
+      assert.equal((await request('tiles', 'POST', tile)).status, role === 'editor' ? 201 : 403);
+      cookie = administrator;
+      assert.equal((await request('admin/users/' + id, 'DELETE')).status, 200);
+      cookie = accountCookie;
+      assert.equal((await request('tiles')).status, 401);
+    }
   } finally {
     await stop();
     rmSync(data, { recursive: true, force: true });

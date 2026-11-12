@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Users } from './Users.js';
 
 type Entry = { title: string; description: string; url: string; category: string };
 type Preview = { tiles: Entry[]; skipped: number };
@@ -6,6 +7,7 @@ type SystemInfo = { runtime: string; platform: string; schema: number; tiles: nu
 type Api = <T>(path: string, method?: string, body?: object) => Promise<T>;
 
 export function Administration({ api, onImport }: { api: Api; onImport: () => Promise<void> }) {
+  const [interfaces, setInterfaces] = useState<{ name: string; address: string; cidr: string }[]>([]);
   const [system, setSystem] = useState<SystemInfo>();
   const [preview, setPreview] = useState<Preview>();
   const [selection, setSelection] = useState<Entry[]>([]);
@@ -15,6 +17,7 @@ export function Administration({ api, onImport }: { api: Api; onImport: () => Pr
 
   useEffect(() => {
     api<SystemInfo>('admin/system').then(setSystem).catch(error => setStatus(error.message));
+    api<typeof interfaces>('admin/discovery/interfaces').then(setInterfaces).catch(error => setStatus(error.message));
   }, [api]);
 
   async function run(action: () => Promise<void>) {
@@ -38,6 +41,7 @@ export function Administration({ api, onImport }: { api: Api; onImport: () => Pr
   }
 
   return <div className="admin">
+    <Users api={api} />
     <section className="tile"><h2>System information</h2>
       {system ? <dl><dt>Runtime</dt><dd>{system.runtime}</dd><dt>Platform</dt><dd>{system.platform}</dd><dt>Database schema</dt><dd>{system.schema}</dd><dt>Saved tiles</dt><dd>{system.tiles}</dd></dl> : <p className="muted">Loading system information…</p>}
     </section>
@@ -53,6 +57,25 @@ export function Administration({ api, onImport }: { api: Api; onImport: () => Pr
             await inspect(JSON.parse(await file.text()));
           });
         }} /></label></div>
+    </section>
+    <section className="tile"><h2>Automatic service discovery</h2>
+      <p className="muted">Find HTTP and HTTPS services advertised over multicast DNS on a server network. Only select a network you administer.</p>
+      <form onSubmit={event => {
+        event.preventDefault();
+        const address = new FormData(event.currentTarget).get('address');
+        void run(async () => {
+          setPreview(undefined);
+          const result = await api<{ version: 1; tiles: Entry[] }>('admin/discovery/mdns', 'POST', { address });
+          await inspect(result);
+          if (!result.tiles.length) setStatus('No web services responded to the multicast DNS query.');
+        });
+      }}>
+        <label>Server network<select name="address" required>
+          <option value="">Select an interface</option>
+          {interfaces.map(item => <option key={item.address} value={item.address}>{item.name} ({item.cidr})</option>)}
+        </select></label>
+        <button disabled={busy || !interfaces.length}>{busy ? 'Working…' : 'Discover services'}</button>
+      </form>
     </section>
     <section className="tile"><h2>Import service addresses</h2><p className="muted">Paste HTTP or HTTPS service addresses, one per line. Nexus uses the hostname as the starting name.</p>
       <form onSubmit={event => {

@@ -5,9 +5,13 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
+import { discoverServices, discoveryInterfaces } from './discovery.ts';
 
 const derive = promisify(scrypt);
 const credentials = z.object({ username: z.string().trim().min(1).max(64), password: z.string().min(12).max(256) });
+const member = credentials.extend({ role: z.enum(['editor', 'viewer']) });
+type Role = 'admin' | 'editor' | 'viewer';
+type Account = { id: number; username: string; salt: string; hash: string; role: Role };
 const tile = z.object({
   title: z.string().trim().min(1).max(80),
   description: z.string().trim().max(180),
@@ -55,7 +59,20 @@ export function createApp(data: string, dist: string, origin: string, setupToken
       CREATE TABLE tiles (id INTEGER PRIMARY KEY, title TEXT NOT NULL, description TEXT NOT NULL, url TEXT NOT NULL, category TEXT NOT NULL);
       PRAGMA user_version=1;
     `);
-    if (Number(user_version) > 1) throw new Error('Database requires a newer release.');
+    if (Number(user_version) < 2) db.exec(`
+      CREATE TABLE accounts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL UNIQUE,
+        salt TEXT NOT NULL,
+        hash TEXT NOT NULL,
+        role TEXT NOT NULL CHECK(role IN ('admin', 'editor', 'viewer'))
+      );
+      INSERT INTO accounts SELECT id, username, salt, hash, 'admin' FROM admin;
+      ALTER TABLE sessions ADD COLUMN account_id INTEGER NOT NULL DEFAULT 1;
+      DROP TABLE admin;
+      PRAGMA user_version=2;
+    `);
+    if (Number(user_version) > 2) throw new Error('Database requires a newer release.');
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');
@@ -63,11 +80,13 @@ export function createApp(data: string, dist: string, origin: string, setupToken
     throw error;
   }
 
+  let discoveryRunning = false;
   let loginAttempts = 0;
   let resetAt = 0;
   const secure = origin.startsWith('https:') ? '; Secure' : '';
   const cookie = (token: string, age: number) => `nexus_session=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${age}${secure}`;
-  const admin = db.prepare('SELECT username, salt, hash FROM admin WHERE id=1');
+  const admin = db.prepare("SELECT 1 FROM accounts WHERE role='admin'");
+  const lookup = db.prepare('SELECT * FROM accounts WHERE username=?');
 
   const server = createServer({ requestTimeout: 15000, headersTimeout: 10000 }, async (req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -103,14 +122,18 @@ export function createApp(data: string, dist: string, origin: string, setupToken
         throw new RequestError(403, 'Request origin or content type is invalid.');
       }
       const token = req.headers.cookie?.match(/(?:^|; *)nexus_session=([a-f0-9]{64})(?:;|$)/)?.[1];
-      const account = admin.get() as { username: string; salt: string; hash: string } | undefined;
-      const authenticated = token && db.prepare('SELECT 1 FROM sessions WHERE token=? AND expires>?').get(digest(token), Date.now());
+      const configured = !!admin.get();
+      const authenticated = token ? db.prepare(`
+        SELECT accounts.id, accounts.username, accounts.role
+        FROM sessions JOIN accounts ON accounts.id=sessions.account_id
+        WHERE sessions.token=? AND sessions.expires>?
+      `).get(digest(token), Date.now()) : undefined;
       if (method === 'GET' && path === '/api/session') {
-        return send(200, { setup: !account, setupTokenRequired: !account && !!setupToken, username: authenticated ? account?.username : null });
+        return send(200, { setup: !configured, setupTokenRequired: !configured && !!setupToken, username: authenticated?.username ?? null, role: authenticated?.role ?? null, shared: lookup.get('shared')?.role === 'viewer' });
       }
       if (method === 'POST' && (path === '/api/setup' || path === '/api/login')) {
         const setup = path === '/api/setup';
-        if (setup && account) throw new RequestError(409, 'Setup is complete.');
+        if (setup && configured) throw new RequestError(409, 'Setup is complete.');
         if (Date.now() >= resetAt) {
           resetAt = Date.now() + 60_000;
           loginAttempts = 0;
@@ -120,27 +143,79 @@ export function createApp(data: string, dist: string, origin: string, setupToken
         const parsed = credentials.safeParse(input);
         if (!parsed.success) throw new RequestError(400, 'Enter a username and a password of 12 to 256 characters.');
         const { username, password } = parsed.data;
+        if (setup && username === 'shared') throw new RequestError(400, 'Choose a different administrator username.');
         if (setup && (!setupToken || typeof input.token !== 'string' || !timingSafeEqual(Buffer.from(digest(input.token)), Buffer.from(digest(setupToken))))) {
           throw new RequestError(403, 'Enter the setup token from your server configuration.');
         }
+        const account = lookup.get(username) as Account | undefined;
         const salt = setup ? randomBytes(16).toString('hex') : account?.salt ?? 'nexus-login';
         const hash = await derive(password, salt, 64) as Buffer;
         if (setup) {
-          const inserted = db.prepare('INSERT OR IGNORE INTO admin VALUES (1, ?, ?, ?)').run(username, salt, hash.toString('hex'));
+          const inserted = db.prepare("INSERT OR IGNORE INTO accounts VALUES (1, ?, ?, ?, 'admin')").run(username, salt, hash.toString('hex'));
           if (!inserted.changes) throw new RequestError(409, 'Setup is complete.');
         } else if (!account || !timingSafeEqual(hash, Buffer.from(account.hash, 'hex')) || username !== account.username) {
           throw new RequestError(401, 'Invalid credentials.');
         }
+        if (!setup && !(db.prepare('SELECT 1 FROM accounts WHERE id=? AND hash=?').get(account!.id, account!.hash))) {
+          throw new RequestError(401, 'Invalid credentials.');
+        }
         const session = randomBytes(32).toString('hex');
         db.prepare('DELETE FROM sessions WHERE expires <= ? OR token = ?').run(Date.now(), token ? digest(token) : '');
-        db.prepare('INSERT INTO sessions VALUES (?, ?)').run(digest(session), Date.now() + lifetime * 1000);
+        db.prepare('INSERT INTO sessions (token, expires, account_id) VALUES (?, ?, ?)').run(digest(session), Date.now() + lifetime * 1000, setup ? 1 : account!.id);
         res.setHeader('Set-Cookie', cookie(session, lifetime));
-        return send(200, { setup: false, setupTokenRequired: false, username });
+        return send(200, { setup: false, setupTokenRequired: false, username, role: setup ? 'admin' : account!.role });
       }
       if (!authenticated || !token) throw new RequestError(401, 'Sign in to continue.');
       if (method === 'POST' && path === '/api/logout') {
         db.prepare('DELETE FROM sessions WHERE token=?').run(digest(token));
         res.setHeader('Set-Cookie', cookie('', 0));
+        return send(200, {});
+      }
+      if (path.startsWith('/api/admin/') && authenticated.role !== 'admin') {
+        throw new RequestError(403, 'Administrator access is required.');
+      }
+      if (method !== 'GET' && path.startsWith('/api/tiles') && authenticated.role === 'viewer') {
+        throw new RequestError(403, 'Editing access is required.');
+      }
+      if (method === 'GET' && path === '/api/admin/discovery/interfaces') {
+        return send(200, discoveryInterfaces());
+      }
+      if (method === 'POST' && path === '/api/admin/discovery/mdns') {
+        const input = z.object({ address: z.ipv4() }).safeParse(await body(req));
+        const selected = input.success && discoveryInterfaces().find(item => item.address === input.data.address);
+        if (!selected) throw new RequestError(400, 'Select an IPv4 interface on this server.');
+        if (discoveryRunning) throw new RequestError(409, 'A discovery request is already running.');
+        discoveryRunning = true;
+        try {
+          const tiles = await discoverServices(selected.address, Number(selected.cidr.split('/')[1]));
+          return send(200, { version: 1, tiles });
+        } catch (error) {
+          console.error(error);
+          throw new RequestError(503, 'Multicast DNS discovery could not run on this interface.');
+        } finally {
+          discoveryRunning = false;
+        }
+      }
+      if (method === 'GET' && path === '/api/admin/users') {
+        return send(200, db.prepare('SELECT id, username, role FROM accounts ORDER BY id').all());
+      }
+      if (method === 'POST' && path === '/api/admin/users') {
+        const parsed = member.safeParse(await body(req));
+        if (!parsed.success) throw new RequestError(400, 'Enter a username, a password of 12 to 256 characters, and an editor or viewer role.');
+        const { username, password, role } = parsed.data;
+        if (username === 'shared' && role !== 'viewer') throw new RequestError(400, 'Shared access requires the viewer role.');
+        const salt = randomBytes(16).toString('hex');
+        const hash = await derive(password, salt, 64) as Buffer;
+        const result = db.prepare('INSERT OR IGNORE INTO accounts(username, salt, hash, role) VALUES (?, ?, ?, ?)').run(username, salt, hash.toString('hex'), role);
+        if (!result.changes) throw new RequestError(409, 'This username is already in use.');
+        return send(201, { id: Number(result.lastInsertRowid) });
+      }
+      const user = /^\/api\/admin\/users\/([1-9]\d{0,14})$/.exec(path);
+      if (method === 'DELETE' && user) {
+        const id = Number(user[1]);
+        const result = db.prepare("DELETE FROM accounts WHERE id=? AND role<>'admin'").run(id);
+        if (!result.changes) throw new RequestError(404, 'Editor or viewer account not found.');
+        db.prepare('DELETE FROM sessions WHERE account_id=?').run(id);
         return send(200, {});
       }
       if (method === 'GET' && path === '/api/tiles') {

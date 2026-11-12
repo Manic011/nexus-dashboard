@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client';
 import './style.css';
 import { Administration } from './Administration.js';
 
-type Session = { setup: boolean; setupTokenRequired: boolean; username: string | null };
+type Session = { setup: boolean; setupTokenRequired: boolean; username: string | null; role?: 'admin' | 'editor' | 'viewer' | null; shared?: boolean };
 type Tile = { id: number; title: string; description: string; url: string; category: string };
 
 async function api<T>(path: string, method = 'GET', body?: object): Promise<T> {
@@ -21,6 +21,7 @@ function App() {
   const [tiles, setTiles] = useState<Tile[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [sharedLogin, setSharedLogin] = useState(false);
   const [admin, setAdmin] = useState(false);
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<Tile | 'new' | null>(null);
@@ -74,29 +75,31 @@ function App() {
         <h1>{session.setup ? 'Set up your dashboard' : 'Sign in'}</h1>
         {session.setup && <p className="muted">Create the administrator account for this instance.</p>}
         <form onSubmit={event => submit(event, async data => {
-          setSession(await api<Session>(session.setup ? 'setup' : 'login', 'POST', data));
+          setSession(await api<Session>(session.setup ? 'setup' : 'login', 'POST', sharedLogin ? { ...data, username: 'shared' } : data));
         })}>
-          <label>Username<input name="username" autoComplete="username" maxLength={64} required /></label>
+          {!sharedLogin && <label>Username<input name="username" autoComplete="username" maxLength={64} required /></label>}
           <label>Password<input name="password" type="password" autoComplete={session.setup ? 'new-password' : 'current-password'} minLength={session.setup ? 12 : undefined} maxLength={256} required /></label>
           {session.setup && <label>Setup token<input name="token" type="password" autoComplete="off" required /></label>}
           {warning}
           <button className="primary" disabled={busy}>{session.setup ? 'Create account' : 'Sign in'}</button>
         </form>
+        {!session.setup && session.shared && <button onClick={() => setSharedLogin(value => !value)}>{sharedLogin ? 'Sign in with a username' : 'Use shared dashboard password'}</button>}
       </> : warning || <p role="status">Loading dashboard…</p>}
     </section>
   </main>;
 
   return <>
-    <header><div className="shell top">{brand}<div className="account"><button onClick={() => setAdmin(value => !value)}>{admin ? 'Dashboard' : 'Administration'}</button><span>{session.username}</span><button disabled={busy} onClick={() => void action(async () => {
+    <header><div className="shell top">{brand}<div className="account">{session.role === 'admin' && <button onClick={() => setAdmin(value => !value)}>{admin ? 'Dashboard' : 'Administration'}</button>}<span>{session.username}</span><button disabled={busy} onClick={() => void action(async () => {
       await api('logout', 'POST');
-      setSession({ setup: false, setupTokenRequired: false, username: null });
+      setSession(await api<Session>('session'));
+      setSharedLogin(false);
       setTiles([]);
       setQuery('');
       setAdmin(false);
     })}><LogOut size={16} /> Sign out</button></div></div></header>
     <main className="shell dashboard">
       {admin ? <><h1>Administration</h1><Administration api={api} onImport={refresh} /></> : <><div className="intro"><div><span className="workspace"><LayoutGrid size={16} /> Workspace</span><h1>Applications</h1><p className="muted">Organize and open the services you use.</p></div>
-        <button className="primary" onClick={() => { setError(''); setEditing('new'); }}><Plus size={19} /> Add tile</button>
+        {session.role !== 'viewer' && <button className="primary" onClick={() => { setError(''); setEditing('new'); }}><Plus size={19} /> Add tile</button>}
       </div>
       <label className="search"><Search size={18} /><input type="search" aria-label="Search applications" placeholder="Search applications" value={query} onChange={event => setQuery(event.target.value)} /></label>
       {!editing && !deleting && warning}
@@ -104,10 +107,10 @@ function App() {
       {[...groups].map(([category, items]) => <section className="group" key={category}>
         <h2>{category}</h2>
         <div className="grid">{items.map(tile => <article key={tile.id} className="tile">
-          <div className="tile-top"><span className="tile-icon"><Globe size={19} /></span><div className="actions">
+          <div className="tile-top"><span className="tile-icon"><Globe size={19} /></span>{session.role !== 'viewer' && <div className="actions">
             <button aria-label={'Edit ' + tile.title} onClick={() => { setError(''); setEditing(tile); }}><Pencil size={16} /></button>
             <button aria-label={'Delete ' + tile.title} onClick={() => { setError(''); setDeleting(tile); }}><Trash2 size={16} /></button>
-          </div></div>
+          </div>}</div>
           <a href={tile.url} target="_blank" rel="noopener noreferrer">{tile.title}<ArrowUpRight size={16} /></a>
           <p className="muted">{tile.description || new URL(tile.url).host}</p>
         </article>)}</div>
