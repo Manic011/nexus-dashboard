@@ -11,3 +11,4 @@
 - Editor and viewer accounts, shared dashboard password, and administrator-triggered mDNS discovery.
 - Broadened discovery to check common web ports alongside mDNS and reorganized Administration into four sections with a dedicated import review.
 - Added a 50-service port catalog, service suggestions and page-title recognition, and live Jellyfin playback counts.
+- Discovery names tiles from application metadata or page titles and uses catalog names only when the site does not identify itself.

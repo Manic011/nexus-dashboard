@@ -198,8 +198,10 @@ export function createApp(data: string, dist: string, origin: string, setupToken
             discoverServices(selected.address, Math.max(24, prefix)).catch(() => []),
             discoverWebServices(selected.address, prefix),
           ]);
-          const byUrl = new Map(probed.services.map(item => [item.url, item]));
-          for (const item of advertised) byUrl.set(item.url, item);
+          const byUrl = new Map(advertised.map(item => [item.url, item]));
+          for (const { identified, ...item } of probed.services) {
+            if (identified || !byUrl.has(item.url)) byUrl.set(item.url, item);
+          }
           const results = [...byUrl.values()].sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true }));
           return send(200, { version: 1, tiles: results.slice(0, 500), checked: probed.checked, total: probed.total, found: results.length });
         } catch (error) {

@@ -1,6 +1,6 @@
 # Homelab web ports
 
-These are common defaults or deployment mappings. A port can serve several products, and a reverse proxy can move any service to 80 or 443. Nexus treats port matches as suggestions. It labels a result with a product name when a recognizable page title is available.
+These are common defaults or deployment mappings. A port can serve several products, and a reverse proxy can move any service to 80 or 443. Nexus checks the web interface and reads its application metadata and page title. It follows one redirect on the same origin. A single port match can supply a suggested name when the page gives no name. Shared ports list the possible apps and leave the title as the address.
 
 | Service | Category | TCP ports |
 | --- | --- | --- |

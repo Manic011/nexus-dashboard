@@ -58,14 +58,40 @@ const titleAliases = new Map([
   ['Proxmox VE', /^(?:[\w.-]+\s*[-–]\s*)?Proxmox Virtual Environment(?:\b|$)/i],
 ]);
 
-export function describeService(host: string, port: number, evidence: string, certificateIssue: boolean) {
-  const named = catalog.find(([name]) => evidence.toLowerCase() === name.toLowerCase() || titleAliases.get(name)?.test(evidence));
-  const hints = catalog.filter(([, , ...ports]) => ports.includes(port)).map(([name]) => name);
-  const hint = hints.length ? 'Common on this port: ' + hints.join(', ') + '.' : '';
+const generic = /^(?:(?:user |admin )?(?:login|log in|sign in)|home|welcome(?: to nginx!)?|dashboard|web interface|index of.*|(?:[45]\d\d\s+)?(?:unauthorized|forbidden|not found|bad gateway|service unavailable)|(?:apache2?|nginx|iis).*default (?:page|website))$/i;
+
+function clean(value: string) {
+  return value.replace(/&(?:amp|quot|apos|#39|nbsp);/gi, entity => ({
+    '&amp;': '&', '&quot;': '"', '&apos;': "'", '&#39;': "'", '&nbsp;': ' ',
+  })[entity.toLowerCase()] ?? entity).replace(/[\s\x00-\x1f]+/g, ' ').trim();
+}
+
+export function pageNames(html: string) {
+  const names: string[] = [];
+  for (const [tag] of html.matchAll(/<meta\b[^>]*>/gi)) {
+    const attrs = new Map([...tag.matchAll(/([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g)]
+      .map(([, key, double, single, plain]) => [key.toLowerCase(), double ?? single ?? plain]));
+    if (['application-name', 'apple-mobile-web-app-title', 'og:site_name'].includes((attrs.get('name') ?? attrs.get('property') ?? '').toLowerCase())) {
+      names.push(clean(attrs.get('content') ?? ''));
+    }
+  }
+  const title = html.match(/<title\b[^>]*>([^<]{1,240})<\/title\s*>/i)?.[1];
+  if (title) names.push(clean(title));
+  return names.filter(name => name && !generic.test(name));
+}
+
+export function describeService(host: string, port: number, names: string[], certificateIssue: boolean) {
+  const named = catalog.find(([product]) => names.some(name => titleAliases.get(product)?.test(name) ||
+    name.split(/\s+[-–—|:]\s+|:\s+/).some(part => part.toLowerCase() === product.toLowerCase())));
+  const reported = named?.[0] ?? names[0]?.slice(0, 80);
+  const hints = reported ? [] : catalog.filter(([, , ...ports]) => ports.includes(port));
+  const guess = hints.length === 1 ? hints[0] : undefined;
+  const hint = hints.length ? 'Port suggestion: ' + hints.map(([name]) => name).join(', ') + '.' : '';
   return {
-    title: named ? named[0] + ' · ' + host : host + ':' + port,
-    category: named?.[1] ?? 'Discovered services',
+    title: reported ?? guess?.[0] ?? host + ':' + port,
+    category: named?.[1] ?? guess?.[1] ?? 'Discovered services',
     description: (certificateIssue ? 'TLS certificate could not be verified. ' : '') +
-      (named ? 'Name reported by the web interface.' : hint || 'Responded to a web request.'),
+      (reported ? 'Name reported by the web interface.' : hint || 'Responded to a web request.'),
+    identified: !!reported,
   };
 }

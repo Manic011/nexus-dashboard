@@ -1,7 +1,7 @@
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 
-import { describeService, homelabPorts, httpsPorts } from './homelab-catalog.ts';
+import { describeService, homelabPorts, httpsPorts, pageNames } from './homelab-catalog.ts';
 
 export function webScope(address: string, prefix: number) {
   const bits = Math.max(prefix, 24);
@@ -20,50 +20,63 @@ const certificateErrors = new Set([
   'UNABLE_TO_GET_ISSUER_CERT_LOCALLY', 'ERR_TLS_CERT_ALTNAME_INVALID', 'CERT_HAS_EXPIRED',
 ]);
 
-function identify(host: string, port: number, localAddress: string, secure: boolean) {
-  return new Promise<{ title: string; certificateIssue: boolean } | undefined>(resolve => {
-    const request = (secure ? httpsRequest : httpRequest)({
-      host, port, localAddress, method: 'GET', path: '/', agent: false,
-      maxHeaderSize: 8192, headers: { Accept: 'text/html' },
+type Page = { html?: string; redirect?: string; certificateIssue?: boolean };
+
+function readPage(url: URL, localAddress: string, timeoutMs: number) {
+  return new Promise<Page | undefined>(resolve => {
+    const secure = url.protocol === 'https:';
+    const request = (secure ? httpsRequest : httpRequest)(url, {
+      localAddress, method: 'GET', agent: false, maxHeaderSize: 8192, headers: { Accept: 'text/html' },
     }, response => {
-      const finish = (title = '') => {
-        resolve({ title, certificateIssue: false });
+      const finish = (page: Page) => {
+        resolve(page);
         response.destroy();
       };
-      if (!response.headers['content-type']?.toLowerCase().includes('text/html')) return finish();
+      if ([301, 302, 303, 307, 308].includes(response.statusCode ?? 0) && response.headers.location) {
+        return finish({ redirect: response.headers.location });
+      }
+      if (!response.headers['content-type']?.toLowerCase().includes('text/html')) return finish({});
       let html = '';
       response.setEncoding('utf8');
       response.on('data', chunk => {
         html += String(chunk).slice(0, 16384 - html.length);
-        const title = /<title(?:\s[^>]*)?>\s*([^<]{1,160})\s*<\/title\s*>/i.exec(html)?.[1]?.trim();
-        if (title || html.length >= 16384) finish(title);
+        if (/<\/head\s*>/i.test(html) || html.length >= 16384) finish({ html });
       });
-      response.on('end', () => finish());
-      response.on('error', () => finish());
-      response.on('close', () => finish());
+      response.on('end', () => finish({ html }));
+      response.on('error', () => finish({}));
+      response.on('close', () => finish({}));
     });
-    const timeout = setTimeout(() => request.destroy(), 500);
+    const timeout = setTimeout(() => request.destroy(), timeoutMs);
     request.once('error', (error: NodeJS.ErrnoException) => resolve(secure && certificateErrors.has(error.code ?? '')
-      ? { title: '', certificateIssue: true } : undefined));
+      ? { certificateIssue: true } : undefined));
     request.once('close', () => { clearTimeout(timeout); resolve(undefined); });
     request.end();
   });
 }
 
+async function identify(url: URL, localAddress: string) {
+  const first = await readPage(url, localAddress, 500);
+  if (!first?.redirect) return first;
+  const landing = URL.parse(first.redirect, url);
+  if (!landing || landing.origin !== url.origin || landing.username || landing.password) return {};
+  const next = await readPage(landing, localAddress, 500);
+  return next ?? {};
+}
+
 export async function discoverWebServices(address: string, prefix: number) {
   const { hosts } = webScope(address, prefix);
   const targets = homelabPorts.flatMap(port => hosts.map(host => ({ host, port })));
-  const services: { title: string; url: string; category: string; description: string }[] = [];
+  const services: { title: string; url: string; category: string; description: string; identified: boolean }[] = [];
   let next = 0;
   const deadline = Date.now() + 90_000;
   await Promise.all(Array.from({ length: 48 }, async () => {
     while (next < targets.length && Date.now() < deadline) {
       const { host, port } = targets[next++];
       const secure = httpsPorts.has(port);
-      const result = await identify(host, port, address, secure);
+      const url = new URL(`${secure ? 'https' : 'http'}://${host}:${port}/`);
+      const result = await identify(url, address);
       if (result) {
-        const url = new URL(`${secure ? 'https' : 'http'}://${host}:${port}/`).href;
-        services.push({ ...describeService(host, port, result.title, result.certificateIssue), url });
+        services.push({ ...describeService(host, port, pageNames(result.html ?? ''), !!result.certificateIssue), url: url.href });
       }
     }
   }));
