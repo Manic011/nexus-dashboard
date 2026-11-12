@@ -10,7 +10,7 @@ This matrix follows sections 1–26 of the master instructions. Partial means th
 | 4. Architecture | React, Vite, TypeScript, REST and transactional SQLite migrations | OpenAPI, background jobs, integration adapters, event streams and persistence abstraction |
 | 5. UX | Responsive launcher, first-run account creation and tile forms | Guided onboarding, richer editing, layout controls and full accessibility verification |
 | 6. Tiles | Categorized web links with names and descriptions | Icons, bookmarks and other tile types, metrics, statuses, sizes, ordering and advanced settings |
-| 7. Discovery | Operator-selected IPv4 interface, mDNS HTTP/HTTPS advertisements and reviewed deduplicated import | SSDP, active scoped identification, signatures, hostname enrichment, Docker/Proxmox inventory, more import formats, scheduling and notifications |
+| 7. Discovery | Operator-selected IPv4 interface, mDNS HTTP/HTTPS advertisements, authorized checks of common web ports, and reviewed deduplicated import | SSDP, configurable port coverage, signatures, hostname enrichment, Docker/Proxmox inventory, more import formats, scheduling and notifications |
 | 8. Integrations | Roadmap | Jellyfin, Proxmox, UniFi, Home Assistant, Docker and further adapters, credential management and polling |
 | 9. Access | Administrator, editor, viewer, shared viewer password, session expiry and revocation on removal | Multiple dashboards, dashboard-specific passwords and ACLs, public mode, per-item permissions, profile fields, password changes/recovery, Argon2id migration, TOTP and audit events |
 | 10. Themes | One responsive dark presentation | Theme options, templates, portability and customization |
