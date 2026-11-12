@@ -9,3 +9,4 @@ Install Node.js 24.14.1 or later in the 24.x series. Run `npm ci`, `npm run buil
 ## Ubuntu installation
 
 See [native installation](docs/INSTALL.md) for the release layout, configuration, and first-run steps. [Architecture](ARCHITECTURE.md) describes the current implementation and [the roadmap](docs/DEVELOPMENT_STATUS.md) tracks open work.
+See [the homelab port catalog](docs/HOMELAB_PORTS.md) for discovery defaults and [Jellyfin configuration](docs/INSTALL.md#jellyfin-activity) for live playback counts.

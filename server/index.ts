@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { z } from 'zod';
 import { discoverServices, discoveryInterfaces } from './discovery.ts';
 import { discoverWebServices, webScope } from './web-discovery.ts';
+import { createJellyfin } from './jellyfin.ts';
 
 const derive = promisify(scrypt);
 const credentials = z.object({ username: z.string().trim().min(1).max(64), password: z.string().min(12).max(256) });
@@ -48,7 +49,8 @@ async function body(req: IncomingMessage, limit = 8192) {
   }
 }
 
-export function createApp(data: string, dist: string, origin: string, setupToken?: string) {
+export function createApp(data: string, dist: string, origin: string, setupToken?: string, jellyfinConfig?: { baseUrl: string; apiKey: string }) {
+  const jellyfin = createJellyfin(jellyfinConfig);
   mkdirSync(data, { recursive: true, mode: 0o700 });
   const db = new DatabaseSync(join(data, 'nexus.sqlite'));
   db.exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; BEGIN IMMEDIATE');
@@ -229,6 +231,11 @@ export function createApp(data: string, dist: string, origin: string, setupToken
         db.prepare('DELETE FROM sessions WHERE account_id=?').run(id);
         return send(200, {});
       }
+      if (method === 'GET' && path === '/api/integrations/jellyfin') {
+        const urls = db.prepare('SELECT id, url FROM tiles').all();
+        const tiles = jellyfin ? urls.filter(item => jellyfin.matches(String(item.url))).map(item => item.id) : [];
+        return send(200, tiles.length ? { tiles, ...await jellyfin!.summary() } : { tiles });
+      }
       if (method === 'GET' && path === '/api/tiles') {
         return send(200, db.prepare('SELECT * FROM tiles ORDER BY category COLLATE NOCASE, title COLLATE NOCASE, id').all());
       }
@@ -300,7 +307,10 @@ if (import.meta.main) {
   const port = Number(process.env.NEXUS_PORT ?? 3000);
   const host = process.env.NEXUS_HOST ?? '127.0.0.1';
   const origin = new URL(process.env.NEXUS_ORIGIN ?? `http://127.0.0.1:${port}`).origin;
-  const server = createApp(process.env.NEXUS_DATA ?? 'data', process.env.NEXUS_DIST ?? 'dist', origin, process.env.NEXUS_SETUP_TOKEN);
+  const { NEXUS_JELLYFIN_URL, NEXUS_JELLYFIN_API_KEY } = process.env;
+  const jellyfin = NEXUS_JELLYFIN_URL && NEXUS_JELLYFIN_API_KEY
+    ? { baseUrl: NEXUS_JELLYFIN_URL, apiKey: NEXUS_JELLYFIN_API_KEY } : undefined;
+  const server = createApp(process.env.NEXUS_DATA ?? 'data', process.env.NEXUS_DIST ?? 'dist', origin, process.env.NEXUS_SETUP_TOKEN, jellyfin);
   server.listen(port, host, () => console.log(`Nexus Dashboard listening on ${host}:${port}`));
   for (const signal of ['SIGTERM', 'SIGINT'] as const) process.once(signal, () => server.close());
 }

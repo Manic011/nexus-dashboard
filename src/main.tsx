@@ -5,6 +5,7 @@ import './style.css';
 import { Administration } from './Administration.js';
 
 type Session = { setup: boolean; setupTokenRequired: boolean; username: string | null; role?: 'admin' | 'editor' | 'viewer' | null; shared?: boolean };
+type Jellyfin = { tiles: number[]; state?: 'available' | 'unavailable'; streams?: number };
 type Tile = { id: number; title: string; description: string; url: string; category: string };
 
 async function api<T>(path: string, method = 'GET', body?: object): Promise<T> {
@@ -18,6 +19,7 @@ async function api<T>(path: string, method = 'GET', body?: object): Promise<T> {
 
 function App() {
   const [session, setSession] = useState<Session>();
+  const [jellyfin, setJellyfin] = useState<Jellyfin>();
   const [tiles, setTiles] = useState<Tile[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -28,6 +30,20 @@ function App() {
   const [deleting, setDeleting] = useState<Tile | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
 
+  useEffect(() => {
+    if (!session?.username) return;
+    let active = true;
+    const load = () => {
+      void api<Jellyfin>('integrations/jellyfin').then(result => {
+        if (active) setJellyfin(result);
+      }).catch(() => {
+        if (active) setJellyfin(previous => previous && { tiles: previous.tiles, state: 'unavailable' });
+      });
+    };
+    load();
+    const timer = setInterval(load, 30_000);
+    return () => { active = false; clearInterval(timer); setJellyfin(undefined); };
+  }, [session?.username, tiles]);
   useEffect(() => { api<Session>('session').then(setSession).catch(report); }, []);
   useEffect(() => {
     if (session?.username) void refresh().catch(report);
@@ -113,6 +129,9 @@ function App() {
           </div>}</div>
           <a href={tile.url} target="_blank" rel="noopener noreferrer">{tile.title}<ArrowUpRight size={16} /></a>
           <p className="muted">{tile.description || new URL(tile.url).host}</p>
+          {jellyfin?.tiles.includes(tile.id) && <p className="muted">{jellyfin.state === 'available'
+            ? `${jellyfin.streams} active ${jellyfin.streams === 1 ? 'stream' : 'streams'}`
+            : 'Jellyfin activity unavailable'}</p>}
         </article>)}</div>
       </section>)}
     </>}

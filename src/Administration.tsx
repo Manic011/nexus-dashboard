@@ -79,13 +79,13 @@ export function Administration({ api, onImport }: { api: Api; onImport: () => Pr
     </section>}
     {section === 'discovery' && <>
       <section className="tile"><h2>Find services on your network</h2>
-        <p className="muted">Discover advertised services and check common web ports. Review the results before adding them to your dashboard.</p>
+        <p className="muted">Discover advertised services and check common homelab ports. The review shows reported service names and port-based suggestions.</p>
         <form onSubmit={event => {
           event.preventDefault();
           if (!network || !authorized) return;
           void run(async () => {
             setPreview(undefined);
-            setStatus(`Checking ${network.webCidr}. This can take up to 45 seconds.`);
+            setStatus(`Checking ${network.webCidr}. This can take up to 90 seconds.`);
             const result = await api<{ version: 1; tiles: Entry[]; checked: number; total: number; found: number }>(
               'admin/discovery/web', 'POST', { address, authorized },
             );
@@ -133,7 +133,7 @@ export function Administration({ api, onImport }: { api: Api; onImport: () => Pr
         <div className="result-list">{preview.tiles.map(item => <label className="import-row" key={item.url}>
           <input type="checkbox" checked={selection.includes(item.url)} disabled={busy} onChange={event => {
             setSelection(event.target.checked ? [...selection, item.url] : selection.filter(url => url !== item.url));
-          }} /><span><strong>{item.title}</strong><br /><span className="muted">{item.url}</span></span>
+          }} /><span><strong>{item.title}</strong><br /><span className="muted">{item.url}</span>{item.description && <><br /><small className="muted">{item.description}</small></>}</span>
         </label>)}</div>
         <button className="primary" disabled={busy || !selection.length} onClick={() => void run(async () => {
           const tiles = preview.tiles.filter(item => selection.includes(item.url));
