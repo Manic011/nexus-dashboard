@@ -16,3 +16,5 @@ Phase 1 is underway. The first slice supports a single administrator and categor
 ## Verification
 
 The local production build and API lifecycle test passed. Chromium exercised first-run setup, sign-in, tile CRUD, search, and sign-out over the LAN against an isolated Ubuntu staging instance. The staged process was stopped after testing. The native systemd installation requires an administrator to run the staged installer. GitHub repository creation is complete. Publishing the local Git history requires Git authentication.
+
+The Administration page now shows runtime and database information. It exports tiles as JSON and previews imports before merging selected entries. Service address lists can also be imported. Network discovery, full-instance backups, scheduled jobs, and additional administration pages remain open.

@@ -17,6 +17,7 @@ const tile = z.object({
   }),
   category: z.string().trim().min(1).max(40),
 });
+const backup = z.object({ version: z.literal(1), tiles: z.array(tile).max(500) });
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 const lifetime = 7 * 24 * 60 * 60;
 class RequestError extends Error {
@@ -27,12 +28,12 @@ class RequestError extends Error {
   }
 }
 
-async function body(req: IncomingMessage) {
+async function body(req: IncomingMessage, limit = 8192) {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of req.iterator({ destroyOnReturn: false })) {
     size += chunk.length;
-    if (size > 8192) throw new RequestError(413, 'Request too large.');
+    if (size > limit) throw new RequestError(413, 'Request too large.');
     chunks.push(chunk);
   }
   try {
@@ -144,6 +145,42 @@ export function createApp(data: string, dist: string, origin: string, setupToken
       }
       if (method === 'GET' && path === '/api/tiles') {
         return send(200, db.prepare('SELECT * FROM tiles ORDER BY category COLLATE NOCASE, title COLLATE NOCASE, id').all());
+      }
+      if (method === 'GET' && path === '/api/admin/backup') {
+        res.setHeader('Content-Disposition', 'attachment; filename="nexus-dashboard.json"');
+        return send(200, { version: 1, tiles: db.prepare('SELECT title, description, url, category FROM tiles ORDER BY id').all() });
+      }
+      if (method === 'GET' && path === '/api/admin/system') {
+        return send(200, {
+          runtime: process.version,
+          platform: process.platform,
+          schema: db.prepare('PRAGMA user_version').get()?.user_version,
+          tiles: db.prepare('SELECT count(*) AS total FROM tiles').get()?.total,
+        });
+      }
+      if (method === 'POST' && ['/api/admin/backup/preview', '/api/admin/backup/import'].includes(path)) {
+        const parsed = backup.safeParse(await body(req, 2 * 1024 * 1024));
+        if (!parsed.success) throw new RequestError(400, 'Choose a version 1 Nexus backup containing up to 500 valid tiles.');
+        const existing = db.prepare('SELECT url FROM tiles').all();
+        const seen = new Set(existing.map(row => new URL(String(row.url)).href));
+        const available = parsed.data.tiles.filter(item => {
+          const url = new URL(item.url).href;
+          if (seen.has(url)) return false;
+          seen.add(url);
+          return true;
+        });
+        const skipped = parsed.data.tiles.length - available.length;
+        if (path.endsWith('/preview')) return send(200, { tiles: available, skipped });
+        db.exec('BEGIN IMMEDIATE');
+        try {
+          const insert = db.prepare('INSERT INTO tiles(title, description, url, category) VALUES (?, ?, ?, ?)');
+          for (const item of available) insert.run(item.title, item.description, item.url, item.category);
+          db.exec('COMMIT');
+        } catch (error) {
+          db.exec('ROLLBACK');
+          throw error;
+        }
+        return send(200, { imported: available.length, skipped });
       }
       const match = /^\/api\/tiles\/([1-9]\d{0,14})$/.exec(path);
       if ((method === 'POST' && path === '/api/tiles') || (method === 'PUT' && match)) {

@@ -52,3 +52,12 @@ dialog::backdrop { background: #03080bba; }
   .account span, .brand-muted { display: none; }
   .intro { align-items: start; flex-direction: column; }
 }
+.admin { margin-top: 26px; display: grid; gap: 16px; }
+.admin .tile { padding: 20px; }
+.admin dt { color: var(--muted); }
+.admin dd { margin: 0 0 8px; }
+.admin-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 16px; margin-top: 15px; }
+.admin-controls label { display: grid; gap: 6px; }
+.admin textarea { font: inherit; background: #10191e; color: inherit; border: 1px solid var(--border); border-radius: 7px; padding: 10px; }
+.admin form button { justify-self: start; }
+.import-row { display: flex; align-items: center; gap: 10px; margin: 12px 0; overflow-wrap: anywhere; }

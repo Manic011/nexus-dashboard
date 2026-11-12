@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ArrowUpRight, Boxes, Globe, LayoutGrid, LogOut, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import { createRoot } from 'react-dom/client';
 import './style.css';
+import { Administration } from './Administration.js';
 
 type Session = { setup: boolean; setupTokenRequired: boolean; username: string | null };
 type Tile = { id: number; title: string; description: string; url: string; category: string };
@@ -20,6 +21,7 @@ function App() {
   const [tiles, setTiles] = useState<Tile[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [admin, setAdmin] = useState(false);
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<Tile | 'new' | null>(null);
   const [deleting, setDeleting] = useState<Tile | null>(null);
@@ -85,14 +87,15 @@ function App() {
   </main>;
 
   return <>
-    <header><div className="shell top">{brand}<div className="account"><span>{session.username}</span><button disabled={busy} onClick={() => void action(async () => {
+    <header><div className="shell top">{brand}<div className="account"><button onClick={() => setAdmin(value => !value)}>{admin ? 'Dashboard' : 'Administration'}</button><span>{session.username}</span><button disabled={busy} onClick={() => void action(async () => {
       await api('logout', 'POST');
       setSession({ setup: false, setupTokenRequired: false, username: null });
       setTiles([]);
       setQuery('');
+      setAdmin(false);
     })}><LogOut size={16} /> Sign out</button></div></div></header>
     <main className="shell dashboard">
-      <div className="intro"><div><span className="workspace"><LayoutGrid size={16} /> Workspace</span><h1>Applications</h1><p className="muted">Organize and open the services you use.</p></div>
+      {admin ? <><h1>Administration</h1><Administration api={api} onImport={refresh} /></> : <><div className="intro"><div><span className="workspace"><LayoutGrid size={16} /> Workspace</span><h1>Applications</h1><p className="muted">Organize and open the services you use.</p></div>
         <button className="primary" onClick={() => { setError(''); setEditing('new'); }}><Plus size={19} /> Add tile</button>
       </div>
       <label className="search"><Search size={18} /><input type="search" aria-label="Search applications" placeholder="Search applications" value={query} onChange={event => setQuery(event.target.value)} /></label>
@@ -109,6 +112,7 @@ function App() {
           <p className="muted">{tile.description || new URL(tile.url).host}</p>
         </article>)}</div>
       </section>)}
+    </>}
     </main>
     <dialog ref={dialog} aria-labelledby="dialog-title" onCancel={event => { event.preventDefault(); if (!busy) closeDialog(); }}>
       {(editing || deleting) && <>
