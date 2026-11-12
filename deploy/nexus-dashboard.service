@@ -1,0 +1,24 @@
+[Unit]
+Description=Nexus Dashboard
+After=network.target
+
+[Service]
+Type=simple
+User=nexus-dashboard
+Group=nexus-dashboard
+WorkingDirectory=/opt/nexus-dashboard
+EnvironmentFile=/etc/nexus-dashboard/nexus.env
+Environment=NEXUS_DATA=/var/lib/nexus-dashboard
+ExecStart=/opt/nexus-dashboard/runtime/bin/node /opt/nexus-dashboard/server/index.ts
+StateDirectory=nexus-dashboard
+StateDirectoryMode=0700
+UMask=0077
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target
