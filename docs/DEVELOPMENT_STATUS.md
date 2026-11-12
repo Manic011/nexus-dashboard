@@ -1,22 +1,24 @@
 # Development status
 
-Phase 1 is underway. The first slice supports a single administrator and categorized application links. The API lifecycle test covers setup, origin checks, login, persistence across a restart, and tile CRUD.
+Nexus Dashboard is a development preview. The [requirements audit](REQUIREMENTS_AUDIT.md) tracks the original scope in more detail. See the [changelog](../CHANGELOG.md) for implemented changes.
 
-| Phase | Milestone |
+## Available in the preview
+
+- Setup token, administrator account, editor and viewer accounts, and shared read-only access.
+- Tile editing with searchable categories and tags, plus a review step for imports.
+- Administrator-approved mDNS and web discovery with site-based naming and duplicate handling.
+- JSON tile export and merge, basic system information, and a server-configured Jellyfin activity count.
+- Local build and API tests, native Ubuntu staging, and a systemd first-install script.
+
+The Ubuntu integration preview has exercised sign-in, tile edits and imports, discovery, tag filtering, mobile-width navigation, SQLite migration, and Jellyfin playback counts against a fixture. The native installation guide describes the systemd workflow. Systemd installation, reboot checks, and supported upgrade and rollback still need end-to-end verification.
+
+## Roadmap
+
+| Area | Remaining work |
 | --- | --- |
-| 0 | Establish the private GitHub remote, CI, and issue tracking |
-| 1 | Install on Ubuntu, exercise browser flows, and finish MVP documentation |
-| 2 | Dashboard editing, layout controls, themes, and accessibility |
-| 3 | Review-based service discovery and import |
-| 4 | Live integrations with server-side credential storage |
-| 5 | Multiple accounts, roles, and dashboard access |
-| 6 | Backups, restore, administration, and upgrades |
-| 7 | Operational testing and release preparation |
-
-## Verification
-
-The local production build and API lifecycle test passed. Chromium exercised first-run setup, sign-in, tile CRUD, search, and sign-out over the LAN against an isolated Ubuntu staging instance. The staged process was stopped after testing. The native systemd installation requires an administrator to run the staged installer. GitHub repository creation is complete. Publishing the local Git history requires Git authentication.
-
-The Administration page now shows runtime and database information. It exports tiles as JSON and previews imports before merging selected entries. Service address lists can also be imported. Network discovery, full-instance backups, scheduled jobs, and additional administration pages remain open.
-See [the requirements audit](REQUIREMENTS_AUDIT.md) for coverage of sections 1–26 and the remaining access, discovery, and deployment requirements.
-Discovery now combines mDNS with bounded HTTP and HTTPS checks on common ports. The interface shows the authorized IPv4 range and reports incomplete coverage. Other ports, routed networks, non-web protocols, and HTTPS endpoints without a trusted matching certificate may require manual import.
+| Ubuntu installation | Verify systemd installation, reboot, upgrade, and rollback. Publish verified release artifacts and then build the one-line installer. |
+| Dashboard experience | Add layout controls, themes, and more tile types. |
+| Discovery | Add more discovery sources and optional schedules. |
+| Live integrations | Add supported integrations beyond Jellyfin. |
+| Access | Add multiple dashboards, dashboard-specific permissions and passwords, and richer account management. |
+| Operations | Add full-instance backup and restore workflows, diagnostics, and update management. |

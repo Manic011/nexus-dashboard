@@ -14,3 +14,8 @@
 - Discovery names tiles from application metadata or page titles and uses catalog names only when the site does not identify itself.
 - Discovery follows immediate same-site page redirects, recognizes more device interfaces, and filters redirect duplicates and common non-dashboard responses.
 - Added persistent tags, category and tag filters, a refreshed card layout, and editable import previews.
+
+### Documentation
+
+- Expanded the README and added detailed usage, installation, API, and contribution guides.
+- Added a documentation checklist for future changes and documented the planned one-line Ubuntu installer.
