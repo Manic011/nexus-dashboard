@@ -42,12 +42,12 @@ test('setup, authentication, tile CRUD, persistence and logout', async () => {
     assert.equal(setup.status, 200);
     cookie = setup.headers.get('set-cookie')!.split(';')[0];
     assert.equal((await request('setup', 'POST', credentials)).status, 409);
-    const tile = { title: 'Service', url: 'https://example.com', description: '', category: 'General' };
+    const tile = { title: 'Service', url: 'https://example.com', description: '', category: 'General', tags: ['Media'] };
     assert.equal((await request('tiles', 'POST', { ...tile, url: 'javascript:alert(1)' })).status, 400);
     const response = await request('tiles', 'POST', tile);
     assert.equal(response.status, 201);
     const { id } = await response.json();
-    assert.equal((await request('tiles/' + id, 'PUT', { ...tile, title: 'Updated' })).status, 200);
+    assert.equal((await request('tiles/' + id, 'PUT', { title: 'Updated', url: tile.url, category: tile.category, description: tile.description })).status, 200);
     await stop();
     app = createApp(data, 'dist', origin, 'integration-token');
     await start();

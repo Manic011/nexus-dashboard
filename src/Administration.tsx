@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { DatabaseBackup, Radar, Server, UsersRound } from 'lucide-react';
 import { Users } from './Users.js';
+import { parseTags } from './tags.js';
 
-type Entry = { title: string; description: string; url: string; category: string };
+type Entry = { title: string; description: string; url: string; category: string; tags?: string[] };
 type Preview = { tiles: Entry[]; skipped: number };
 type SystemInfo = { runtime: string; platform: string; schema: number; tiles: number };
 type Network = { name: string; address: string; webCidr: string };
@@ -15,13 +16,14 @@ const sections = [
   { id: 'system', title: 'System', icon: Server },
 ] as const;
 
-export function Administration({ api, onImport }: { api: Api; onImport: () => Promise<void> }) {
+export function Administration({ api, onImport, categories }: { api: Api; onImport: () => Promise<void>; categories: string[] }) {
   const [section, setSection] = useState<(typeof sections)[number]['id']>('discovery');
   const [interfaces, setInterfaces] = useState<Network[]>([]);
   const [address, setAddress] = useState('');
   const [authorized, setAuthorized] = useState(false);
   const [system, setSystem] = useState<SystemInfo>();
   const [preview, setPreview] = useState<Preview>();
+  const [edits, setEdits] = useState<Record<string, { title: string; category: string; tags: string }>>({});
   const [selection, setSelection] = useState<string[]>([]);
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
@@ -46,6 +48,7 @@ export function Administration({ api, onImport }: { api: Api; onImport: () => Pr
 
   async function inspect(input: object) {
     const result = await api<Preview>('admin/backup/preview', 'POST', input);
+    setEdits(Object.fromEntries(result.tiles.map(item => [item.url, { title: item.title, category: item.category, tags: item.tags?.join(', ') ?? '' }])));
     setPreview(result);
     setSelection(result.tiles.map(item => item.url));
   }
@@ -130,20 +133,39 @@ export function Administration({ api, onImport }: { api: Api; onImport: () => Pr
       {preview.tiles.length > 0 && <>
         <div className="result-actions"><button disabled={busy} onClick={() => setSelection(preview.tiles.map(item => item.url))}>Select all</button>
           <button disabled={busy} onClick={() => setSelection([])}>Clear selection</button></div>
-        <div className="result-list">{preview.tiles.map(item => <label className="import-row" key={item.url}>
+        <datalist id="import-categories">{categories.map(category => <option key={category} value={category} />)}</datalist>
+        <form className="review-form" onSubmit={event => {
+          event.preventDefault();
+          void run(async () => {
+            const tiles = preview.tiles.filter(item => selection.includes(item.url)).map(item => {
+              const { title, category, tags } = edits[item.url];
+              return { ...item, title, category, tags: parseTags(tags) };
+            });
+            const result = await api<{ imported: number; skipped: number }>('admin/backup/import', 'POST', { version: 1, tiles });
+            setPreview(undefined);
+            setSelection([]);
+            setStatus(`Imported ${result.imported} tiles. Skipped ${result.skipped} duplicates.`);
+            await onImport();
+            setSystem(await api<SystemInfo>('admin/system'));
+          });
+        }}>
+        <div className="result-list">{preview.tiles.map(item => <div className="review-item" key={item.url}><label className="import-row">
           <input type="checkbox" checked={selection.includes(item.url)} disabled={busy} onChange={event => {
             setSelection(event.target.checked ? [...selection, item.url] : selection.filter(url => url !== item.url));
-          }} /><span><strong>{item.title}</strong><br /><span className="muted">{item.url}</span>{item.description && <><br /><small className="muted">{item.description}</small></>}</span>
-        </label>)}</div>
-        <button className="primary" disabled={busy || !selection.length} onClick={() => void run(async () => {
-          const tiles = preview.tiles.filter(item => selection.includes(item.url));
-          const result = await api<{ imported: number; skipped: number }>('admin/backup/import', 'POST', { version: 1, tiles });
-          setPreview(undefined);
-          setSelection([]);
-          setStatus(`Imported ${result.imported} tiles. Skipped ${result.skipped} duplicates.`);
-          await onImport();
-          setSystem(await api<SystemInfo>('admin/system'));
-        })}>Import selected ({selection.length})</button>
+          }} /><span><strong>{edits[item.url].title || item.title}</strong> <small className="muted">{edits[item.url].category}</small><br /><span className="muted">{item.url}</span>{item.description && <><br /><small className="muted">{item.description}</small></>}</span>
+        </label>
+          {selection.includes(item.url) && <details className="review-edit"><summary>Edit details</summary>
+            <div className="review-fields">{(['title', 'category', 'tags'] as const).map(field => <label key={field}>
+              {field === 'title' ? 'Name' : field === 'category' ? 'Category' : 'Tags (comma separated)'}
+              <input value={edits[item.url][field]} disabled={busy}
+                maxLength={field === 'title' ? 80 : field === 'category' ? 40 : 420}
+                list={field === 'category' ? 'import-categories' : undefined}
+                onChange={event => setEdits(previous => ({ ...previous, [item.url]: { ...previous[item.url], [field]: event.target.value } }))} />
+            </label>)}</div>
+          </details>}
+        </div>)}</div>
+        <button className="primary" disabled={busy || !selection.length}>{busy ? 'Importing…' : `Import selected (${selection.length})`}</button>
+        </form>
       </>}
     </section>}
   </div>;

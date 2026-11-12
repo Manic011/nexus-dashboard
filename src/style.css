@@ -74,3 +74,20 @@ dialog::backdrop { background: #03080bba; }
 .result-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .result-list { max-height: 360px; overflow: auto; margin-bottom: 14px; }
 .result-list .import-row { border-bottom: 1px solid var(--border); margin: 0; padding: 11px 4px; }
+
+.filters { display: flex; flex-wrap: wrap; align-items: stretch; gap: 10px; margin-bottom: 26px; }
+.filters .search { margin: 0; flex: 1 1 230px; max-width: none; }
+.filters select { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: inherit; max-width: 100%; }
+.group-count { margin-left: 5px; color: var(--muted); font-size: .8rem; font-weight: 500; }
+.app-tile { background: linear-gradient(150deg, #1b2d32, var(--panel) 70%); transition: border-color .15s ease; }
+.app-tile:hover, .app-tile:focus-within { border-color: #559f8d; }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 13px; }
+.tags button { background: #223b37; border-color: #345c53; color: #b6e8d9; border-radius: 20px; padding: 3px 9px; font-size: .78rem; overflow-wrap: anywhere; }
+.form-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.admin .tile > .review-form { max-width: none; margin-top: 6px; }
+.review-item { border-bottom: 1px solid var(--border); }
+.review-item .import-row { border-bottom: 0; }
+.review-edit { margin: 0 0 10px 28px; }
+.review-edit summary { color: var(--accent); font-size: .85rem; }
+.review-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(145px, 100%), 1fr)); gap: 8px; margin: 8px 0; }
+.review-fields input { width: 100%; }

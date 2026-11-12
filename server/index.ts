@@ -22,7 +22,13 @@ const tile = z.object({
     return !url.username && !url.password;
   }),
   category: z.string().trim().min(1).max(40),
+  tags: z.array(z.string().trim().min(1).max(32).refine(tag => !tag.includes(','))).max(12).default([])
+    .transform(tags => [...new Map(tags.map(tag => [tag.toLowerCase(), tag])).values()]),
 });
+function readTile({ tags, ...item }: Record<string, unknown>) {
+  return { ...item, tags: JSON.parse(String(tags)) as string[] };
+}
+
 const backup = z.object({ version: z.literal(1), tiles: z.array(tile).max(500) });
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 const lifetime = 7 * 24 * 60 * 60;
@@ -75,7 +81,11 @@ export function createApp(data: string, dist: string, origin: string, setupToken
       DROP TABLE admin;
       PRAGMA user_version=2;
     `);
-    if (Number(user_version) > 2) throw new Error('Database requires a newer release.');
+    if (Number(user_version) < 3) db.exec(`
+      ALTER TABLE tiles ADD COLUMN tags TEXT NOT NULL DEFAULT '[]';
+      PRAGMA user_version=3;
+    `);
+    if (Number(user_version) > 3) throw new Error('Database requires a newer release.');
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');
@@ -239,11 +249,11 @@ export function createApp(data: string, dist: string, origin: string, setupToken
         return send(200, tiles.length ? { tiles, ...await jellyfin!.summary() } : { tiles });
       }
       if (method === 'GET' && path === '/api/tiles') {
-        return send(200, db.prepare('SELECT * FROM tiles ORDER BY category COLLATE NOCASE, title COLLATE NOCASE, id').all());
+        return send(200, db.prepare('SELECT * FROM tiles ORDER BY category COLLATE NOCASE, title COLLATE NOCASE, id').all().map(readTile));
       }
       if (method === 'GET' && path === '/api/admin/backup') {
         res.setHeader('Content-Disposition', 'attachment; filename="nexus-dashboard.json"');
-        return send(200, { version: 1, tiles: db.prepare('SELECT title, description, url, category FROM tiles ORDER BY id').all() });
+        return send(200, { version: 1, tiles: db.prepare('SELECT title, description, url, category, tags FROM tiles ORDER BY id').all().map(readTile) });
       }
       if (method === 'GET' && path === '/api/admin/system') {
         return send(200, {
@@ -268,8 +278,8 @@ export function createApp(data: string, dist: string, origin: string, setupToken
         if (path.endsWith('/preview')) return send(200, { tiles: available, skipped });
         db.exec('BEGIN IMMEDIATE');
         try {
-          const insert = db.prepare('INSERT INTO tiles(title, description, url, category) VALUES (?, ?, ?, ?)');
-          for (const item of available) insert.run(item.title, item.description, item.url, item.category);
+          const insert = db.prepare('INSERT INTO tiles(title, description, url, category, tags) VALUES (?, ?, ?, ?, ?)');
+          for (const item of available) insert.run(item.title, item.description, item.url, item.category, JSON.stringify(item.tags));
           db.exec('COMMIT');
         } catch (error) {
           db.exec('ROLLBACK');
@@ -279,15 +289,16 @@ export function createApp(data: string, dist: string, origin: string, setupToken
       }
       const match = /^\/api\/tiles\/([1-9]\d{0,14})$/.exec(path);
       if ((method === 'POST' && path === '/api/tiles') || (method === 'PUT' && match)) {
-        const parsed = tile.safeParse(await body(req));
-        if (!parsed.success) throw new RequestError(400, 'Enter a title, category, and HTTP or HTTPS URL without credentials.');
-        const { title, description, url, category } = parsed.data;
+        const input: unknown = await body(req);
+        const parsed = tile.safeParse(input);
+        if (!parsed.success) throw new RequestError(400, 'Enter a title, category, and valid web URL. Use up to 12 tags of 32 characters each.');
+        const { title, description, url, category, tags } = parsed.data;
         if (match) {
-          const updated = db.prepare('UPDATE tiles SET title=?, description=?, url=?, category=? WHERE id=?').run(title, description, url, category, Number(match[1]));
+          const updated = db.prepare('UPDATE tiles SET title=?, description=?, url=?, category=?, tags=COALESCE(?, tags) WHERE id=?').run(title, description, url, category, Object.hasOwn(input as object, 'tags') ? JSON.stringify(tags) : null, Number(match[1]));
           if (!updated.changes) throw new RequestError(404, 'Tile not found.');
           return send(200, { id: Number(match[1]) });
         }
-        const inserted = db.prepare('INSERT INTO tiles(title,description,url,category) VALUES (?,?,?,?)').run(title, description, url, category);
+        const inserted = db.prepare('INSERT INTO tiles(title,description,url,category,tags) VALUES (?,?,?,?,?)').run(title, description, url, category, JSON.stringify(tags));
         return send(201, { id: Number(inserted.lastInsertRowid) });
       }
       if (method === 'DELETE' && match) {

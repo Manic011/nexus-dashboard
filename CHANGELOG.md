@@ -13,3 +13,4 @@
 - Added a 50-service port catalog, service suggestions and page-title recognition, and live Jellyfin playback counts.
 - Discovery names tiles from application metadata or page titles and uses catalog names only when the site does not identify itself.
 - Discovery follows immediate same-site page redirects, recognizes more device interfaces, and filters redirect duplicates and common non-dashboard responses.
+- Added persistent tags, category and tag filters, a refreshed card layout, and editable import previews.
