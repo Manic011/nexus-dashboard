@@ -37,6 +37,8 @@ const catalog: readonly (readonly [name: string, category: string, ...ports: num
   ["Uptime Kuma","Monitoring",3001],
   ["Netdata","Monitoring",19999],
   ["Glances","Monitoring",61208],
+  ["TP-Link Router","Networking"],
+  ["Camera web interface","Cameras"],
   ["Pi-hole","Networking",80,443],
   ["AdGuard Home","Networking",3000,80,443],
   ["Nginx Proxy Manager","Networking",81],
@@ -86,12 +88,12 @@ export function describeService(host: string, port: number, names: string[], cer
   const reported = named?.[0] ?? names[0]?.slice(0, 80);
   const hints = reported ? [] : catalog.filter(([, , ...ports]) => ports.includes(port));
   const guess = hints.length === 1 ? hints[0] : undefined;
-  const hint = hints.length ? 'Port suggestion: ' + hints.map(([name]) => name).join(', ') + '.' : '';
+  const hint = port !== 80 && port !== 443 && hints.length ? 'Port suggestion: ' + hints.map(([name]) => name).join(', ') + '.' : '';
   return {
     title: reported ?? guess?.[0] ?? host + ':' + port,
     category: named?.[1] ?? guess?.[1] ?? 'Discovered services',
     description: (certificateIssue ? 'TLS certificate could not be verified. ' : '') +
-      (reported ? 'Name reported by the web interface.' : hint || 'Responded to a web request.'),
+      (reported ? 'Name reported by the web interface.' : hint || (certificateIssue ? 'Service name unavailable.' : 'Responded to a web request.')),
     identified: !!reported,
   };
 }

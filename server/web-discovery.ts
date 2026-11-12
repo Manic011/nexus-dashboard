@@ -1,5 +1,6 @@
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
+import { connect as tlsConnect } from 'node:tls';
 
 import { describeService, homelabPorts, httpsPorts, pageNames } from './homelab-catalog.ts';
 
@@ -20,7 +21,7 @@ const certificateErrors = new Set([
   'UNABLE_TO_GET_ISSUER_CERT_LOCALLY', 'ERR_TLS_CERT_ALTNAME_INVALID', 'CERT_HAS_EXPIRED',
 ]);
 
-type Page = { html?: string; redirect?: string; certificateIssue?: boolean };
+type Page = { html?: string; redirect?: string; certificateIssue?: boolean; server?: string; redirectTo?: string };
 
 function readPage(url: URL, localAddress: string, timeoutMs: number) {
   return new Promise<Page | undefined>(resolve => {
@@ -35,14 +36,20 @@ function readPage(url: URL, localAddress: string, timeoutMs: number) {
       if ([301, 302, 303, 307, 308].includes(response.statusCode ?? 0) && response.headers.location) {
         return finish({ redirect: response.headers.location });
       }
-      if (!response.headers['content-type']?.toLowerCase().includes('text/html')) return finish({});
+      const contentType = response.headers['content-type']?.toLowerCase() ?? '';
+      if ([404, 405, 410].includes(response.statusCode ?? 0) || contentType.includes('soap+xml')) {
+        resolve(undefined);
+        response.destroy();
+        return;
+      }
+      if (!contentType.includes('text/html') && !contentType.includes('application/xhtml+xml')) return finish({});
       let html = '';
       response.setEncoding('utf8');
       response.on('data', chunk => {
         html += String(chunk).slice(0, 16384 - html.length);
-        if (/<\/head\s*>/i.test(html) || html.length >= 16384) finish({ html });
+        if (html.length >= 16384) finish({ html, server: response.headersDistinct.server?.[0] });
       });
-      response.on('end', () => finish({ html }));
+      response.on('end', () => finish({ html, server: response.headersDistinct.server?.[0] }));
       response.on('error', () => finish({}));
       response.on('close', () => finish({}));
     });
@@ -54,19 +61,68 @@ function readPage(url: URL, localAddress: string, timeoutMs: number) {
   });
 }
 
+const certificateNames = new Map([
+  ['unifi.local', 'UniFi'],
+  ['tplinkwifi.net', 'TP-Link Router'],
+  ['tplinklogin.net', 'TP-Link Router'],
+]);
+
+function certificateName(url: URL, localAddress: string) {
+  return new Promise<string | undefined>(resolve => {
+    // Read the advertised certificate only. No HTTP data is sent on this connection.
+    const options = { host: url.hostname, port: Number(url.port || 443), localAddress, rejectUnauthorized: false };
+    const socket = tlsConnect(options);
+    const timer = setTimeout(() => socket.destroy(), 500);
+    socket.once('secureConnect', () => {
+      const commonName = socket.getPeerCertificate()?.subject?.CN;
+      resolve(typeof commonName === 'string' ? certificateNames.get(commonName.toLowerCase()) : undefined);
+      socket.destroy();
+    });
+    socket.once('error', () => resolve(undefined));
+    socket.once('close', () => { clearTimeout(timer); resolve(undefined); });
+  });
+}
+
+function refreshLocation(html: string) {
+  for (const [tag] of html.matchAll(/<meta\b[^>]*>/gi)) {
+    if (!/\bhttp-equiv\s*=\s*(?:"refresh"|'refresh'|refresh(?=\s|\/|>))/i.test(tag)) continue;
+    const content = /\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(tag);
+    const location = /^\s*0\s*;\s*url\s*=\s*(.+)\s*$/i.exec(content?.[1] ?? content?.[2] ?? '')?.[1];
+    if (location) return location.replace(/^(['"])(.*)\1$/, '$2').trim();
+  }
+}
+
+function interfaceNames(page: Page) {
+  const html = page.html ?? '';
+  if (/\bsrc=["'][^"']*\/tpEncrypt\.js(?:[?"'])/i.test(html)) return ['TP-Link Router'];
+  if (/^gSOAP\//i.test(page.server ?? '') && /\bapi_pluginPlay\//i.test(html) && /\bapi_html5Play\//i.test(html)) {
+    return ['Camera web interface'];
+  }
+  return pageNames(html).filter(name => !/^opening\.{0,3}$/i.test(name));
+}
+
 async function identify(url: URL, localAddress: string) {
   const first = await readPage(url, localAddress, 500);
-  if (!first?.redirect) return first;
-  const landing = URL.parse(first.redirect, url);
-  if (!landing || landing.origin !== url.origin || landing.username || landing.password) return {};
-  const next = await readPage(landing, localAddress, 500);
-  return next ?? {};
+  if (!first) return undefined;
+  const location = first.redirect ?? refreshLocation(first.html ?? '');
+  if (!location) return first;
+  const landing = URL.parse(location, url);
+  if (!landing || landing.username || landing.password) return first;
+  if (landing.origin === url.origin && landing.href !== url.href) {
+    return await readPage(landing, localAddress, 500);
+  }
+  if (url.protocol === 'http:' && landing.protocol === 'https:' && landing.hostname === url.hostname &&
+      httpsPorts.has(Number(landing.port || 443))) {
+    return { redirectTo: new URL('/', landing).href };
+  }
+  return first;
 }
 
 export async function discoverWebServices(address: string, prefix: number) {
   const { hosts } = webScope(address, prefix);
   const targets = homelabPorts.flatMap(port => hosts.map(host => ({ host, port })));
   const services: { title: string; url: string; category: string; description: string; identified: boolean }[] = [];
+  const upgrades = new Map<string, string>();
   let next = 0;
   const deadline = Date.now() + 90_000;
   await Promise.all(Array.from({ length: 48 }, async () => {
@@ -75,10 +131,33 @@ export async function discoverWebServices(address: string, prefix: number) {
       const secure = httpsPorts.has(port);
       const url = new URL(`${secure ? 'https' : 'http'}://${host}:${port}/`);
       const result = await identify(url, address);
-      if (result) {
-        services.push({ ...describeService(host, port, pageNames(result.html ?? ''), !!result.certificateIssue), url: url.href });
+      if (!result) continue;
+      if (result.redirectTo) {
+        upgrades.set(url.href, result.redirectTo);
+        continue;
       }
+      const certificate = result.certificateIssue ? await certificateName(url, address) : undefined;
+      const names = interfaceNames(result);
+      const description = describeService(host, port, names, !!result.certificateIssue);
+      services.push(certificate ? {
+        ...description,
+        title: certificate,
+        category: 'Networking',
+        description: 'Device suggested by an unverified TLS certificate.',
+        identified: true,
+        url: url.href,
+      } : { ...description, url: url.href });
     }
   }));
+  const foundUrls = new Set(services.map(service => service.url));
+  for (const [source, target] of upgrades) {
+    if (foundUrls.has(target)) continue;
+    const url = new URL(source);
+    services.push({
+      ...describeService(url.hostname, Number(url.port || 80), [], false),
+      description: 'Redirects to HTTPS.',
+      url: source,
+    });
+  }
   return { services, checked: next, total: targets.length };
 }
