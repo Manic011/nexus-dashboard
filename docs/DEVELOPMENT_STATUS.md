@@ -19,3 +19,4 @@ The local production build and API lifecycle test passed. Chromium exercised fir
 
 The Administration page now shows runtime and database information. It exports tiles as JSON and previews imports before merging selected entries. Service address lists can also be imported. Network discovery, full-instance backups, scheduled jobs, and additional administration pages remain open.
 See [the requirements audit](REQUIREMENTS_AUDIT.md) for coverage of sections 1–26 and the remaining access, discovery, and deployment requirements.
+Discovery now combines mDNS with bounded HTTP and HTTPS checks on common ports. The interface shows the authorized IPv4 range and reports incomplete coverage. Other ports, routed networks, non-web protocols, and HTTPS endpoints without a trusted matching certificate may require manual import.

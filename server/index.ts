@@ -6,6 +6,7 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
 import { discoverServices, discoveryInterfaces } from './discovery.ts';
+import { discoverWebServices, webScope } from './web-discovery.ts';
 
 const derive = promisify(scrypt);
 const credentials = z.object({ username: z.string().trim().min(1).max(64), password: z.string().min(12).max(256) });
@@ -178,20 +179,30 @@ export function createApp(data: string, dist: string, origin: string, setupToken
         throw new RequestError(403, 'Editing access is required.');
       }
       if (method === 'GET' && path === '/api/admin/discovery/interfaces') {
-        return send(200, discoveryInterfaces());
+        return send(200, discoveryInterfaces().map(item => ({ ...item, webCidr: webScope(item.address, Number(item.cidr.split('/')[1])).cidr })));
       }
-      if (method === 'POST' && path === '/api/admin/discovery/mdns') {
-        const input = z.object({ address: z.ipv4() }).safeParse(await body(req));
+      if (method === 'POST' && ['/api/admin/discovery/mdns', '/api/admin/discovery/web'].includes(path)) {
+        const input = z.object({ address: z.ipv4(), authorized: z.boolean().optional() }).safeParse(await body(req));
         const selected = input.success && discoveryInterfaces().find(item => item.address === input.data.address);
         if (!selected) throw new RequestError(400, 'Select an IPv4 interface on this server.');
+        const web = path.endsWith('/web');
+        if (web && (!input.success || input.data.authorized !== true)) throw new RequestError(400, 'Confirm authorization for the displayed network range.');
         if (discoveryRunning) throw new RequestError(409, 'A discovery request is already running.');
         discoveryRunning = true;
         try {
-          const tiles = await discoverServices(selected.address, Number(selected.cidr.split('/')[1]));
-          return send(200, { version: 1, tiles });
+          const prefix = Number(selected.cidr.split('/')[1]);
+          if (!web) return send(200, { version: 1, tiles: await discoverServices(selected.address, prefix) });
+          const [advertised, probed] = await Promise.all([
+            discoverServices(selected.address, Math.max(24, prefix)).catch(() => []),
+            discoverWebServices(selected.address, prefix),
+          ]);
+          const byUrl = new Map(probed.services.map(item => [item.url, item]));
+          for (const item of advertised) byUrl.set(item.url, item);
+          const results = [...byUrl.values()].sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true }));
+          return send(200, { version: 1, tiles: results.slice(0, 500), checked: probed.checked, total: probed.total, found: results.length });
         } catch (error) {
           console.error(error);
-          throw new RequestError(503, 'Multicast DNS discovery could not run on this interface.');
+          throw new RequestError(503, 'Discovery could not run on this interface.');
         } finally {
           discoveryRunning = false;
         }

@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { once } from 'node:events';
 import { createApp } from '../server/index.ts';
+import { webScope } from '../server/web-discovery.ts';
 
 test('setup, authentication, tile CRUD, persistence and logout', async () => {
   const data = mkdtempSync(join(tmpdir(), 'nexus-test-'));
@@ -92,4 +93,13 @@ test('setup, authentication, tile CRUD, persistence and logout', async () => {
     await stop();
     rmSync(data, { recursive: true, force: true });
   }
+});
+
+test('web discovery stays inside the selected local range', () => {
+  const block = webScope('10.3.19.42', 16);
+  assert.equal(block.cidr, '10.3.19.0/24');
+  assert.equal(block.hosts.length, 254);
+  assert.equal(block.hosts[0], '10.3.19.1');
+  assert.equal(block.hosts.at(-1), '10.3.19.254');
+  assert.deepEqual(webScope('10.3.19.42', 31).hosts, ['10.3.19.42', '10.3.19.43']);
 });
