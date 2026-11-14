@@ -21,15 +21,16 @@ The application remains a **development preview**, not a generally available pro
 | Database backup/recovery | Consistent SQLite backup, integrity and schema checks, protected output, refusal to overwrite a populated directory, credentials and configuration restored | Passed locally and on Ubuntu; recovered instance exercised in the browser |
 | Native service | Dedicated service user, protected configuration and state, startup health check, restart, and preserved data | Awaiting privileged installation verification |
 | Browser regression | Desktop/mobile dashboard, editor, import, discovery controls, users, permissions, snapshots, preferences, and system page against an Ubuntu backend | Passed |
-| Release privacy | Operator-specific repository references and network examples removed; generic privacy checks added to CI | Current files sanitized; approved history rewrite tracked separately |
+| Release privacy | Operator-specific repository references and network examples removed; generic privacy checks added to CI | Current files and reachable local history sanitized; guarded publication pending |
 | Distribution | Explicit staging allowlist and production dependencies; no local state, environment files, screenshots, private keys, or Git database in the bundle | Staged and inspected; final artifact inspection required after documentation freeze |
 
 ## Fixes made during the audit
 
-- Added an operator-only database backup/recovery tool. It validates schema and SQLite integrity and restores to a new directory, preserving the current state for rollback. Recovery revokes restored browser sessions.
+- Added an operator-only database backup/recovery tool. It validates schema and SQLite integrity, finishes backups as portable single files, and restores to a new directory, preserving the current state for rollback. Recovery revokes restored browser sessions.
 - Tightened the installer to require the supported Node runtime, reject external or top-level directory symlinks, import existing state deliberately, and check startup health.
 - Extended systemd isolation while retaining the address families needed for HTTP, mDNS, and interface enumeration.
 - Added direct API role and permission regression coverage, database recovery tests, portable script checks, and automated release-input privacy checks.
+- Corrected a portable-backup hazard found during the service trial: WAL-mode backup validation could leave sidecars owned by the backup operator. The final tool switches the completed backup to DELETE journal mode before ownership transfer; regression tests assert that neither WAL nor shared-memory sidecars remain.
 - Allowed a longer initial navigation budget in remote browser tests after a cold remote navigation exceeded the local-only timeout. The subsequent full remote run passed.
 - Removed operator-specific examples from project files. Real deployment logs, screenshots, state files, and original-history backups stay outside the repository.
 

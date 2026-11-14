@@ -23,8 +23,13 @@ export async function backupState(source: string, destination: string) {
     created = true;
     await backup(db, destination);
     chmodSync(destination, 0o600);
-    const check = new DatabaseSync(destination, { readOnly: true });
-    try { validate(check); } finally { check.close(); }
+    const check = new DatabaseSync(destination);
+    try {
+      // A WAL-mode backup opened read-only can leave root-owned sidecars.
+      // Finish as a portable single file before changing ownership or moving it.
+      check.exec('PRAGMA journal_mode=DELETE');
+      validate(check);
+    } finally { check.close(); }
   } catch (error) {
     if (created) rmSync(destination, { force: true });
     throw error;

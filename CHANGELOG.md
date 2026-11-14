@@ -4,6 +4,7 @@
 
 ### Release readiness and privacy
 
+- Fixed portable backup validation leaving WAL sidecars that could block a dedicated service account after ownership transfer.
 - Added consistent operator-only database backup and fresh-directory recovery with integrity/schema validation and restored-session revocation.
 - Added direct API permission and recovery regression tests, including restricted editor access, group revocation, stale snapshot rejection, and full database recovery.
 - Hardened native installation checks, deliberate state adoption, startup health verification, and service isolation.

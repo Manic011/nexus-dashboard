@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createApp } from '../server/index.ts';
@@ -76,6 +76,8 @@ test('release audit: permissions, stale restores, full database recovery, and re
     await request('admin/discovery/profiles', 'POST', { name: 'Generic profile', address: '10.42.0.14', range: '10.42.0.0/24', exclude: '', ports: '80' });
     const archive = join(directory, 'database-backup.sqlite');
     await backupState(join(state, 'nexus.sqlite'), archive);
+    assert.equal(existsSync(archive + '-wal'), false, 'Portable backups must not leave WAL sidecars');
+    assert.equal(existsSync(archive + '-shm'), false, 'Portable backups must not leave shared-memory sidecars');
     await assert.rejects(backupState(join(state, 'nexus.sqlite'), archive), /already exists/);
     await request('admin/groups/' + group.id, 'DELETE');
     cookie = readerSession;

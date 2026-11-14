@@ -164,7 +164,7 @@ sudo /opt/nexus-dashboard/runtime/bin/node /opt/nexus-dashboard/server/state-bac
   /var/backups/nexus-dashboard/state-backup.sqlite
 ```
 
-The destination must not already exist. The tool checks SQLite integrity, schema 4, required tables, and the presence of an administrator. It writes a consistent SQLite backup and restricts its file permissions. Use unique names or your own retention mechanism; automatic scheduling, encryption, and pruning are not implemented.
+The destination must not already exist. The tool checks SQLite integrity, schema 4, required tables, and the presence of an administrator. It writes a consistent SQLite backup, switches the output to DELETE journal mode so no WAL/shared-memory sidecars need to travel with it, and restricts its file permissions. Use unique names or your own retention mechanism; automatic scheduling, encryption, and pruning are not implemented.
 
 To recover, restore into a new directory first:
 
