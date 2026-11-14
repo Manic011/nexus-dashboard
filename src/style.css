@@ -160,3 +160,11 @@ dialog h2, dialog form p { overflow-wrap: anywhere; }
 
 .scan-field { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 8px; }
 @media (max-width: 520px) { .scan-field { grid-template-columns: minmax(0, 1fr); } }
+
+.scan-section { min-width: 0; margin: 0; padding: 12px; border: 1px solid var(--border); border-radius: 9px; display: grid; gap: 10px; }
+.scan-section legend { padding-inline: 6px; font-weight: 700; }
+.scan-section .scan-field { grid-template-columns: minmax(0, 1fr) auto auto; }
+@media (max-width: 520px) {
+  .scan-section .scan-field { grid-template-columns: minmax(0, 1fr) auto; }
+  .scan-section .scan-field input { grid-column: 1 / -1; }
+}

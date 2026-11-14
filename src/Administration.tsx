@@ -23,12 +23,17 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
   const [section, setSection] = useState<(typeof sections)[number]['id']>('discovery');
   const [interfaces, setInterfaces] = useState<Network[]>([]);
   const [address, setAddress] = useState('');
-  const [scope, setScope] = useState({ range: '', exclude: '', ports: '' });
+  const [scope, setScope] = useState({ range: [''], exclude: [''], ports: [''] });
   const [plan, setPlan] = useState<{ hosts: number; ports: number[]; checks: number }>();
-  function changeScope(field: keyof typeof scope, value: string) {
+  function changeScope(field: keyof typeof scope, value: string[]) {
     setScope(previous => ({ ...previous, [field]: value }));
     resetPlan();
   }
+  const scanFields = {
+    range: scope.range.map(value => value.trim()).filter(Boolean).join(','),
+    exclude: scope.exclude.map(value => value.trim()).filter(Boolean).join(','),
+    ports: scope.ports.map(value => value.trim()).filter(Boolean).join(','),
+  };
   function resetPlan() { setPlan(undefined); setAuthorized(false); }
   const [authorized, setAuthorized] = useState(false);
   const [system, setSystem] = useState<SystemInfo>();
@@ -122,7 +127,7 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
             setScanning(true);
             setCoverage(undefined);
             const result = await api<{ version: 1; tiles: Entry[]; checked: number; total: number; found: number }>(
-              'admin/discovery/web', 'POST', { address, authorized, ...scope },
+              'admin/discovery/web', 'POST', { address, authorized, ...scanFields },
             ).finally(() => setScanning(false));
             await inspect(result);
             setWorkspaceRevision(value => value + 1);
@@ -134,7 +139,7 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
         }}>
           <label>Server network<select name="address" required disabled={busy} value={address} onChange={event => {
             setAddress(event.target.value);
-            setScope(previous => ({ ...previous, range: '', exclude: '' }));
+            setScope(previous => ({ ...previous, range: [''], exclude: [''] }));
             resetPlan();
           }}>
             <option value="">Select a network</option>
@@ -160,9 +165,9 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
                 { label: 'Proxmox', value: '8006-8007' },
                 { label: 'Alternative web', value: '8080-8082, 8443' },
               ]} />
-            <p className="muted">Separate entries with commas. Use a hyphen between the first and last IP or port in a range.</p>
+            <p className="muted">Add a row for each entry. Use a hyphen for a range. IPs must be in the selected network.</p>
             <button type="button" disabled={busy} onClick={() => void run(async () => {
-              setPlan(await api<typeof plan>('admin/discovery/plan', 'POST', { address, ...scope }));
+              setPlan(await api<typeof plan>('admin/discovery/plan', 'POST', { address, ...scanFields }));
             })}>Review scan scope</button>
           </>}
           {plan && <p role="status">{plan.hosts} addresses · {plan.ports.length} ports · {plan.checks.toLocaleString()} checks</p>}

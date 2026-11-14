@@ -135,7 +135,13 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
         await page.getByLabel('Excluded IPs or ranges preset').selectOption({ label: 'No exclusions' });
         await page.getByLabel('Ports or port ranges preset').selectOption({ label: 'Standard web' });
         assert.equal(await page.getByLabel('Ports or port ranges', { exact: true }).inputValue(), '80, 443');
-        await page.getByLabel('Ports or port ranges', { exact: true }).fill('80, 8000-8002');
+        await page.getByLabel('Ports or port ranges', { exact: true }).fill('80');
+        await button('Add entry for Ports or port ranges').click();
+        await page.getByLabel('Ports or port ranges 2', { exact: true }).fill('8000-8002');
+        await button('Add entry for IP addresses or ranges').click();
+        await button('Remove IP addresses or ranges 2').click();
+        await button('Add entry for Excluded IPs or ranges').click();
+        await button('Remove Excluded IPs or ranges 2').click();
         await button('Review scan scope').click();
         await page.getByText(/4 ports ·/).waitFor();
         await page.getByRole('checkbox', { name: /I have permission/ }).check();

@@ -70,3 +70,5 @@ Open Preview effective access while editing tile permissions to see who can view
 To customize discovery, select a server interface and enter one or more IPv4 addresses or inclusive start-end ranges within the displayed subnet. Enter addresses or ranges to exclude, and enter ports such as 80, 443, 8000-8010. Separate entries with commas. Blank IP and port fields use the displayed network and common homelab ports. Select Review scan scope to see the unique address, port, and check counts, then confirm permission and start. Editing the scope requires reviewing it again. Port selection controls HTTP and HTTPS discovery.
 
 Each custom scan field has a preset dropdown. Choose a preset to fill the field, then edit the value as needed. Review the scope again after changing any field.
+
+Use Add entry in any discovery section to add another address, exclusion, or port. Each row can use a preset or a typed value. IP rows must belong to the selected subnet. To scan a different subnet, choose its interface and start a separate scan.

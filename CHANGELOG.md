@@ -28,3 +28,4 @@
 - Discovery scans now finish checking the full selected range, with progress and final coverage counts.
 - Discovery supports explicit IPv4 addresses and ranges, exclusions, and custom web ports with a scope preview.
 - Added editable discovery presets for IP addresses, exclusions, and ports.
+- Grouped discovery options into separate sections with repeatable address, exclusion, and port fields.
