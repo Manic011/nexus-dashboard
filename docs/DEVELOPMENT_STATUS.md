@@ -21,8 +21,8 @@ The Ubuntu integration preview has exercised sign-in, tile edits and imports, di
 | Discovery | Add more discovery sources and optional schedules. |
 | Live integrations | Add supported integrations beyond Jellyfin. |
 | Access | Add multiple dashboards, dashboard-specific permissions and passwords, and richer account management. |
-| Operations | Add full-instance backup and restore workflows, diagnostics, and update management. |
+| Operations | Add scheduled/encrypted backups, broader recovery compatibility, diagnostics, and update management. Operator database backup/recovery is available. |
 
-## Latest Ubuntu validation
+## Latest validation
 
-On 2026-11-13, the visible browser smoke test verified live discovery through completion (10,922/10,922 checks, 32 results while test instances ran), cancellation, profiles, import/update review, role/group access, shared access, tile editing, configuration rollback/forward, JSON export/upload preview, preferences, and mobile administration. Local build/API/UI checks and the automated browser suite against a disposable Ubuntu backend passed. The existing preview on port 3000 was backed up and updated with its 19 tiles preserved. See [UI audit evidence](UI_AUDIT.md#ubuntu-verification---2026-11-13) for the tested paths and limits. The instance remains a staged development preview, not a verified systemd installation.
+The release audit adds direct API permission checks, group revocation and snapshot recovery checks, and consistent database backup/recovery with session revocation. Local and Ubuntu API/recovery tests and desktop/mobile browser regressions pass. Visible Ubuntu browser checks confirm recovered credentials, group access, and snapshots. Host and network identifiers are intentionally omitted from published records. See [release readiness](RELEASE_READINESS.md) for the privileged deployment status and remaining production gates.

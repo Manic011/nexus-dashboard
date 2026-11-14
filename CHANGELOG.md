@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Release readiness and privacy
+
+- Added consistent operator-only database backup and fresh-directory recovery with integrity/schema validation and restored-session revocation.
+- Added direct API permission and recovery regression tests, including restricted editor access, group revocation, stale snapshot rejection, and full database recovery.
+- Hardened native installation checks, deliberate state adoption, startup health verification, and service isolation.
+- Added a release audit, privacy guide, CI release-input checks, and generic documentation/test examples. Private deployment artifacts and original-history backups are excluded from Git and distribution.
+
 ### Discovery and import refinements
 
 - Added routed private IPv4 subnet scanning with CIDR targets, independent exclusion rows, port ranges, target deduplication, and a 4096-address scope limit.

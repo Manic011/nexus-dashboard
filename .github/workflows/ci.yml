@@ -12,6 +12,7 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
+      - run: npm run check:release
       - run: npm run build
       - run: npm test
       - run: npx playwright-core install chromium --with-deps --only-shell

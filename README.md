@@ -12,16 +12,18 @@ Nexus Dashboard is a self-hosted application launcher for homelabs. It helps you
 | Appearance | Choose a light, dark, or system theme and comfortable or compact cards. |
 | Service discovery | Scan reachable private IPv4 subnets with CIDRs, address ranges, exclusions, custom ports, reusable profiles, progress, and cancellation. Compare scans and review live identification evidence before importing or updating tiles. |
 | Accounts and access | Create editor and viewer accounts, organize user groups, and restrict individual tiles by account or group. Shared read-only access is also available. |
-| Tile backups | Export tiles as JSON; review new entries and explicitly update matching URLs. Save named server-side configuration snapshots and preview restore changes. |
+| Tile backups | Export tiles as JSON; review new entries and explicitly update matching URLs. Save named server-side configuration snapshots and preview restore changes. Operators can also create and recover consistent full-database backups. |
 | Jellyfin activity | Show the active stream count on a matching tile after configuring a Jellyfin URL and API key on the server. |
 | Ubuntu deployment | Stage a built release and install it as a systemd service under a dedicated account. |
 
+See the [release readiness audit](docs/RELEASE_READINESS.md) for verification results and remaining production gates, and [Privacy](PRIVACY.md) for data and publishing boundaries.
+
 ## Run locally
 
-Install Git and Node.js **24.14.1 or newer within the 24.x series**. With access to this repository, clone it and run the following from the checkout. [Node.js downloads](https://nodejs.org/en/download)
+Install Git and Node.js **24.14.1 or newer within the 24.x series**. Replace `YOUR_REPOSITORY_URL` with the URL of your repository. With access to the repository, clone it and run the following from the checkout. [Node.js downloads](https://nodejs.org/en/download)
 
 ```sh
-git clone YOUR_REPOSITORY_URL
+git clone YOUR_REPOSITORY_URL nexus-dashboard
 cd nexus-dashboard
 npm ci
 npm run build

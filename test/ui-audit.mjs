@@ -26,7 +26,7 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
     const browser = await chromium.launch();
     try {
       const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-      page.setDefaultTimeout(7000);
+      page.setDefaultTimeout(remote ? 15000 : 7000);
       const button = name => page.getByRole('button', { name, exact: true });
       const field = name => page.getByLabel(name, { exact: true });
       async function fits(width, height) {
@@ -42,7 +42,7 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
           throw new Error('Sign-in failed: ' + (await page.locator('main').innerText()), { cause: error });
         });
       }
-      await page.goto(origin);
+      await page.goto(origin, { waitUntil: 'domcontentloaded', timeout: remote ? 30000 : 7000 });
       await field('Username').fill('admin');
       await field('Password').fill(password);
       await field('Setup token').fill(process.env.NEXUS_UI_TEST_TOKEN ?? token);

@@ -1,0 +1,106 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { once } from 'node:events';
+import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createApp } from '../server/index.ts';
+import { backupState, restoreState } from '../server/state-backup.ts';
+
+test('release audit: permissions, stale restores, full database recovery, and revoked sessions', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'nexus-release-'));
+  const state = join(directory, 'state');
+  const origin = 'http://localhost';
+  const password = 'disposable-fixture-password';
+  let app = createApp(state, 'dist', origin, 'fixture-token');
+  let base = '';
+  let cookie = '';
+  async function start() {
+    app.listen(0, '127.0.0.1'); await once(app, 'listening');
+    const bound = app.address(); assert.ok(bound && typeof bound !== 'string');
+    base = 'http://127.0.0.1:' + bound.port;
+  }
+  async function stop() {
+    if (!app.listening) return;
+    const done = once(app, 'close'); app.close(); app.closeAllConnections(); await done;
+  }
+  const request = (path: string, method = 'GET', input?: object, requestOrigin = origin) => fetch(base + '/api/' + path, {
+    method, headers: { cookie, origin: requestOrigin, 'content-type': 'application/json' },
+    body: method === 'GET' ? undefined : JSON.stringify(input ?? {}),
+  });
+  async function login(username: string) {
+    cookie = ""; // Each role represents a separate browser session.
+    const response = await request('login', 'POST', { username, password });
+    assert.equal(response.status, 200); cookie = response.headers.get('set-cookie')!.split(';')[0]; return cookie;
+  }
+  const tile = { title: 'Private fixture', url: 'https://service.example.invalid/', category: 'Lab', description: '', tags: ['fixture'] };
+  try {
+    await start();
+    const setup = await request('setup', 'POST', { username: 'administrator', password, token: 'fixture-token' });
+    assert.equal(setup.status, 200);
+    assert.match(setup.headers.get('set-cookie')!, /HttpOnly; SameSite=Strict/);
+    cookie = setup.headers.get('set-cookie')!.split(';')[0]; const administrator = cookie;
+    const viewer = await (await request('admin/users', 'POST', { username: 'reader', password, role: 'viewer' })).json();
+    await request('admin/users', 'POST', { username: 'editor', password, role: 'editor' });
+    const created = await (await request('tiles', 'POST', tile)).json();
+    const group = await (await request('admin/groups', 'POST', { name: 'Fixture group', users: [viewer.id] })).json();
+    await request('admin/tile-access/' + created.id, 'PUT', { restricted: true, users: [], groups: [group.id] });
+    const snapshot = await (await request('admin/snapshots', 'POST', { name: 'Restricted baseline' })).json();
+    const preview = await (await request('admin/snapshots/' + snapshot.id)).json();
+    await request('tiles/' + created.id, 'PUT', { ...tile, title: 'Changed fixture' });
+    assert.equal((await request('admin/snapshots/' + snapshot.id, 'POST', { revision: preview.revision })).status, 409);
+    assert.equal((await request('tiles', 'POST', tile, 'http://untrusted.invalid')).status, 403);
+
+    const readerSession = await login('reader');
+    assert.equal((await (await request('tiles')).json()).length, 1);
+    assert.equal((await request('tiles/' + created.id, 'PUT', tile)).status, 403);
+    assert.equal((await request('tiles/' + created.id, 'DELETE')).status, 403);
+    const adminRoutes = ['users', 'system', 'console', 'backup', 'scans/' + snapshot.id, 'discovery/profiles', 'discovery/interfaces', 'discovery/progress', 'snapshots/' + snapshot.id];
+    for (const path of adminRoutes) assert.equal((await request('admin/' + path)).status, 403, path);
+    for (const path of ['groups', 'snapshots', 'backup/import', 'backup/preview', 'discovery/plan', 'discovery/web', 'discovery/cancel']) {
+      assert.equal((await request('admin/' + path, 'POST', {})).status, 403, path);
+    }
+
+    await login('editor');
+    assert.deepEqual(await (await request('tiles')).json(), []);
+    assert.equal((await request('tiles/' + created.id, 'PUT', tile)).status, 404);
+    assert.equal((await request('tiles/' + created.id, 'DELETE')).status, 404);
+    assert.equal((await request('admin/tile-access/' + created.id, 'PUT', { restricted: false, users: [], groups: [] })).status, 403);
+    cookie = '';
+    assert.equal((await request('tiles')).status, 401);
+    assert.equal((await request('admin/backup')).status, 401);
+    const asset = await fetch(base + '/.env'); assert.equal(asset.status, 404);
+    assert.equal((await fetch(base + '/server/index.ts')).status, 404);
+
+    cookie = administrator;
+    await request('admin/discovery/profiles', 'POST', { name: 'Generic profile', address: '10.42.0.14', range: '10.42.0.0/24', exclude: '', ports: '80' });
+    const archive = join(directory, 'database-backup.sqlite');
+    await backupState(join(state, 'nexus.sqlite'), archive);
+    await assert.rejects(backupState(join(state, 'nexus.sqlite'), archive), /already exists/);
+    await request('admin/groups/' + group.id, 'DELETE');
+    cookie = readerSession;
+    assert.deepEqual(await (await request('tiles')).json(), []);
+    cookie = administrator;
+    await request('admin/users/' + viewer.id, 'DELETE');
+    cookie = readerSession;
+    assert.equal((await request('tiles')).status, 401);
+
+    const restored = join(directory, 'restored');
+    await restoreState(archive, restored);
+    await assert.rejects(restoreState(archive, restored), /empty/);
+    await stop(); app = createApp(restored, 'dist', origin, 'fixture-token'); await start();
+    cookie = administrator;
+    assert.equal((await request('tiles')).status, 401, 'Restored sessions must be revoked');
+    await login('administrator');
+    assert.equal((await (await request('admin/console')).json()).groups.length, 1);
+    assert.equal((await (await request('admin/discovery/profiles')).json()).length, 1);
+    assert.equal((await (await request('admin/console')).json()).backups.length, 1);
+    await login('reader');
+    assert.equal((await (await request('tiles')).json())[0].title, 'Changed fixture');
+  } finally { await stop(); rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('release scripts use portable LF line endings', () => {
+  assert.ok(!readFileSync('deploy/install.sh', 'utf8').includes('\r'));
+  assert.ok(readFileSync('deploy/nexus-dashboard.service', 'utf8').includes('User=nexus-dashboard'));
+});

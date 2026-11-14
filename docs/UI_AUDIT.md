@@ -30,14 +30,14 @@ The browser suite also checks discovery progress and source labels using control
 
 ## Ubuntu verification - 2026-11-13
 
-The discovery/import refinement was exercised in the visible in-app browser against a disposable Ubuntu-hosted instance, with a separate state directory from the saved dashboard. The same locally built release was then promoted to the existing port 3000 instance after a SQLite backup. The existing dashboard retained 19 tiles.
+The discovery/import refinement was exercised in the visible in-app browser against a disposable Ubuntu-hosted instance, with a separate state directory from the saved dashboard. The same locally built release was then promoted to the existing port 3000 instance after a SQLite backup. The existing dashboard configuration was preserved.
 
 | Area | Result and evidence |
 | --- | --- |
 | Discovery planning | Rejected an off-subnet public target; accepted multiple private CIDR rows, exclusions, duplicate ports, and a /32. Effective preview correctly reduced the test to one host/port check. |
 | Profiles | Saved, loaded, and ran a named profile. Loading restored all settings and required scope review and authorization. |
-| Live scan | Full /24 scan completed **10,922 of 10,922** checks and returned **32 services**, while disposable test instances were running. Service count depends on network state; it is not an inventory guarantee. |
-| Cancellation | Stopped a 2,794-check scan after 56 completed checks; the stopped result and discovered services were available for review. |
+| Live scan | A full default-scope scan completed every planned check while disposable test instances were running. Deployment-specific inventory counts are retained only in private operational records. |
+| Cancellation | Stopped a scan before completion; the stopped result and discovered services were available for review. |
 | History and comparison | Reopened recorded results; repeated an identical complete scope and verified the comparison panel with zero added/changed/missing URLs. Nonzero change categories have not been separately exercised in the visible browser. |
 | Import/update | Imported a live-discovered service with a new category and tags; rescanning marked it existing and left it unselected. Explicit update succeeded. The API test verifies stable IDs, preserved permissions, and rejection of stale revisions. |
 | Filtering | Verified result filtering, hidden selections, and editing a filtered name without losing its row. The browser test found this issue and the final release fixes it. |
@@ -49,3 +49,9 @@ The discovery/import refinement was exercised in the visible in-app browser agai
 | Regression suite | Local build, API tests, and Chromium desktop/mobile flows passed. The same browser regression suite passed against a fresh Ubuntu-hosted backend. Initial sandbox connection denial and a first remote navigation timeout were resolved before rerunning. |
 
 This is a smoke test, not exhaustive security or accessibility certification. Screen reader behavior, systemd installation/reboot, real Jellyfin credentials, scheduled scans, IPv6, arbitrary HTTPS port detection, and nonzero scan-comparison changes remain outside this manual verification. The local browser suite covers Jellyfin against a fixture; real integration credentials were not configured for this run.
+
+## Release audit - 2026-11-14
+
+A fresh disposable Ubuntu instance was used for the current release audit. Visible browser checks verified role-based administration denial, direct admin-API denial for a viewer, group removal revocation, snapshot restoration of deleted groups and effective access, and offline database recovery. Recovery forced a fresh sign-in; existing account credentials and group visibility worked afterward, and saved snapshots survived.
+
+All five API/recovery tests passed both locally and on Ubuntu. The desktop/mobile browser regression suite passed locally and against an Ubuntu backend. The privileged service migration, restart, and dedicated-account browser checks are recorded in the [release readiness audit](RELEASE_READINESS.md). Real deployment screenshots and host/network details are not repository assets.

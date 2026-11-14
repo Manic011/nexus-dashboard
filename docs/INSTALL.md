@@ -1,10 +1,10 @@
 # Native Ubuntu installation
 
-Nexus Dashboard can run as a systemd service on Ubuntu. Build the application on a workstation and transfer the tested release to the server. The current installer performs a first installation from a staged bundle.
+Nexus Dashboard can run as a systemd service on Ubuntu. Build the application on a workstation and transfer the tested release to the server. The current installer performs a first installation from a staged bundle and can deliberately import an existing schema 4 state directory. It refuses to overwrite existing installation paths.
 
 ## Requirements
 
-- Ubuntu with systemd, sudo access, and an available TCP port 3000 for the initial install.
+- An Ubuntu release receiving current security maintenance, with systemd, sudo access, and an available TCP port 3000 for the initial install.
 - Git and Node.js 24.14.1 or newer within 24.x on the build workstation.
 - An official Node.js 24.x Linux runtime for the target CPU architecture. Verify the archive against the signed checksums for that release. On the server, `uname -m` reports the architecture. [Node.js downloads and verification instructions](https://nodejs.org/en/download)
 - The final browser origin, such as `https://dashboard.example.net` behind a reverse proxy or `http://SERVER:3000` on a trusted test network.
@@ -55,7 +55,7 @@ sudo systemctl status nexus-dashboard --no-pager
 curl --fail http://127.0.0.1:3000/healthz
 ```
 
-The installer checks for existing Nexus paths, the service account, and port conflicts. It creates a dedicated `nexus-dashboard` system user, protects configuration, and enables the service. An HTTPS origin binds Nexus to loopback for a reverse proxy on the same host. An HTTP origin binds to all interfaces on port 3000.
+The installer checks the runtime version, staged-file boundaries, existing Nexus paths, service account, port conflicts, and startup health. It creates a dedicated `nexus-dashboard` system user, protects configuration, and enables the service. An HTTPS origin binds Nexus to loopback for a reverse proxy on the same host. An HTTP origin binds to all interfaces on port 3000.
 
 Read the setup token from the server in a private terminal:
 
@@ -138,3 +138,45 @@ A future Ubuntu installer should fetch a pinned release, verify its artifact, ch
 Scan profiles and the last 20 scan results are stored in the same SQLite database as the dashboard. Back up the full state directory to preserve them. Tile JSON exports and configuration snapshots do not include these records. The discovery/import refinement uses schema 4 and does not require an additional migration.
 
 Ubuntu must have a route from the selected source interface to each requested private subnet. Permit the relevant outbound HTTP/HTTPS traffic and local mDNS where desired. Nexus does not install routes, modify firewall rules, or bridge mDNS between networks. Do not expose the application publicly for network discovery. Scans have no overall deadline; proxies must allow long-running responses. A service restart interrupts any active scan. See the user guide for target syntax, limits, and cancellation behavior.
+
+## Adopt an existing preview
+
+Stop the preview before transferring its state to the installed service. Keep the old release and a consistent database backup. Pass the existing state directory as the optional third installer argument:
+
+```bash
+sudo bash deploy/install.sh "$PWD" "https://dashboard.example.net" /path/to/existing-state
+```
+
+The source directory must contain a valid schema 4 `nexus.sqlite` with an administrator. The installer copies it consistently through the SQLite backup API into the new service state directory and sets ownership for the dedicated account. It leaves the source state in place. Existing integrations or extra environment settings must be migrated explicitly; the installer does not infer them from another process. Confirm tile, account, group, permission, profile, and history preservation after adoption.
+
+The service code and runtime are root-owned. Configuration is root-readable only. The dedicated service account can write its state directory but cannot write application code or read the environment file directly; systemd supplies its configured values. Kernel, device, privilege, and filesystem restrictions are set in the unit. AF_NETLINK is retained so Linux interface enumeration works alongside HTTP and mDNS.
+
+## Consistent database backup and offline recovery
+
+This operator tool backs up the **database**, including accounts, permissions, profiles, and history. Environment configuration, release code, uploaded files if introduced later, and external integration secrets still require the full-instance backup procedure above. No browser endpoint exposes this database backup.
+
+Create a backup in a protected location while the service is running:
+
+```bash
+sudo install -d -m 0700 /var/backups/nexus-dashboard
+sudo /opt/nexus-dashboard/runtime/bin/node /opt/nexus-dashboard/server/state-backup.ts backup \
+  /var/lib/nexus-dashboard/nexus.sqlite \
+  /var/backups/nexus-dashboard/state-backup.sqlite
+```
+
+The destination must not already exist. The tool checks SQLite integrity, schema 4, required tables, and the presence of an administrator. It writes a consistent SQLite backup and restricts its file permissions. Use unique names or your own retention mechanism; automatic scheduling, encryption, and pruning are not implemented.
+
+To recover, restore into a new directory first:
+
+```bash
+sudo /opt/nexus-dashboard/runtime/bin/node /opt/nexus-dashboard/server/state-backup.ts restore \
+  /var/backups/nexus-dashboard/state-backup.sqlite \
+  /var/lib/nexus-dashboard-recovered
+sudo chown -R nexus-dashboard:nexus-dashboard /var/lib/nexus-dashboard-recovered
+```
+
+A populated destination is rejected. The restore keeps accounts and configuration but removes saved sessions, requiring users to sign in again. It does not alter the running service or overwrite its state.
+
+Validate the recovered state on an isolated instance with a matching origin and free port, without exposing a second copy of real accounts publicly. For the final switch, stop the service and add a reviewed systemd drop-in setting `Environment=NEXUS_DATA=/var/lib/nexus-dashboard-recovered` and `ReadWritePaths=/var/lib/nexus-dashboard-recovered`. Run `sudo systemctl daemon-reload` and start the service. The extra write path is necessary because ProtectSystem=strict protects paths outside the managed StateDirectory. Keep the original directory for rollback. Removing that reviewed drop-in and restarting switches back. Do not mix a database backup with application code that cannot read its schema.
+
+Protect and back up `/etc/nexus-dashboard/nexus.env` separately. Never place database backups, environment files, or real deployment screenshots in a release archive.

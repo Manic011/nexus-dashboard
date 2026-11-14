@@ -6,7 +6,7 @@ Develop in the local Git checkout and use Ubuntu as the integration environment.
 
 1. Create a focused branch when a change benefits from separate review.
 2. Use Node.js 24.14.1 or newer within the 24.x series. Run `npm ci` after checkout or a lockfile change.
-3. Run `npm run build` to type-check and build the UI. Run `npm test` for the automated API and discovery scope tests.
+3. Run `npm run check:release` to check versioned files for common private-file and credential leaks. Review Git history and packaged artifacts separately. Run `npm run build` to type-check and build the UI. Run `npm test` for the automated API and discovery scope tests.
 4. For changes to a user workflow, integration, or deployment, exercise the normal entry point on Ubuntu. For schema changes, verify both a fresh database and an existing one.
 5. Commit the code and documentation together. Push the branch and check the CI result. Describe any verification that still needs to happen in the pull request.
 
@@ -24,3 +24,7 @@ Use this checklist when reviewing a feature, behavior change, or deployment chan
 Check relative links and try changed commands in an appropriate environment. Keep examples generic, report verification accurately, and describe planned features as planned.
 
 For every new or changed screen, follow the [UI audit](docs/UI_AUDIT.md) and record the results in the pull request.
+
+## Privacy review
+
+Use generic account names, private-address examples, and reserved example domains in fixtures. Preserve operator state outside the repository. Do not commit user profiles, real deployment screenshots, backups, logs, hostnames, SSH settings, credential material, or personal workspace paths. Keep private operational helpers and original-history backups outside the checkout. Update the [release audit](docs/RELEASE_READINESS.md) when verification or production gates change.
