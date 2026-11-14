@@ -28,7 +28,7 @@ while IFS= read -r -d '' link; do
   target=$(realpath -e "$link")
   [[ $target == "$release/"* ]] || { echo 'Release contains an external symlink.' >&2; exit 1; }
 done < <(find "$release" -type l -print0)
-"$release/runtime/bin/node" -e 'const [a,b,c]=process.versions.node.split(".").map(Number); if(a!==24 || b<14 || (b===14 && c<1)) process.exit(1)'
+"$release/runtime/bin/node" -e 'const [major, minor, patch] = process.versions.node.split(".").map(Number); if (major !== 24 || minor < 22 || (minor === 22 && patch < 3)) process.exit(1)'
 if [[ -n $state ]]; then
   state=$(realpath -e "$state")
   test -f "$state/nexus.sqlite"

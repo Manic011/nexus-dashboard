@@ -25,6 +25,8 @@ The Ubuntu integration preview has exercised sign-in, tile edits and imports, di
 
 ## Latest validation
 
+See the [security audit and remote access guide](SECURITY.md) for the code review, runtime security baseline, and remaining checks before a deployment is made accessible through Cloudflare.
+
 The one-command installer bundle was verified on Ubuntu x86-64 without sudo. Verification checks the embedded archive, runtime, and required application files without changing the running service. The privileged bootstrap on a clean host is still open.
 
 The release audit adds direct API permission checks, group revocation and snapshot recovery checks, and consistent database backup/recovery with session revocation. Local and Ubuntu API/recovery tests and desktop/mobile browser regressions pass. Visible Ubuntu browser checks confirm recovered credentials, group access, and snapshots. Host and network identifiers are intentionally omitted from published records. See [release readiness](RELEASE_READINESS.md) for the privileged deployment status and remaining production gates.

@@ -10,7 +10,7 @@ type Entry = { title: string; description: string; url: string; category: string
 type Preview = { tiles: Entry[]; skipped: number; existing?: Entry[]; revision?: string };
 type Profile = { id: number; name: string; address: string; range: string; exclude: string; ports: string };
 type Coverage = { checked: number; total: number };
-type SystemInfo = { runtime: string; platform: string; schema: number; tiles: number; hostname: string; kernel: string; architecture: string; cpu: string; logicalCpus: number; totalMemory: number; freeMemory: number; machineUptime: number; serviceUptime: number; serviceMemory: number };
+type SystemInfo = { discoveryEnabled: boolean; runtime: string; platform: string; schema: number; tiles: number; hostname: string; kernel: string; architecture: string; cpu: string; logicalCpus: number; totalMemory: number; freeMemory: number; machineUptime: number; serviceUptime: number; serviceMemory: number };
 type Network = { name: string; address: string; webCidr: string; exampleRange: string };
 type Api = <T>(path: string, method?: string, body?: object) => Promise<T>;
 
@@ -57,9 +57,14 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
 
   useEffect(() => {
     api<SystemInfo>('admin/system').then(setSystem).catch(error => setStatus(error.message));
+  }, [api]);
+
+  const discoveryEnabled = system?.discoveryEnabled;
+  useEffect(() => {
+    if (!discoveryEnabled) return;
     api<Profile[]>('admin/discovery/profiles').then(setProfiles).catch(error => setStatus(error.message));
     api<Network[]>('admin/discovery/interfaces').then(setInterfaces).catch(error => setStatus(error.message));
-  }, [api]);
+  }, [api, discoveryEnabled]);
 
   useEffect(() => { if (preview) review.current?.focus(); }, [preview]);
 
@@ -129,6 +134,8 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
     </section>}
     {section === 'discovery' && <>
       <section className="tile"><h2>Find services on your network</h2>
+        {discoveryEnabled === false && <p className="muted">Network discovery is disabled on this server. You can still review previous results and add known addresses.</p>}
+        {discoveryEnabled && <>
         <p className="muted">Scan private networks reachable from this server. Live page identification takes priority over port suggestions. Review every result before changing your dashboard.</p>
         <div className="scan-profiles"><label>Saved scan profile<select disabled={busy} defaultValue="" onChange={event => {
           const profile = profiles.find(item => item.id === Number(event.target.value));
@@ -204,6 +211,7 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
           {network && plan && <label className="consent"><input type="checkbox" checked={authorized} disabled={busy} onChange={event => setAuthorized(event.target.checked)} /> I have permission to scan all targets in this reviewed scope</label>}
           <button className="primary" disabled={busy || !network || !plan || !authorized}>{busy ? 'Checking network…' : 'Discover services'}</button>
         </form>
+        </>}
       </section>
       <details className="tile"><summary>Add known service addresses</summary>
         <p className="muted">Paste one HTTP or HTTPS URL per line.</p>

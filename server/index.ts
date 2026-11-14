@@ -56,7 +56,7 @@ async function body(req: IncomingMessage, limit = 8192) {
   }
 }
 
-export function createApp(data: string, dist: string, origin: string, setupToken?: string, jellyfinConfig?: { baseUrl: string; apiKey: string }) {
+export function createApp(data: string, dist: string, origin: string, setupToken?: string, jellyfinConfig?: { baseUrl: string; apiKey: string }, discoveryEnabled = true) {
   const jellyfin = createJellyfin(jellyfinConfig);
   mkdirSync(data, { recursive: true, mode: 0o700 });
   const db = new DatabaseSync(join(data, 'nexus.sqlite'));
@@ -114,7 +114,7 @@ export function createApp(data: string, dist: string, origin: string, setupToken
   const server = createServer({ requestTimeout: 15000, headersTimeout: 10000 }, async (req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
-    res.setHeader('Content-Security-Policy', "default-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+    res.setHeader('Content-Security-Policy', "default-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
     const send = (status: number, value: unknown) => {
       res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
       res.end(JSON.stringify(value));
@@ -199,6 +199,9 @@ export function createApp(data: string, dist: string, origin: string, setupToken
       }
       if (method !== 'GET' && path.startsWith('/api/tiles') && authenticated.role === 'viewer') {
         throw new RequestError(403, 'Editing access is required.');
+      }
+      if (!discoveryEnabled && path.startsWith('/api/admin/discovery/')) {
+        throw new RequestError(403, 'Network discovery is disabled in the server configuration.');
       }
       if (method === 'POST' && path === '/api/admin/discovery/cancel') { scanCancelled = true; return send(200, {}); }
       if (method === 'GET' && path === '/api/admin/discovery/progress') return send(200, { progress: scanProgress ?? null });
@@ -315,6 +318,7 @@ export function createApp(data: string, dist: string, origin: string, setupToken
           ...machineInfo(),
           runtime: process.version,
           platform: process.platform,
+          discoveryEnabled,
           schema: db.prepare('PRAGMA user_version').get()?.user_version,
           tiles: db.prepare('SELECT count(*) AS total FROM tiles').get()?.total,
         });
@@ -396,7 +400,11 @@ if (import.meta.main) {
   const { NEXUS_JELLYFIN_URL, NEXUS_JELLYFIN_API_KEY } = process.env;
   const jellyfin = NEXUS_JELLYFIN_URL && NEXUS_JELLYFIN_API_KEY
     ? { baseUrl: NEXUS_JELLYFIN_URL, apiKey: NEXUS_JELLYFIN_API_KEY } : undefined;
-  const server = createApp(process.env.NEXUS_DATA ?? 'data', process.env.NEXUS_DIST ?? 'dist', origin, process.env.NEXUS_SETUP_TOKEN, jellyfin);
+  const discovery = process.env.NEXUS_DISCOVERY;
+  if (discovery !== undefined && discovery !== 'on' && discovery !== 'off') {
+    throw new Error('NEXUS_DISCOVERY must be on or off.');
+  }
+  const server = createApp(process.env.NEXUS_DATA ?? 'data', process.env.NEXUS_DIST ?? 'dist', origin, process.env.NEXUS_SETUP_TOKEN, jellyfin, discovery !== 'off');
   server.listen(port, host, () => console.log(`Nexus Dashboard listening on ${host}:${port}`));
   for (const signal of ['SIGTERM', 'SIGINT'] as const) process.once(signal, () => server.close());
 }

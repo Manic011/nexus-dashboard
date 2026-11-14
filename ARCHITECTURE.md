@@ -21,6 +21,8 @@ Administrators manage accounts and discovery. Editors manage tiles. Viewers and 
 
 ## Discovery and integration
 
+Setting `NEXUS_DISCOVERY=off` disables the discovery, scan planning, interface, and profile endpoints. The administrator system endpoint reports `discoveryEnabled`. Saved scan history and manual imports remain available to administrators.
+
 The administrator selects a server interface. The web discovery route combines mDNS advertisements with bounded HTTP and HTTPS checks of the selected IPv4 targets: a /24 default, or explicit local/private CIDRs, individual addresses, and ranges capped at 4096 unique selected addresses before exclusions. It uses live page evidence first, then the port catalog for suggestions. Recognized unverified certificate names can provide a labeled clue. The browser previews results through the same validation and duplicate checks as a backup import.
 
 Jellyfin receives read-only requests at the configured base URL. Nexus sends the aggregate active stream count to authenticated clients when a tile matches the base URL. The key is supplied through server configuration.

@@ -10,7 +10,7 @@ import { backupState, restoreState } from '../server/state-backup.ts';
 test('release audit: permissions, stale restores, full database recovery, and revoked sessions', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'nexus-release-'));
   const state = join(directory, 'state');
-  const origin = 'http://localhost';
+  const origin = 'https://dashboard.example.invalid';
   const password = 'disposable-fixture-password';
   let app = createApp(state, 'dist', origin, 'fixture-token');
   let base = '';
@@ -38,7 +38,8 @@ test('release audit: permissions, stale restores, full database recovery, and re
     await start();
     const setup = await request('setup', 'POST', { username: 'administrator', password, token: 'fixture-token' });
     assert.equal(setup.status, 200);
-    assert.match(setup.headers.get('set-cookie')!, /HttpOnly; SameSite=Strict/);
+    assert.match(setup.headers.get('set-cookie')!, /HttpOnly; SameSite=Strict; Max-Age=604800; Secure/);
+    assert.equal(setup.headers.get('cache-control'), 'no-store');
     cookie = setup.headers.get('set-cookie')!.split(';')[0]; const administrator = cookie;
     const viewer = await (await request('admin/users', 'POST', { username: 'reader', password, role: 'viewer' })).json();
     await request('admin/users', 'POST', { username: 'editor', password, role: 'editor' });
@@ -99,6 +100,22 @@ test('release audit: permissions, stale restores, full database recovery, and re
     assert.equal((await (await request('admin/console')).json()).backups.length, 1);
     await login('reader');
     assert.equal((await (await request('tiles')).json())[0].title, 'Changed fixture');
+
+    await stop();
+    app = createApp(restored, 'dist', origin, 'fixture-token', undefined, false);
+    await start();
+    cookie = '';
+    assert.equal((await request('admin/discovery/interfaces')).status, 401);
+    await login('administrator');
+    assert.equal((await (await request('admin/system')).json()).discoveryEnabled, false);
+    for (const path of ['interfaces', 'progress', 'profiles']) {
+      assert.equal((await request('admin/discovery/' + path)).status, 403, path);
+    }
+    for (const path of ['plan', 'web', 'mdns', 'cancel', 'profiles']) {
+      assert.equal((await request('admin/discovery/' + path, 'POST')).status, 403, path);
+    }
+    assert.equal((await request('admin/backup/preview', 'POST', { version: 1, tiles: [tile] })).status, 200);
+    assert.equal((await (await request('tiles')).json()).length, 1);
   } finally { await stop(); rmSync(directory, { recursive: true, force: true }); }
 });
 

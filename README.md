@@ -36,6 +36,7 @@ For **local development**, open **Code** on this repository's GitHub page. Copy 
 | Guide | Contents |
 | --- | --- |
 | [User guide](docs/USER_GUIDE.md) | Setup, dashboard editing, discovery, import, access, backups, and Jellyfin. |
+| [Security and remote access](docs/SECURITY.md) | Audit findings and Cloudflare Access deployment checklist. |
 | [Ubuntu installation](docs/INSTALL.md) | Build a release, install with systemd, configure HTTPS, and back up or recover a deployment. |
 | [Local development](docs/LOCAL_DEVELOPMENT.md) | Build, test, and run on Linux, macOS, or Windows. |
 | [Service port catalog](docs/HOMELAB_PORTS.md) | Web ports used by discovery and how Nexus chooses a service name. |

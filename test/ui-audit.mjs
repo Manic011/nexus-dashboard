@@ -246,3 +246,44 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test('administration keeps manual import available when discovery is disabled', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'nexus-ui-restricted-'));
+  const port = 3421;
+  const origin = 'http://127.0.0.1:' + port;
+  const token = 'fixture-setup-token';
+  const app = createApp(directory, 'dist', origin, token, undefined, false);
+  try {
+    app.listen(port, '127.0.0.1');
+    await once(app, 'listening');
+    const setup = await fetch(origin + '/api/setup', {
+      method: 'POST',
+      headers: { origin, 'content-type': 'application/json' },
+      body: JSON.stringify({ username: 'admin', password: 'fixture-password-123', token }),
+    });
+    assert.equal(setup.status, 200);
+    const session = setup.headers.get('set-cookie').split(';')[0].split('=')[1];
+    const browser = await chromium.launch();
+    try {
+      const context = await browser.newContext();
+      await context.addCookies([{ name: 'nexus_session', value: session, url: origin }]);
+      const page = await context.newPage();
+      await page.goto(origin);
+      await page.getByRole('button', { name: 'Administration', exact: true }).click();
+      await page.getByText(/Network discovery is disabled on this server/).waitFor();
+      assert.equal(await page.getByRole('button', { name: 'Discover services', exact: true }).count(), 0);
+      await page.getByText('Add known service addresses', { exact: true }).click();
+      await page.getByLabel('Service addresses').fill('https://service.example.invalid/');
+      await page.getByRole('button', { name: 'Preview addresses', exact: true }).click();
+      await page.getByRole('heading', { name: 'Review import' }).waitFor();
+    } finally { await browser.close(); }
+  } finally {
+    if (app.listening) {
+      const closed = once(app, 'close');
+      app.close();
+      app.closeAllConnections();
+      await closed;
+    }
+    await rm(directory, { recursive: true, force: true });
+  }
+});

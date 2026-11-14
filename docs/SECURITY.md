@@ -1,0 +1,29 @@
+# Security audit and remote access
+
+Nexus Dashboard is a development preview. Keep Internet access limited to an identity-gated Cloudflare Access application. Verify the release and its configuration on an isolated instance before connecting a hostname to live dashboard data.
+
+## Pre-exposure findings
+
+| Priority | Finding | Action before exposure |
+| --- | --- | --- |
+| Blocker | A release bundle carries its own Node.js runtime. Ubuntu package updates and npm audits do not update or audit that runtime. | Rebuild and verify the bundle using a currently patched Node.js 24.x release. The minimum version is 24.22.3. Keep the Ubuntu host under active security maintenance. |
+| High | Active discovery gives Nexus administrators the ability to make requests from the dashboard server to reachable private networks. | Set `NEXUS_DISCOVERY=off` on the tunneled instance. Keep LAN discovery on a separate private instance if needed. Leave the optional Jellyfin integration unconfigured unless it is needed, and use a trusted HTTPS endpoint when enabling it. |
+| Medium | Sign-in and initial setup share a single process-wide request budget. Unrestricted access to sign-in can make it temporarily unavailable to other users. Nexus has no built-in MFA. | Require Cloudflare Access with an explicit identity allowlist and MFA. Keep reviewers and guests on named viewer accounts. |
+| Medium | An administrator can read the host inventory, scan history, and backups. Snapshots can restore older access rules. Shared viewer passwords make access difficult to attribute and revoke individually. | Limit administrator access, use separate named accounts, protect database backups, and check tile grants after a restore. Tiles are visible to signed-in users by default until restricted. |
+
+The Node.js November 2026 release includes fixes in bundled HTTP parsing, SQLite, and Undici. Applicability varies by feature. [Node.js 24.22.3 release](https://nodejs.org/en/blog/release/v24.22.3)
+
+## Application review
+
+- Reviewed SQLite statements and request parsing. Queries that use request values bind parameters. Tile URLs are limited to HTTP or HTTPS and reject embedded credentials. React renders names, descriptions, service evidence, and tags as text. The content security policy restricts resource loading, framing, and plugin objects.
+- Reviewed account setup, sign-in, sessions, CSRF, and authorization. Setup requires an operator token. The app stores password hashes derived with scrypt and hashes random session tokens before storing them. HTTPS configuration enables Secure cookies. Write requests require the configured browser origin and JSON. The API enforces administrator operations, viewer read-only access, and restricted tile access.
+- Reviewed backup and outbound request boundaries. Tile imports validate the input and preserve existing permissions when updating. Named snapshots include permissions and require a current restore preview. Full-database recovery revokes copied browser sessions. Jellyfin requests use the server-configured URL, reject redirects, and return an aggregate count only.
+- The local npm advisory check reported zero known dependency advisories. The production build, five API and recovery tests, and both browser suites passed locally on Node.js 24.22.3. The five API and recovery tests also passed in an isolated Ubuntu staging directory using the patched Linux runtime. The automated checks cover expected and denied access, cross-origin write rejection, restored-session revocation, HTTPS cookie attributes, and disabling discovery while preserving ordinary dashboard use. A live Cloudflare policy, public hostname, origin isolation, and host patch status must be verified for each deployment.
+
+## Private access through Cloudflare
+
+1. Choose a hostname such as `dashboard.example.net`. Create a self-hosted Access application for the entire hostname **before** adding the tunnel route. Allow only named identities or an explicit identity-provider group, require MFA, and avoid Access Bypass policies. [Cloudflare Access for a self-hosted application](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/self-hosted-public-app/)
+2. On the Ubuntu server, configure `NEXUS_HOST=127.0.0.1`, `NEXUS_ORIGIN=https://dashboard.example.net`, and `NEXUS_DISCOVERY=off` in the protected environment file. Restart Nexus after the setting changes. Run `cloudflared` on the same host and route the hostname to `http://127.0.0.1:3000`. Keep direct public ingress to the Nexus port closed.
+3. Enable **Protect with Access** for the tunnel route. For a locally managed tunnel, set `originRequest.access.required` and configure the Access team name and application audience tag. Use a current `cloudflared` release and protect the full hostname, including API and asset paths. Preserve the browser Origin header. Avoid cache rules that override the API's `Cache-Control: no-store`. [Cloudflare Tunnel origin parameters](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/origin-parameters/)
+4. Verify from a private browser window that Access blocks both the dashboard and a direct request to `/api/tiles` before sign-in. With an allowed identity, verify that Nexus still requires its own sign-in. Check a named viewer can see assigned tiles and receives a denial on administration endpoints. Confirm the administrator sees discovery disabled and that direct access to the origin port fails from another host.
+5. Use the host firewall and systemd service configuration as additional boundaries. Review Access sign-in records and the Nexus journal during initial use. Keep tunnel credentials, setup tokens, database backups, and configured service URLs private.

@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Raised the minimum Node.js version and Ubuntu bundle runtime to 24.22.3, the November 2026 security release.
+- Added a server-side network discovery switch, blocked browser plugin objects with CSP, and documented the security audit and Cloudflare Access deployment requirements.
+
 - Added a one-command Ubuntu installer bundle with dependency checks, archive verification, systemd setup, and browser onboarding instructions.
 
 - Removed the repository URL placeholder from the README, moved workstation commands into a local development guide, and separated Ubuntu deployment steps by where they run.

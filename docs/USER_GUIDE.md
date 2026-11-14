@@ -55,6 +55,8 @@ The tile editor lists existing categories and offers up to six reusable tags. Cl
 
 **Discovery history** keeps the 20 most recent network scans, including stopped scans. Select **Review results** to reopen a scan, edit entries in the import review, and import the URLs you select. Reviewing a scan does not start a new scan.
 
+If the server operator disables network discovery, use **Add known service addresses** or reopen a saved result. These options do not probe the network.
+
 In **Users**, create a group and select its members. Under **Tile permissions**, select a tile and enable **Restrict access**. Administrators always have access. Other users need an individual grant or membership in an allowed group. Role restrictions still apply, so viewers cannot edit tiles. These controls govern Nexus visibility and do not change the linked application's sign-in.
 
 In **Backup**, save a named snapshot to the server's SQLite state. Select **Review restore** beside a snapshot and confirm to replace the tile and group configuration. Nexus saves the current configuration automatically before restoring it, so you can return to either state. Snapshots include tiles, groups, and tile permissions. User accounts, passwords, and server settings require the full instance backup procedure. The JSON upload still previews a tile merge.

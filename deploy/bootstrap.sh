@@ -68,10 +68,10 @@ release="$stage/release"
 chmod u+x "$release/runtime/bin/node"
 if ! "$release/runtime/bin/node" -e '
   const [major, minor, patch] = process.versions.node.split(".").map(Number);
-  if (major !== 24 || minor < 14 || (minor === 14 && patch < 1)) process.exit(1);
+  if (major !== 24 || minor < 22 || (minor === 22 && patch < 3)) process.exit(1);
   require("node:sqlite");
 '; then
-  fail 'The bundled Node.js runtime is incompatible with this host. Use the bundle for your Ubuntu architecture.'
+  fail 'Use a compatible Node.js 24.x runtime (24.22.3 or newer) for this Ubuntu architecture.'
 fi
 for path in dist/index.html server/index.ts server/state-backup.ts node_modules/zod/package.json node_modules/multicast-dns/package.json deploy/nexus-dashboard.service; do
   [[ -f $release/$path ]] || fail "The release is missing $path."

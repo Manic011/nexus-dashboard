@@ -22,7 +22,7 @@ The repository is private, so the command uses a downloaded or transferred bundl
 ## Requirements
 
 - An Ubuntu release receiving current security maintenance, with systemd, sudo access, and an available TCP port 3000 for the initial install.
-- Git and Node.js 24.14.1 or newer within 24.x on the build workstation.
+- Git and Node.js 24.22.3 or newer within 24.x on the build workstation.
 - An official Node.js 24.x Linux runtime for the target CPU architecture. Verify the archive against the signed checksums for that release. On the server, `uname -m` reports the architecture. [Node.js downloads and verification instructions](https://nodejs.org/en/download)
 - The exact URL used to open Nexus in a browser. For a trusted LAN test, use HTTP with your Ubuntu server's address and port 3000. For HTTPS, configure a [reverse proxy](#https-behind-a-reverse-proxy) on the server.
 
@@ -115,6 +115,7 @@ Open the configured URL, enter the token, and create the first administrator. Us
 | `NEXUS_ORIGIN` | Exact browser origin used for write requests and cookie security. Defaults to loopback HTTP on the configured port. |
 | `NEXUS_DATA` | SQLite state directory. Defaults to `data` locally. The systemd service uses `/var/lib/nexus-dashboard`. |
 | `NEXUS_DIST` | Directory containing the built frontend. Defaults to `dist` relative to the working directory. |
+| `NEXUS_DISCOVERY` | `on` by default. Set to `off` to disable active web and mDNS discovery, interface enumeration, and scan profile endpoints. |
 | `NEXUS_SETUP_TOKEN` | Secret used when creating the first administrator. |
 | `NEXUS_JELLYFIN_URL` | Jellyfin base URL, including a proxy subpath when required. |
 | `NEXUS_JELLYFIN_API_KEY` | Jellyfin API key used only on the server. |
@@ -131,7 +132,7 @@ dashboard.example.net {
 }
 ```
 
-Set `NEXUS_ORIGIN=https://dashboard.example.net` and `NEXUS_HOST=127.0.0.1`. Restart Nexus and open the HTTPS URL. The frontend and API share the same origin, and an HTTPS origin enables Secure session cookies.
+Set `NEXUS_ORIGIN=https://dashboard.example.net` and `NEXUS_HOST=127.0.0.1`. Restart Nexus and open the HTTPS URL. The frontend and API share the same origin, and an HTTPS origin enables Secure session cookies. For a Cloudflare Tunnel, use the [private remote-access checklist](SECURITY.md#private-access-through-cloudflare).
 
 ## Jellyfin activity
 

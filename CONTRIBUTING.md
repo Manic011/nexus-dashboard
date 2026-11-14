@@ -5,7 +5,7 @@ Develop in the local Git checkout and use Ubuntu as the integration environment.
 ## Development workflow
 
 1. Create a focused branch when a change benefits from separate review.
-2. Use Node.js 24.14.1 or newer within the 24.x series. Run `npm ci` after checkout or a lockfile change.
+2. Use Node.js 24.22.3 or newer within the 24.x series. Run `npm ci` after checkout or a lockfile change.
 3. Run `npm run check:release` to check versioned files for common private-file and credential leaks. Review Git history and packaged artifacts separately. Run `npm run build` to type-check and build the UI. Run `npm test` for the automated API and discovery scope tests.
 4. For changes to a user workflow, integration, or deployment, exercise the normal entry point on Ubuntu. For schema changes, verify both a fresh database and an existing one.
 5. Commit the code and documentation together. Push the branch and check the CI result. Describe any verification that still needs to happen in the pull request.

@@ -2,7 +2,7 @@
 
 Use this guide to run Nexus on your workstation for development or evaluation. For the managed systemd service, follow the [Ubuntu installation guide](INSTALL.md).
 
-Install **Node.js 24.14.1 or newer in the 24.x series**. On GitHub, open the repository's **Code** menu to copy its clone URL, open it in GitHub Desktop, or download and extract a ZIP. Open a terminal in the project directory containing `package.json`. Use a Git checkout for contributions and for the release privacy check. [Node.js downloads](https://nodejs.org/en/download)
+Install **Node.js 24.22.3 or newer in the 24.x series**. On GitHub, open the repository's **Code** menu to copy its clone URL, open it in GitHub Desktop, or download and extract a ZIP. Open a terminal in the project directory containing `package.json`. Use a Git checkout for contributions and for the release privacy check. [Node.js downloads](https://nodejs.org/en/download)
 
 ## Linux and macOS (Bash)
 

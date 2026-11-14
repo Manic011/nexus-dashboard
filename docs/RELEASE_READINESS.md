@@ -1,5 +1,7 @@
 # Release readiness audit
 
+For Internet-facing deployment gates and the Cloudflare Access checklist, see [Security audit and remote access](SECURITY.md).
+
 Audit date: 2026-11-14. Scope: the current development preview, its permission model, recovery tools, Ubuntu service installation, browser workflows, and distributable-file privacy.
 
 ## Decision
