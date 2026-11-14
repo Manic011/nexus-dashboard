@@ -19,3 +19,4 @@
 
 - Expanded the README and added detailed usage, installation, API, and contribution guides.
 - Added a documentation checklist for future changes and documented the planned one-line Ubuntu installer.
+- Added browser-local appearance preferences, refreshed card spacing, reusable tag suggestions, and easier mobile import review.

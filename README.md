@@ -9,6 +9,7 @@ Nexus Dashboard is a self-hosted application launcher for homelabs. It helps you
 | Feature | What you can do |
 | --- | --- |
 | Application dashboard | Create, edit, and delete tiles. Group tiles by category, add multiple tags, and combine search with category and tag filters. |
+| Appearance | Choose a light, dark, or system theme and comfortable or compact cards. |
 | Service discovery | Run an administrator-approved scan of a local IPv4 range. Review results from mDNS and common web ports, then edit names, categories, and tags before importing selected services. |
 | Accounts and access | Create editor and viewer accounts, or enable a shared password for read-only dashboard access. |
 | Tile backups | Export tiles and tags as JSON. Preview a backup and merge selected entries, with duplicate URLs skipped. |

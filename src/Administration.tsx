@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { DatabaseBackup, Radar, Server, UsersRound } from 'lucide-react';
 import { Users } from './Users.js';
 import { parseTags } from './tags.js';
@@ -26,6 +26,7 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
   const [edits, setEdits] = useState<Record<string, { title: string; category: string; tags: string }>>({});
   const [selection, setSelection] = useState<string[]>([]);
   const [status, setStatus] = useState('');
+  const review = useRef<HTMLElement>(null);
   const [busy, setBusy] = useState(false);
   const network = interfaces.find(item => item.address === address);
 
@@ -33,6 +34,8 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
     api<SystemInfo>('admin/system').then(setSystem).catch(error => setStatus(error.message));
     api<Network[]>('admin/discovery/interfaces').then(setInterfaces).catch(error => setStatus(error.message));
   }, [api]);
+
+  useEffect(() => { if (preview) review.current?.focus(); }, [preview]);
 
   async function run(action: () => Promise<void>) {
     setBusy(true);
@@ -128,7 +131,7 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
         </form>
       </details>
     </>}
-    {preview && <section className="tile"><h2>Review import</h2>
+    {preview && <section className="tile" ref={review} tabIndex={-1} aria-labelledby="review-title"><h2 id="review-title">Review import</h2>
       <p className="muted">{preview.tiles.length} available · {preview.skipped} duplicate addresses skipped</p>
       {preview.tiles.length > 0 && <>
         <div className="result-actions"><button disabled={busy} onClick={() => setSelection(preview.tiles.map(item => item.url))}>Select all</button>
@@ -157,7 +160,7 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
           {selection.includes(item.url) && <details className="review-edit"><summary>Edit details</summary>
             <div className="review-fields">{(['title', 'category', 'tags'] as const).map(field => <label key={field}>
               {field === 'title' ? 'Name' : field === 'category' ? 'Category' : 'Tags (comma separated)'}
-              <input value={edits[item.url][field]} disabled={busy}
+              <input value={edits[item.url][field]} disabled={busy} autoComplete="off"
                 maxLength={field === 'title' ? 80 : field === 'category' ? 40 : 420}
                 list={field === 'category' ? 'import-categories' : undefined}
                 onChange={event => setEdits(previous => ({ ...previous, [item.url]: { ...previous[item.url], [field]: event.target.value } }))} />

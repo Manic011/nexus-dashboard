@@ -17,7 +17,7 @@ The Ubuntu integration preview has exercised sign-in, tile edits and imports, di
 | Area | Remaining work |
 | --- | --- |
 | Ubuntu installation | Verify systemd installation, reboot, upgrade, and rollback. Publish verified release artifacts and then build the one-line installer. |
-| Dashboard experience | Add layout controls, themes, and more tile types. |
+| Dashboard experience | Add further layout controls and tile types. Light, dark, and system themes and card density preferences are available. |
 | Discovery | Add more discovery sources and optional schedules. |
 | Live integrations | Add supported integrations beyond Jellyfin. |
 | Access | Add multiple dashboards, dashboard-specific permissions and passwords, and richer account management. |
