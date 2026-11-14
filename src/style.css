@@ -140,3 +140,13 @@ dialog { max-height: calc(100dvh - 24px); overflow: auto; overscroll-behavior: c
 .account-confirmation p { flex-basis: 100%; margin: 0; }
 dialog h2, dialog form p { overflow-wrap: anywhere; }
 .preferences-panel label > span { display: inline; }
+
+.category-picker { display: grid; gap: 10px; }
+.category-picker select {
+  width: 100%;
+  color: var(--ink);
+  background: var(--field);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 8px 10px;
+}

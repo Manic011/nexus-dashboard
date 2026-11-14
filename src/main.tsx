@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import './style.css';
 import { Administration } from './Administration.js';
 import { usePreferences } from './preferences.js';
+import { CategoryPicker } from './CategoryPicker.js';
 import { parseTags } from './tags.js';
 
 type Session = { setup: boolean; setupTokenRequired: boolean; username: string | null; role?: 'admin' | 'editor' | 'viewer' | null; shared?: boolean };
@@ -189,8 +190,7 @@ function App() {
         })}>
           <label>Name<input name="title" autoFocus autoComplete="off" defaultValue={selected?.title} maxLength={80} required /></label>
           <label>URL<input name="url" type="url" autoComplete="off" spellCheck={false} placeholder="https://example.com" defaultValue={selected?.url} maxLength={2048} required /></label>
-          <label>Category<input name="category" list="existing-categories" autoComplete="off" defaultValue={selected?.category ?? 'General'} maxLength={40} required /></label>
-          <datalist id="existing-categories">{[...categories.values()].map(category => <option key={category} value={category} />)}</datalist>
+          <CategoryPicker categories={[...categories.values()]} initial={selected?.category ?? 'General'} />
           <label>Tags <small className="muted">Use up to 12 comma-separated tags.</small><input name="tags" value={tagDraft} onChange={event => setTagDraft(event.target.value)} placeholder="Media, family" maxLength={420} /></label>
           {tagSuggestions.length > 0 && <div className="tags tag-suggestions" aria-label="Existing tags">{tagSuggestions.map(([key, tag]) => <button type="button" key={key} onClick={() => setTagDraft([...draftTags, tag].join(', '))}>+ {tag}</button>)}</div>}
           <label>Description<input name="description" defaultValue={selected?.description} maxLength={180} /></label>

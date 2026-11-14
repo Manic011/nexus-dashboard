@@ -22,3 +22,4 @@
 - Added browser-local appearance preferences, refreshed card spacing, reusable tag suggestions, and easier mobile import review.
 
 - Improved tile editor focus, mobile account management, and loading and import feedback. Added a browser UI audit to CI.
+- Fixed the tile editor category menu so it lists all categories and offers an explicit create option.

@@ -7,7 +7,7 @@ Open the exact URL configured by the operator. On a fresh instance, select a use
 ## Add and organize applications
 
 1. Select **Add tile** and enter a name and an HTTP or HTTPS URL. Include a custom port or path when the service needs one.
-2. Choose an existing category from the suggestions or type a new one. Categories group cards on the dashboard. Category filters and grouping are case-insensitive.
+2. Choose an existing category from the dropdown or select **Create a category…** and enter its name. Categories group cards on the dashboard. Category filters and grouping are case-insensitive.
 3. Optionally add a description and up to 12 comma-separated tags. Each tag can have up to 32 characters. Nexus treats tag names that differ only in capitalization as duplicates on a tile.
 4. Select **Save tile**. The tile title opens the linked app in a new tab.
 
@@ -49,4 +49,4 @@ When the operator configures Jellyfin, a tile with the matching base URL display
 
 Open **Appearance** in the header. Choose **System**, **Dark**, or **Light** for the theme, and **Comfortable** or **Compact** for card density. System follows your device's color scheme. Preferences are saved for your account in the current browser.
 
-The tile editor suggests existing categories and offers up to six reusable tags. Click a tag on a card to filter by it, or click it again to clear that filter. When an import preview opens, keyboard focus moves to **Review import**. On narrow screens, review entries scroll with the page.
+The tile editor lists existing categories and offers up to six reusable tags. Click a tag on a card to filter by it, or click it again to clear that filter. When an import preview opens, keyboard focus moves to **Review import**. On narrow screens, review entries scroll with the page.
