@@ -128,7 +128,14 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
           } });
         });
         await network.selectOption({ index: 1 });
-        await page.getByLabel('Ports or port ranges').fill('80, 8000-8002');
+        await page.getByLabel('IP addresses or ranges preset').selectOption({ label: 'Nexus server only' });
+        assert.ok(await page.getByLabel('IP addresses or ranges', { exact: true }).inputValue());
+        await page.getByLabel('Excluded IPs or ranges preset').selectOption({ label: 'Exclude Nexus server' });
+        assert.equal(await page.getByLabel('Excluded IPs or ranges', { exact: true }).inputValue(), await page.getByLabel('IP addresses or ranges', { exact: true }).inputValue());
+        await page.getByLabel('Excluded IPs or ranges preset').selectOption({ label: 'No exclusions' });
+        await page.getByLabel('Ports or port ranges preset').selectOption({ label: 'Standard web' });
+        assert.equal(await page.getByLabel('Ports or port ranges', { exact: true }).inputValue(), '80, 443');
+        await page.getByLabel('Ports or port ranges', { exact: true }).fill('80, 8000-8002');
         await button('Review scan scope').click();
         await page.getByText(/4 ports ·/).waitFor();
         await page.getByRole('checkbox', { name: /I have permission/ }).check();

@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import { DatabaseBackup, Radar, Server, UsersRound } from 'lucide-react';
 import { AdminWorkspace } from './AdminWorkspace.js';
 import { Users } from './Users.js';
+import { ScanField } from './ScanField.js';
 import { parseTags } from './tags.js';
 
 type Entry = { title: string; description: string; url: string; category: string; tags?: string[]; source?: string };
 type Preview = { tiles: Entry[]; skipped: number; existing?: Entry[] };
 type Coverage = { checked: number; total: number };
 type SystemInfo = { runtime: string; platform: string; schema: number; tiles: number; hostname: string; kernel: string; architecture: string; cpu: string; logicalCpus: number; totalMemory: number; freeMemory: number; machineUptime: number; serviceUptime: number; serviceMemory: number };
-type Network = { name: string; address: string; webCidr: string };
+type Network = { name: string; address: string; webCidr: string; exampleRange: string };
 type Api = <T>(path: string, method?: string, body?: object) => Promise<T>;
 
 const sections = [
@@ -24,6 +25,10 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
   const [address, setAddress] = useState('');
   const [scope, setScope] = useState({ range: '', exclude: '', ports: '' });
   const [plan, setPlan] = useState<{ hosts: number; ports: number[]; checks: number }>();
+  function changeScope(field: keyof typeof scope, value: string) {
+    setScope(previous => ({ ...previous, [field]: value }));
+    resetPlan();
+  }
   function resetPlan() { setPlan(undefined); setAuthorized(false); }
   const [authorized, setAuthorized] = useState(false);
   const [system, setSystem] = useState<SystemInfo>();
@@ -129,15 +134,32 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
         }}>
           <label>Server network<select name="address" required disabled={busy} value={address} onChange={event => {
             setAddress(event.target.value);
+            setScope(previous => ({ ...previous, range: '', exclude: '' }));
             resetPlan();
           }}>
             <option value="">Select a network</option>
             {interfaces.map(item => <option key={item.address} value={item.address}>{item.webCidr} · {item.name}</option>)}
           </select></label>
           {network && <>
-            <label>IP addresses or ranges<input value={scope.range} disabled={busy} maxLength={2000} placeholder="Entire displayed range" onChange={event => { setScope({ ...scope, range: event.target.value }); resetPlan(); }} /></label>
-            <label>Excluded IPs or ranges<input value={scope.exclude} disabled={busy} maxLength={2000} placeholder="None" onChange={event => { setScope({ ...scope, exclude: event.target.value }); resetPlan(); }} /></label>
-            <label>Ports or port ranges<input value={scope.ports} disabled={busy} maxLength={2000} placeholder="Common homelab ports" onChange={event => { setScope({ ...scope, ports: event.target.value }); resetPlan(); }} /></label>
+            <ScanField label="IP addresses or ranges" value={scope.range} disabled={busy} placeholder="Entire displayed range"
+              onChange={value => changeScope('range', value)} presets={[
+                { label: 'Entire subnet', value: '' },
+                { label: 'Nexus server only', value: network.address },
+                { label: 'Start of subnet', value: network.exampleRange },
+              ]} />
+            <ScanField label="Excluded IPs or ranges" value={scope.exclude} disabled={busy} placeholder="None"
+              onChange={value => changeScope('exclude', value)} presets={[
+                { label: 'No exclusions', value: '' },
+                { label: 'Exclude Nexus server', value: network.address },
+              ]} />
+            <ScanField label="Ports or port ranges" value={scope.ports} disabled={busy} placeholder="Common homelab ports"
+              onChange={value => changeScope('ports', value)} presets={[
+                { label: 'Common homelab ports', value: '' },
+                { label: 'Standard web', value: '80, 443' },
+                { label: 'Media servers', value: '8096, 8920, 32400' },
+                { label: 'Proxmox', value: '8006-8007' },
+                { label: 'Alternative web', value: '8080-8082, 8443' },
+              ]} />
             <p className="muted">Separate entries with commas. Use a hyphen between the first and last IP or port in a range.</p>
             <button type="button" disabled={busy} onClick={() => void run(async () => {
               setPlan(await api<typeof plan>('admin/discovery/plan', 'POST', { address, ...scope }));

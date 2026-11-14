@@ -157,3 +157,6 @@ dialog h2, dialog form p { overflow-wrap: anywhere; }
 .admin-workspace hr { border: 0; border-bottom: 1px solid var(--border); margin: 24px 0; }
 .admin-workspace select { width: 100%; }
 .restore-diff { flex-basis: 100%; overflow-wrap: anywhere; }
+
+.scan-field { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 8px; }
+@media (max-width: 520px) { .scan-field { grid-template-columns: minmax(0, 1fr); } }

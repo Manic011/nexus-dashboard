@@ -201,7 +201,12 @@ export function createApp(data: string, dist: string, origin: string, setupToken
       }
       if (method === 'GET' && path === '/api/admin/discovery/progress') return send(200, { progress: scanProgress ?? null });
       if (method === 'GET' && path === '/api/admin/discovery/interfaces') {
-        return send(200, discoveryInterfaces().map(item => ({ ...item, webCidr: webScope(item.address, Number(item.cidr.split('/')[1])).cidr })));
+        return send(200, discoveryInterfaces().map(item => {
+          const { cidr, hosts } = webScope(item.address, Number(item.cidr.split('/')[1]));
+          const first = hosts[0];
+          const last = hosts[Math.min(15, hosts.length - 1)];
+          return { ...item, webCidr: cidr, exampleRange: first === last ? first : first + '-' + last };
+        }));
       }
       if (method === 'POST' && ['/api/admin/discovery/mdns', '/api/admin/discovery/web', '/api/admin/discovery/plan'].includes(path)) {
         const input = z.object({ address: z.ipv4(), authorized: z.boolean().optional(), range: z.string().max(2000).optional(), exclude: z.string().max(2000).optional(), ports: z.string().max(2000).optional() }).safeParse(await body(req));
