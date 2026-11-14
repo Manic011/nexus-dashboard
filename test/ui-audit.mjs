@@ -67,21 +67,25 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
       assert.equal(await field('URL').evaluate(input => input.value), 'https://user@example.net');
       await field('URL').fill(serviceFixture ?? origin);
       await button('Save tile').click();
-      await page.getByRole('link', { name: 'Local tools' }).waitFor();
+      await button('Local tools').waitFor();
       if (!remote || process.env.NEXUS_UI_TEST_JELLYFIN) await page.getByText('1 active stream', { exact: true }).waitFor();
       await button('Add tile').click();
       await dialog.getByLabel('Name', { exact: true }).fill('Other app');
       await field('URL').fill('https://example.com');
       await field('Category').selectOption({ label: 'Utilities' });
       await button('Save tile').click();
-      await page.getByRole('link', { name: 'Other app' }).waitFor();
+      await button('Other app').waitFor();
       await fits(320, 568);
       if (serviceFixture) {
-        const trigger = button('View Local tools in Nexus');
+        const trigger = button('Local tools');
         await trigger.click();
         await dialog.waitFor();
-        assert.equal(await dialog.locator('iframe').count(), 0);
-        assert.equal(await dialog.getByRole('link', { name: 'Open in new tab' }).getAttribute('href'), new URL(serviceFixture).href);
+        const frame = dialog.locator('iframe');
+        assert.equal(await frame.getAttribute('src'), new URL(serviceFixture).href);
+        assert.equal(await frame.getAttribute('sandbox'), 'allow-scripts allow-forms');
+        await frame.contentFrame().getByRole('heading', { name: 'Fixture service' }).waitFor();
+        assert.equal(page.context().pages().length, 1);
+        assert.equal(page.url(), origin + '/');
         await dialog.getByText('Saved login', { exact: true }).click();
         const master = 'fixture-vault-passphrase';
         const savedPassword = 'fixture-service-password';
@@ -94,13 +98,11 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
         await dialog.getByText('Login saved.', { exact: true }).waitFor();
         const stored = await page.evaluate(() => localStorage.getItem('nexus.vault.v1:admin'));
         assert.ok(stored && !stored.includes(savedPassword) && !stored.includes(master) && !stored.includes('fixture-user'));
-        await button('Load embedded page').click();
-        const frame = dialog.locator('iframe');
-        assert.equal(await frame.getAttribute('sandbox'), 'allow-scripts allow-forms');
-        await frame.contentFrame().getByRole('heading', { name: 'Fixture service' }).waitFor();
         assert.ok(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth + 1));
         await page.keyboard.press('Escape');
         await dialog.waitFor({ state: 'hidden' });
+        assert.equal(await page.locator('iframe').count(), 0);
+        assert.ok(await trigger.evaluate(element => element === document.activeElement));
 
         await page.reload();
         await trigger.click();
@@ -131,7 +133,7 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
       assert.ok(await button('Edit Local tools').evaluate(element => element === document.activeElement));
       await button('Delete Local tools').click();
       await page.keyboard.press('Escape');
-      await page.getByRole('link', { name: 'Local tools' }).waitFor();
+      await button('Local tools').waitFor();
       if (!remote || process.env.NEXUS_UI_TEST_JELLYFIN) await page.getByText('1 active stream', { exact: true }).waitFor();
       await button('lab').click();
       assert.equal(await field('Filter by tag').inputValue(), 'lab');
@@ -251,8 +253,8 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
       await page.getByText(/Configuration restored/).waitFor();
       await button('Sign out').click();
       await login('reader', password);
-      assert.equal(await page.getByRole('link', { name: 'Local tools' }).count(), 0);
-      await page.getByRole('link', { name: 'Imported app' }).waitFor();
+      assert.equal(await button('Local tools').count(), 0);
+      await button('Imported app').waitFor();
       assert.equal(await button('Add tile').count(), 0);
       assert.equal(await button('Administration').count(), 0);
       await button('Sign out').click();
@@ -267,7 +269,7 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
       await page.getByText('Tile permissions saved.', { exact: true }).waitFor();
       await button('Sign out').click();
       await login('reader', password);
-      await page.getByRole('link', { name: 'Local tools' }).waitFor();
+      await button('Local tools').waitFor();
       await button('Sign out').click();
       await login('admin', password);
       await button('Administration').click();

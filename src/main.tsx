@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { ArrowUpRight, Boxes, Globe, LogOut, PanelTop, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
+import { Boxes, Globe, LogOut, PanelTop, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import { createRoot } from 'react-dom/client';
 import './style.css';
 import { Administration } from './Administration.js';
@@ -37,6 +37,7 @@ function App() {
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<Tile | 'new' | null>(null);
   const [browsing, setBrowsing] = useState<Tile | null>(null);
+  const serviceTrigger = useRef<HTMLButtonElement>(null);
   const [deleting, setDeleting] = useState<Tile | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
 
@@ -163,14 +164,11 @@ function App() {
       {[...groups].map(([category, items]) => <section className="group" key={category}>
         <h2>{categories.get(category)} <span className="group-count">{items.length}</span></h2>
         <div className="grid">{items.map(tile => <article key={tile.id} className="tile app-tile">
-          <div className="tile-top"><span className="tile-icon"><Globe size={19} /></span><div className="actions">
-            <button aria-label={'View ' + tile.title + ' in Nexus'} title="View in Nexus" onClick={() => setBrowsing(tile)}><PanelTop size={16} /></button>
-            {session.role !== 'viewer' && <>
+          <div className="tile-top"><span className="tile-icon"><Globe size={19} /></span>{session.role !== 'viewer' && <div className="actions">
             <button aria-label={'Edit ' + tile.title} onClick={() => { setError(''); setEditing(tile); }}><Pencil size={16} /></button>
             <button aria-label={'Delete ' + tile.title} onClick={() => { setError(''); setDeleting(tile); }}><Trash2 size={16} /></button>
-            </>}
-          </div></div>
-          <a href={tile.url} target="_blank" rel="noopener noreferrer">{tile.title}<ArrowUpRight size={16} /></a>
+          </div>}</div>
+          <button className="tile-launch" aria-haspopup="dialog" onClick={event => { serviceTrigger.current = event.currentTarget; setBrowsing(tile); }}>{tile.title}<PanelTop size={16} aria-hidden="true" /></button>
           <p className="muted">{tile.description || new URL(tile.url).host}</p>
           {tile.tags.length > 0 && <div className="tags">{tile.tags.map(tag => <button key={tag} aria-pressed={activeTag === tag.toLowerCase()} onClick={() => setTagFilter(activeTag === tag.toLowerCase() ? '' : tag.toLowerCase())}>{tag}</button>)}</div>}
           {jellyfin?.tiles.includes(tile.id) && <p className="muted">{jellyfin.state === 'available'
@@ -180,7 +178,7 @@ function App() {
       </section>)}
     </>}
     </main>
-    {browsing && <ServiceDialog title={browsing.title} url={browsing.url} username={session.username === 'shared' ? undefined : session.username} onClose={() => setBrowsing(null)} />}
+    {browsing && <ServiceDialog title={browsing.title} url={browsing.url} username={session.username === 'shared' ? undefined : session.username} onClose={() => { setBrowsing(null); serviceTrigger.current?.focus(); }} />}
     <dialog ref={dialog} aria-labelledby="dialog-title" onCancel={event => { event.preventDefault(); if (!busy) closeDialog(); }}>
       {(editing || deleting) && <>
         <div className="dialog-head"><h2 id="dialog-title">{deleting ? 'Delete tile' : selected ? 'Edit tile' : 'Add tile'}</h2><button aria-label="Close" disabled={busy} onClick={closeDialog}><X size={19} /></button></div>

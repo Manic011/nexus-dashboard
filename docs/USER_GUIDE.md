@@ -9,13 +9,13 @@ Open the exact URL configured by the operator. On a fresh instance, select a use
 1. Select **Add tile** and enter a name and an HTTP or HTTPS URL. Include a custom port or path when the service needs one.
 2. Choose an existing category from the dropdown or select **Create a category…** and enter its name. Categories group cards on the dashboard. Category filters and grouping are case-insensitive.
 3. Optionally add a description and up to 12 comma-separated tags. Each tag can have up to 32 characters. Nexus treats tag names that differ only in capitalization as duplicates on a tile.
-4. Select **Save tile**. The tile title opens the linked app in a new tab.
+4. Select **Save tile**. The tile title opens the service inside Nexus.
 
 Select a tile's pencil button to edit it. Select its trash button and confirm to remove it from the dashboard. Use the search field to match names, descriptions, URLs, categories, and tags. Combine search with either filter, or click a tag on a card to filter by that tag. **Clear filters** returns to the complete dashboard.
 
 ## Open a service and save its login
 
-Select **View in Nexus** on a tile, then **Load embedded page**. Use **Open in new tab** if the service refuses embedding or needs its own browser storage, cookies, or sign-in redirects. On an HTTPS dashboard, embedding requires an HTTPS service. Your browser needs network access to the service URL.
+Select the tile title to open its service in Nexus. Close the view or press **Escape** to return to your dashboard and filters. Your browser needs network access to the service URL. On an HTTPS dashboard, the service must use HTTPS. Services that forbid framing or depend on browser features blocked by the sandbox may show a blank page or have limited sign-in support.
 
 Under **Saved login**, create a vault with a separate master password of at least 16 characters. Enter the service username and password, then select **Save login**. Unlock the vault and use **Copy username** or **Copy password** when signing in. Verify the service's address before pasting, especially if its login page redirected. Close the panel or dialog to lock the vault. An unlocked vault also locks after two minutes.
 

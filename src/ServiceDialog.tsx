@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { ArrowUpRight, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { unlockVault } from './vault.js';
 
 export function ServiceDialog({ title, url, username, onClose }: { title: string; url: string; username?: string; onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const [showPage, setShowPage] = useState(false);
   const address = new URL(url);
   const canEmbed = address.origin !== location.origin &&
     (address.protocol === 'https:' || location.protocol === 'http:');
@@ -13,23 +12,25 @@ export function ServiceDialog({ title, url, username, onClose }: { title: string
     element?.showModal();
     return () => element?.close();
   }, []);
+  function close() {
+    dialog.current?.close();
+    onClose();
+  }
   return <dialog className="service-dialog" ref={dialog} aria-labelledby="service-title"
-    onCancel={event => { event.preventDefault(); onClose(); }}>
+    onCancel={event => { event.preventDefault(); close(); }}>
     <div className="dialog-head">
       <h2 id="service-title">{title}</h2>
-      <button aria-label="Close service view" onClick={onClose} autoFocus><X size={19} /></button>
+      <button aria-label="Close service view" onClick={close} autoFocus><X size={19} /></button>
     </div>
     <p className="muted service-address">{address.origin}</p>
-    <div className="service-actions">
-      {canEmbed && <button onClick={() => setShowPage(value => !value)}>{showPage ? 'Unload embedded page' : 'Load embedded page'}</button>}
-      <a href={address.href} target="_blank" rel="noopener noreferrer">Open in new tab <ArrowUpRight size={16} /></a>
-    </div>
-    {canEmbed
-      ? <p className="muted">If the service blocks embedding or sign-in fails, open it in a new tab.</p>
-      : <p className="muted">{address.origin === location.origin ? 'Open same-origin services in a new tab.' : 'An HTTPS dashboard can embed HTTPS services only.'}</p>}
     {username && <CredentialPanel username={username} address={address.href} />}
-    {showPage && canEmbed && <iframe title={title + ' embedded service'} src={address.href}
-      sandbox="allow-scripts allow-forms" referrerPolicy="no-referrer" />}
+    {canEmbed ? <>
+      <iframe title={title + ' embedded service'} src={address.href}
+        sandbox="allow-scripts allow-forms" referrerPolicy="no-referrer" />
+      <p className="muted service-note">If this view is blank or sign-in fails, check the service’s framing and sign-in settings.</p>
+    </> : <p role="status">{address.origin === location.origin
+      ? 'Choose a service URL on a different origin to open it here.'
+      : 'Use an HTTPS service URL to open it inside this HTTPS dashboard.'}</p>}
   </dialog>;
 }
 

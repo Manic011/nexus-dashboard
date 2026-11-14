@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- Added an embedded service view with a new-tab fallback and a browser-local encrypted vault for individual accounts.
+- Added an embedded service view that opens directly from tile titles and a browser-local encrypted vault for individual accounts.
 
 - Raised the minimum Node.js version and Ubuntu bundle runtime to 24.22.3, the November 2026 security release.
 - Added a server-side network discovery switch, blocked browser plugin objects with CSP, and documented the security audit and Cloudflare Access deployment requirements.

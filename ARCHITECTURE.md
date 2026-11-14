@@ -2,7 +2,7 @@
 
 ## Runtime and storage
 
-The tile service view loads a sandboxed frame directly in the browser. The sandbox allows scripts and forms and omits same-origin access, top-level navigation, and popups. A separate tab supports services that require those capabilities. The credential vault uses versioned AES-256-GCM ciphertext with a fresh IV on each write, a per-vault random salt, and PBKDF2-SHA-256 with 600,000 iterations. The key stays in browser memory while unlocked. Web Locks and a ciphertext comparison prevent simultaneous tabs from overwriting a newer vault. The server has no vault API or database table.
+The tile service view loads a sandboxed frame directly in the browser. The sandbox allows scripts and forms and omits same-origin access, top-level navigation, and popups. A tile opens the frame inside the dashboard, and closing the view unloads it. The credential vault uses versioned AES-256-GCM ciphertext with a fresh IV on each write, a per-vault random salt, and PBKDF2-SHA-256 with 600,000 iterations. The key stays in browser memory while unlocked. Web Locks and a ciphertext comparison prevent simultaneous tabs from overwriting a newer vault. The server has no vault API or database table.
 
 The React interface is built with Vite and served by the Node.js process alongside the TypeScript API. Browser requests share one origin. The backend validates input with Zod and uses prepared statements with Node's built-in SQLite bindings.
 
