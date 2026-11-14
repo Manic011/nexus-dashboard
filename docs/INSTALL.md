@@ -4,6 +4,21 @@ Nexus Dashboard can run as a systemd service on Ubuntu. Build the application on
 
 The workstation steps below use Bash, or Git Bash on Windows. After transferring the archive, run the remaining commands in a Bash session on Ubuntu. For a local Windows run, see [Local development](LOCAL_DEVELOPMENT.md#windows-powershell).
 
+## One-command install from a bundle
+
+Obtain the installer bundle and its SHA-256 checksum from your release operator, or [build them from a locally tested release](#build-the-one-command-installer). Copy both files to a fresh staging directory on Ubuntu. Run these commands there:
+
+```bash
+sha256sum -c nexus-dashboard-install.sha256 &&
+  sudo bash nexus-dashboard-install.sh
+```
+
+The installer prompts for the exact dashboard origin and installs any missing Ubuntu packages it needs using APT. The bundle includes the Linux Node.js runtime, production dependencies, and built app. Ubuntu needs sudo access, systemd, a free port 3000, and access to its configured package repositories if packages are missing. Match the bundle to your server's architecture.
+
+The install creates and starts the systemd service, checks its health, and prints the dashboard URL and the command to read the setup token. Create the administrator in your browser. For HTTPS, configure the [reverse proxy](#https-behind-a-reverse-proxy) before opening the dashboard. Install only on a fresh host or an Ubuntu host without an existing Nexus installation. See [Backup, upgrade, and recovery](#backup-upgrade-and-recovery) for an existing installation.
+
+The repository is private, so the command uses a downloaded or transferred bundle. A public download URL is not required. Obtain the checksum from a trusted source before running the installer with sudo. The installer also checks the embedded archive for corruption before extracting it. To inspect compatibility on Ubuntu without sudo or service changes, run `bash nexus-dashboard-install.sh --verify-only`.
+
 ## Requirements
 
 - An Ubuntu release receiving current security maintenance, with systemd, sudo access, and an available TCP port 3000 for the initial install.
@@ -148,9 +163,15 @@ If an upgrade fails, stop the service. Restore the previous application files, e
 | First-run token is rejected | Check that you are connecting to the intended instance and using the token from its protected environment file. |
 | Jellyfin reports unavailable | Check the configured base URL, API key, network reachability, and the server's trust of the upstream HTTPS certificate. |
 
-## Planned one-line installer
+## Build the one-command installer
 
-A future Ubuntu installer should fetch a pinned release, verify its artifact, check the host and port, install the systemd service, and print the next setup step. An upgrade path should preserve data and include a tested rollback procedure. Track the work in the release roadmap. [Development status](DEVELOPMENT_STATUS.md)
+After [building and packaging the release](#on-your-workstation-build-and-package) on your workstation, run this from the repository root:
+
+```bash
+node deploy/make-installer.mjs nexus-dashboard-release.tar.gz nexus-dashboard-install.sh > nexus-dashboard-install.sha256
+```
+
+Use a fresh output directory or move the previous installer before generating a new one. The generator refuses to overwrite an existing installer. Transfer the generated script and checksum over a trusted channel. Keep deployment state, credentials, and personal configuration out of the release archive.
 
 ## Discovery state and network access
 

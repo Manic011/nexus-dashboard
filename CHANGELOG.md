@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Added a one-command Ubuntu installer bundle with dependency checks, archive verification, systemd setup, and browser onboarding instructions.
+
 - Removed the repository URL placeholder from the README, moved workstation commands into a local development guide, and separated Ubuntu deployment steps by where they run.
 
 ### Release readiness and privacy

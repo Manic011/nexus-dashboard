@@ -23,7 +23,7 @@ This matrix follows sections 1–26 of the master instructions. Partial means th
 | 17. Reliability | Local persistence and bounded mDNS operation | Load tests, caching, retries, scheduled work and fault recovery verification |
 | 18. QA | Local build and API tests, Ubuntu browser checks | Wider unit, browser, security, integration, upgrade and recovery coverage in CI |
 | 19. Docs | README, user guide, contributor checklist, architecture and API reference, changelog, install and troubleshooting guide | Verify upgrade and rollback instructions end to end |
-| 20. Installation | Ubuntu service installation, deliberate state adoption, startup/restart checks and operator database recovery | Supported release upgrade/uninstall, actual reboot, optional Compose, and a one-line installer |
+| 20. Installation | One-command Ubuntu installer bundle, service installation, deliberate state adoption, startup/restart checks and operator database recovery | Clean-host bootstrap verification, supported release upgrade/uninstall, actual reboot, and optional Compose |
 | 21. Phases | Initial launcher with slices of access, discovery and administration | Finish the phased acceptance criteria before declaring a release |
 | 22. Workflow | Local development, local commits, GitHub publishing and Ubuntu validation | routine branch/PR/CI verification and reproducible deployment automation |
 | 23. Quality | Working preview flows and persistent data | Production hardening, usability testing and release readiness |

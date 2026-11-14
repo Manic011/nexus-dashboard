@@ -20,7 +20,13 @@ See the [release readiness audit](docs/RELEASE_READINESS.md) for verification re
 
 ## Get started
 
-For an **Ubuntu server**, follow the [native Ubuntu installation guide](docs/INSTALL.md). It walks through building and transferring a release, installing the systemd service, and creating your administrator account. A one-line installer is planned.
+For a **fresh Ubuntu server**, copy the matching Nexus installer bundle to the server. From the directory containing the bundle, run:
+
+```bash
+sudo bash nexus-dashboard-install.sh
+```
+
+The installer prompts for your dashboard URL, installs missing system packages, and starts Nexus as a systemd service. Follow its instructions to create the administrator in your browser. See the [Ubuntu installation guide](docs/INSTALL.md#one-command-install-from-a-bundle) for obtaining or building the bundle and verifying it before installation.
 
 For **local development**, open **Code** on this repository's GitHub page. Copy the clone URL into your Git client, use **Open with GitHub Desktop**, or choose **Download ZIP** to try the app without Git history. Then follow the [local development guide](docs/LOCAL_DEVELOPMENT.md) for your operating system.
 

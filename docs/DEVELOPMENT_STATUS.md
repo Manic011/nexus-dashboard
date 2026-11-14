@@ -16,7 +16,7 @@ The Ubuntu integration preview has exercised sign-in, tile edits and imports, di
 
 | Area | Remaining work |
 | --- | --- |
-| Ubuntu installation | Verify actual reboot, application upgrade, and release rollback. Dedicated-account service installation and restart pass. Publish verified release artifacts and then build the one-line installer. |
+| Ubuntu installation | The one-command bundle is available for private transfer. Verify a clean-host privileged bootstrap, actual reboot, application upgrade, and release rollback. Dedicated-account service installation and restart pass. |
 | Dashboard experience | Add further layout controls and tile types. Light, dark, and system themes and card density preferences are available. |
 | Discovery | Add more discovery sources and optional schedules. |
 | Live integrations | Add supported integrations beyond Jellyfin. |
@@ -24,5 +24,7 @@ The Ubuntu integration preview has exercised sign-in, tile edits and imports, di
 | Operations | Add scheduled/encrypted backups, broader recovery compatibility, diagnostics, and update management. Operator database backup/recovery is available. |
 
 ## Latest validation
+
+The one-command installer bundle was verified on Ubuntu x86-64 without sudo. Verification checks the embedded archive, runtime, and required application files without changing the running service. The privileged bootstrap on a clean host is still open.
 
 The release audit adds direct API permission checks, group revocation and snapshot recovery checks, and consistent database backup/recovery with session revocation. Local and Ubuntu API/recovery tests and desktop/mobile browser regressions pass. Visible Ubuntu browser checks confirm recovered credentials, group access, and snapshots. Host and network identifiers are intentionally omitted from published records. See [release readiness](RELEASE_READINESS.md) for the privileged deployment status and remaining production gates.
