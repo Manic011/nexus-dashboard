@@ -150,3 +150,9 @@ dialog h2, dialog form p { overflow-wrap: anywhere; }
   border-radius: 7px;
   padding: 8px 10px;
 }
+
+.admin-workspace fieldset { min-width: 0; border: 1px solid var(--border); border-radius: 8px; }
+.account-choices { display: flex; gap: 12px; flex-wrap: wrap; }
+.account-choices label { display: flex; align-items: center; overflow-wrap: anywhere; }
+.admin-workspace hr { border: 0; border-bottom: 1px solid var(--border); margin: 24px 0; }
+.admin-workspace select { width: 100%; }

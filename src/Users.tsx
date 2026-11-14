@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 type User = { id: number; username: string; role: 'admin' | 'editor' | 'viewer' };
 type Api = <T>(path: string, method?: string, body?: object) => Promise<T>;
 
-export function Users({ api }: { api: Api }) {
+export function Users({ api, onChange }: { api: Api; onChange: () => void }) {
   const [users, setUsers] = useState<User[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -20,6 +20,7 @@ export function Users({ api }: { api: Api }) {
       await operation();
       await refresh();
       setMessage(success);
+      onChange();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'The request failed.');
     } finally {
@@ -31,7 +32,7 @@ export function Users({ api }: { api: Api }) {
     <h2>Users and dashboard access</h2>
     <p className="muted">Editors can manage tiles. Viewers can open the dashboard and its links. Linked applications enforce their own access controls.</p>
     <ul className="user-list">{users.map(user => <li key={user.id}>
-      {user.username === 'shared' ? 'Shared dashboard password' : user.username} ({user.role}){' '}
+      <span><strong>{user.username === 'shared' ? 'Shared dashboard password' : user.username}</strong><br /><small className="muted">{user.role === 'admin' ? 'Administrator' : user.role === 'editor' ? 'Editor' : 'Viewer'}</small></span>
       {user.role !== 'admin' && <button aria-label={'Remove access for ' + user.username} disabled={busy} onClick={() => setRemove(user)}>Remove access</button>}
     </li>)}</ul>
     {remove && <div className="account-confirmation"><p>Remove access and end sessions for {remove.username}?</p>

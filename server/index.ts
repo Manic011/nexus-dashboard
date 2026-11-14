@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { z } from 'zod';
 import { discoverServices, discoveryInterfaces } from './discovery.ts';
 import { discoverWebServices, webScope } from './web-discovery.ts';
+import { configureAdministration, machineInfo } from './admin-console.ts';
 import { createJellyfin } from './jellyfin.ts';
 
 const derive = promisify(scrypt);
@@ -59,7 +60,7 @@ export function createApp(data: string, dist: string, origin: string, setupToken
   const jellyfin = createJellyfin(jellyfinConfig);
   mkdirSync(data, { recursive: true, mode: 0o700 });
   const db = new DatabaseSync(join(data, 'nexus.sqlite'));
-  db.exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; BEGIN IMMEDIATE');
+  db.exec('PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; BEGIN IMMEDIATE');
   try {
     const { user_version } = db.prepare('PRAGMA user_version').get()!;
     if (user_version === 0) db.exec(`
@@ -85,7 +86,13 @@ export function createApp(data: string, dist: string, origin: string, setupToken
       ALTER TABLE tiles ADD COLUMN tags TEXT NOT NULL DEFAULT '[]';
       PRAGMA user_version=3;
     `);
-    if (Number(user_version) > 3) throw new Error('Database requires a newer release.');
+    if (Number(user_version) < 4) db.exec(`
+      CREATE TABLE admin_records (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, label TEXT NOT NULL, created TEXT NOT NULL, payload TEXT NOT NULL);
+      CREATE TABLE access_groups (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, members TEXT NOT NULL);
+      CREATE TABLE tile_access (tile_id INTEGER PRIMARY KEY REFERENCES tiles(id) ON DELETE CASCADE, policy TEXT NOT NULL);
+      PRAGMA user_version=4;
+    `);
+    if (Number(user_version) > 4) throw new Error('Database requires a newer release.');
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');
@@ -93,6 +100,7 @@ export function createApp(data: string, dist: string, origin: string, setupToken
     throw error;
   }
 
+  const consoleAdmin = configureAdministration(db);
   let discoveryRunning = false;
   let loginAttempts = 0;
   let resetAt = 0;
@@ -213,7 +221,9 @@ export function createApp(data: string, dist: string, origin: string, setupToken
             if (identified || !byUrl.has(item.url)) byUrl.set(item.url, item);
           }
           const results = [...byUrl.values()].sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true }));
-          return send(200, { version: 1, tiles: results.slice(0, 500), checked: probed.checked, total: probed.total, found: results.length });
+          const result = { version: 1, tiles: results.slice(0, 500), checked: probed.checked, total: probed.total, found: results.length };
+          consoleAdmin.recordDiscovery(webScope(selected.address, prefix).cidr, result);
+          return send(200, result);
         } catch (error) {
           console.error(error);
           throw new RequestError(503, 'Discovery could not run on this interface.');
@@ -221,6 +231,17 @@ export function createApp(data: string, dist: string, origin: string, setupToken
           discoveryRunning = false;
         }
       }
+      if (/^\/api\/admin\/(console|scans|snapshots|groups|tile-access)(?:\/|$)/.test(path)) {
+        try {
+          const result = consoleAdmin.handle(method, path, method === 'POST' || method === 'PUT' ? await body(req, 65536) : undefined);
+          if (result === undefined) throw new RequestError(404, 'Item not found.');
+          return send(200, result);
+        } catch (error) {
+          if (error instanceof z.ZodError) throw new RequestError(400, 'Check the selected values and try again.');
+          throw error;
+        }
+      }
+      const canSee = (id: unknown) => consoleAdmin.visible(Number(id), Number(authenticated.id), String(authenticated.role));
       if (method === 'GET' && path === '/api/admin/users') {
         return send(200, db.prepare('SELECT id, username, role FROM accounts ORDER BY id').all());
       }
@@ -245,11 +266,11 @@ export function createApp(data: string, dist: string, origin: string, setupToken
       }
       if (method === 'GET' && path === '/api/integrations/jellyfin') {
         const urls = db.prepare('SELECT id, url FROM tiles').all();
-        const tiles = jellyfin ? urls.filter(item => jellyfin.matches(String(item.url))).map(item => item.id) : [];
+        const tiles = jellyfin ? urls.filter(item => canSee(item.id) && jellyfin.matches(String(item.url))).map(item => item.id) : [];
         return send(200, tiles.length ? { tiles, ...await jellyfin!.summary() } : { tiles });
       }
       if (method === 'GET' && path === '/api/tiles') {
-        return send(200, db.prepare('SELECT * FROM tiles ORDER BY category COLLATE NOCASE, title COLLATE NOCASE, id').all().map(readTile));
+        return send(200, db.prepare('SELECT * FROM tiles ORDER BY category COLLATE NOCASE, title COLLATE NOCASE, id').all().filter(item => canSee(item.id)).map(readTile));
       }
       if (method === 'GET' && path === '/api/admin/backup') {
         res.setHeader('Content-Disposition', 'attachment; filename="nexus-dashboard.json"');
@@ -257,6 +278,7 @@ export function createApp(data: string, dist: string, origin: string, setupToken
       }
       if (method === 'GET' && path === '/api/admin/system') {
         return send(200, {
+          ...machineInfo(),
           runtime: process.version,
           platform: process.platform,
           schema: db.prepare('PRAGMA user_version').get()?.user_version,
@@ -288,12 +310,14 @@ export function createApp(data: string, dist: string, origin: string, setupToken
         return send(200, { imported: available.length, skipped });
       }
       const match = /^\/api\/tiles\/([1-9]\d{0,14})$/.exec(path);
+      if (match && !canSee(Number(match[1]))) throw new RequestError(404, 'Tile not found.');
       if ((method === 'POST' && path === '/api/tiles') || (method === 'PUT' && match)) {
         const input: unknown = await body(req);
         const parsed = tile.safeParse(input);
         if (!parsed.success) throw new RequestError(400, 'Enter a title, category, and valid web URL. Use up to 12 tags of 32 characters each.');
         const { title, description, url, category, tags } = parsed.data;
         if (match) {
+          if (!canSee(Number(match[1]))) throw new RequestError(404, 'Tile not found.');
           const updated = db.prepare('UPDATE tiles SET title=?, description=?, url=?, category=?, tags=COALESCE(?, tags) WHERE id=?').run(title, description, url, category, Object.hasOwn(input as object, 'tags') ? JSON.stringify(tags) : null, Number(match[1]));
           if (!updated.changes) throw new RequestError(404, 'Tile not found.');
           return send(200, { id: Number(match[1]) });

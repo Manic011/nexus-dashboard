@@ -50,3 +50,13 @@ When the operator configures Jellyfin, a tile with the matching base URL display
 Open **Appearance** in the header. Choose **System**, **Dark**, or **Light** for the theme, and **Comfortable** or **Compact** for card density. System follows your device's color scheme. Preferences are saved for your account in the current browser.
 
 The tile editor lists existing categories and offers up to six reusable tags. Click a tag on a card to filter by it, or click it again to clear that filter. When an import preview opens, keyboard focus moves to **Review import**. On narrow screens, review entries scroll with the page.
+
+## Administration history, permissions, and restore
+
+**Discovery history** keeps the 20 most recent completed network scans. Select **Review results** to reopen a scan, edit entries in the import review, and import the URLs you select. Reviewing a scan does not start a new scan.
+
+In **Users**, create a group and select its members. Under **Tile permissions**, select a tile and enable **Restrict access**. Administrators always have access. Other users need an individual grant or membership in an allowed group. Role restrictions still apply, so viewers cannot edit tiles. These controls govern Nexus visibility and do not change the linked application's sign-in.
+
+In **Backup**, save a named snapshot to the server's SQLite state. Select **Review restore** beside a snapshot and confirm to replace the tile and group configuration. Nexus saves the current configuration automatically before restoring it, so you can return to either state. Snapshots include tiles, groups, and tile permissions. User accounts, passwords, and server settings require the full instance backup procedure. The JSON upload still previews a tile merge.
+
+**System** shows host and kernel information, CPU, memory, process and host uptime, and the tile inventory. The inventory lists configured URLs and access scope.

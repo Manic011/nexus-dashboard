@@ -23,3 +23,4 @@
 
 - Improved tile editor focus, mobile account management, and loading and import feedback. Added a browser UI audit to CI.
 - Fixed the tile editor category menu so it lists all categories and offers an explicit create option.
+- Added discovery history, user groups and per-tile access, saved configuration snapshots with restore, and host and service inventory details.

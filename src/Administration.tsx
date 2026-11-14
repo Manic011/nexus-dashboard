@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { DatabaseBackup, Radar, Server, UsersRound } from 'lucide-react';
+import { AdminWorkspace } from './AdminWorkspace.js';
 import { Users } from './Users.js';
 import { parseTags } from './tags.js';
 
 type Entry = { title: string; description: string; url: string; category: string; tags?: string[] };
 type Preview = { tiles: Entry[]; skipped: number };
-type SystemInfo = { runtime: string; platform: string; schema: number; tiles: number };
+type SystemInfo = { runtime: string; platform: string; schema: number; tiles: number; hostname: string; kernel: string; architecture: string; cpu: string; logicalCpus: number; totalMemory: number; freeMemory: number; machineUptime: number; serviceUptime: number; serviceMemory: number };
 type Network = { name: string; address: string; webCidr: string };
 type Api = <T>(path: string, method?: string, body?: object) => Promise<T>;
 
@@ -25,6 +26,7 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
   const [preview, setPreview] = useState<Preview>();
   const [edits, setEdits] = useState<Record<string, { title: string; category: string; tags: string }>>({});
   const [selection, setSelection] = useState<string[]>([]);
+  const [workspaceRevision, setWorkspaceRevision] = useState(0);
   const [status, setStatus] = useState('');
   const review = useRef<HTMLElement>(null);
   const [busy, setBusy] = useState(false);
@@ -66,9 +68,9 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
       }}><Icon size={17} />{title}</button>)}
     </nav>
     {status && <p role="status" className="admin-status">{status}</p>}
-    {section === 'users' && <Users api={api} />}
+    {section === 'users' && <Users api={api} onChange={() => setWorkspaceRevision(value => value + 1)} />}
     {section === 'system' && <section className="tile"><h2>System information</h2>
-      {system ? <dl><dt>Runtime</dt><dd>{system.runtime}</dd><dt>Platform</dt><dd>{system.platform}</dd><dt>Database schema</dt><dd>{system.schema}</dd><dt>Saved tiles</dt><dd>{system.tiles}</dd></dl> : <p className="muted">Loading system information…</p>}
+      {system ? <dl><dt>Runtime</dt><dd>{system.runtime}</dd><dt>Platform</dt><dd>{system.platform}</dd><dt>Database schema</dt><dd>{system.schema}</dd><dt>Saved tiles</dt><dd>{system.tiles}</dd><dt>Host</dt><dd>{system.hostname}</dd><dt>Kernel and architecture</dt><dd>{system.kernel} · {system.architecture}</dd><dt>Processor</dt><dd>{system.cpu} · {system.logicalCpus} logical cores</dd><dt>Memory</dt><dd>{Math.round(system.freeMemory / 1048576)} MiB free of {Math.round(system.totalMemory / 1048576)} MiB</dd><dt>Service memory</dt><dd>{Math.round(system.serviceMemory / 1048576)} MiB</dd><dt>Uptime</dt><dd>Host {Math.floor(system.machineUptime / 60)} min · Nexus {Math.floor(system.serviceUptime / 60)} min</dd></dl> : <p className="muted">Loading system information…</p>}
     </section>}
     {section === 'backup' && <section className="tile"><h2>Dashboard backup</h2><p className="muted">Download your application tiles or merge tiles from a previous export.</p>
       <div className="admin-controls"><a href="/api/admin/backup" download>Download JSON</a>
@@ -96,6 +98,7 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
               'admin/discovery/web', 'POST', { address, authorized },
             );
             await inspect(result);
+            setWorkspaceRevision(value => value + 1);
             const coverage = result.checked < result.total ? ` Checked ${result.checked} of ${result.total} address and port combinations.` : '';
             const limit = result.found > result.tiles.length ? ` Showing the first ${result.tiles.length}.` : '';
             setStatus(result.found ? `Found ${result.found} services.${limit}${coverage}` : `No web services found on ${network.webCidr}.${coverage}`);
@@ -131,6 +134,7 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
         </form>
       </details>
     </>}
+    <AdminWorkspace key={section + workspaceRevision} section={section} api={api} refresh={async () => { await onImport(); setSystem(await api<SystemInfo>('admin/system')); }} inspect={inspect} />
     {preview && <section className="tile" ref={review} tabIndex={-1} aria-labelledby="review-title"><h2 id="review-title">Review import</h2>
       {preview.tiles.length === 0 && <p>No new tiles to import.</p>}
       <p className="muted">{preview.tiles.length} available · {preview.skipped} duplicate addresses skipped</p>
