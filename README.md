@@ -10,9 +10,9 @@ Nexus Dashboard is a self-hosted application launcher for homelabs. It helps you
 | --- | --- |
 | Application dashboard | Create, edit, and delete tiles. Group tiles by category, add multiple tags, and combine search with category and tag filters. |
 | Appearance | Choose a light, dark, or system theme and comfortable or compact cards. |
-| Service discovery | Run an administrator-approved scan of a local IPv4 range. Review results from mDNS and common web ports, then edit names, categories, and tags before importing selected services. |
-| Accounts and access | Create editor and viewer accounts, or enable a shared password for read-only dashboard access. |
-| Tile backups | Export tiles and tags as JSON. Preview a backup and merge selected entries, with duplicate URLs skipped. |
+| Service discovery | Scan reachable private IPv4 subnets with CIDRs, address ranges, exclusions, custom ports, reusable profiles, progress, and cancellation. Compare scans and review live identification evidence before importing or updating tiles. |
+| Accounts and access | Create editor and viewer accounts, organize user groups, and restrict individual tiles by account or group. Shared read-only access is also available. |
+| Tile backups | Export tiles as JSON; review new entries and explicitly update matching URLs. Save named server-side configuration snapshots and preview restore changes. |
 | Jellyfin activity | Show the active stream count on a matching tile after configuring a Jellyfin URL and API key on the server. |
 | Ubuntu deployment | Stage a built release and install it as a systemd service under a dedicated account. |
 

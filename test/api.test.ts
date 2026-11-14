@@ -56,11 +56,32 @@ test('setup, authentication, tile CRUD, persistence and logout', async () => {
     assert.deepEqual(await (await request('tiles')).json(), []);
     const snapshot = { version: 1, tiles: [tile, { ...tile, url: 'https://example.com/' }] };
     assert.equal((await request('admin/backup/import', 'POST', { ...snapshot, version: 2 })).status, 400);
-    assert.deepEqual(await (await request('admin/backup/preview', 'POST', snapshot)).json(), { tiles: [tile], skipped: 1, existing: [] });
+    const initialPreview = await (await request('admin/backup/preview', 'POST', snapshot)).json();
+    assert.deepEqual(initialPreview.tiles, [tile]);
+    assert.equal(initialPreview.skipped, 1);
     assert.deepEqual(await (await request('admin/backup/import', 'POST', snapshot)).json(), { imported: 1, skipped: 1 });
     assert.deepEqual(await (await request('admin/backup/import', 'POST', snapshot)).json(), { imported: 0, skipped: 2 });
     assert.deepEqual(await (await request('admin/backup')).json(), { version: 1, tiles: [tile] });
     assert.equal((await (await request('admin/system')).json()).tiles, 1);
+    const importedTile = (await (await request('tiles')).json())[0];
+    await request('admin/tile-access/' + importedTile.id, 'PUT', { restricted: true, users: [], groups: [] });
+    const updatePreview = await (await request('admin/backup/preview', 'POST', snapshot)).json();
+    const replacement = { ...tile, title: 'Identified service' };
+    assert.equal((await request('admin/backup/import', 'POST', { version: 1, tiles: [replacement], updateUrls: [tile.url] })).status, 409);
+    const updated = await (await request('admin/backup/import', 'POST', { version: 1, tiles: [replacement], updateUrls: [tile.url], revision: updatePreview.revision })).json();
+    assert.equal(updated.updated, 1);
+    const current = (await (await request('tiles')).json())[0];
+    assert.equal(current.id, importedTile.id);
+    assert.equal(current.title, replacement.title);
+    assert.equal((await (await request('admin/console')).json()).tiles[0].access.restricted, true);
+    assert.equal((await request('admin/backup/import', 'POST', { version: 1, tiles: [tile], updateUrls: [tile.url], revision: updatePreview.revision })).status, 409);
+    const profile = { name: 'Test networks', address: '10.42.0.14', range: '10.42.0.0/24,192.168.1.1', exclude: '', ports: '80,443' };
+    assert.equal((await request('admin/discovery/profiles', 'POST', profile)).status, 200);
+    await request('admin/discovery/profiles', 'POST', { ...profile, ports: '3000' });
+    const profiles = await (await request('admin/discovery/profiles')).json();
+    assert.equal(profiles.length, 1);
+    assert.equal(profiles[0].ports, '3000');
+
     assert.equal((await request('logout', 'POST')).status, 200);
     assert.equal((await request('admin/backup')).status, 401);
     assert.equal((await request('tiles')).status, 401);
@@ -100,7 +121,10 @@ test('custom scan ranges deduplicate targets and honor exclusions', () => {
   assert.deepEqual(plan.hosts, ['10.42.0.10', '10.42.0.13']);
   assert.deepEqual(plan.ports, [80, 8000, 8001, 8002]);
   assert.equal(plan.checks, 8);
-  assert.throws(() => planWebScan('10.42.0.14', 24, { range: '10.42.1.10' }), /within/);
+  assert.deepEqual(planWebScan('10.42.0.14', 24, { range: '10.42.1.10,192.168.1.0/30,10.0.0.1', exclude: '192.168.1.2' }).hosts, ['10.0.0.1', '10.42.1.10', '192.168.1.1']);
+  assert.throws(() => planWebScan('10.42.0.14', 24, { range: '8.8.8.8' }), /private/);
+  assert.throws(() => planWebScan('10.42.0.14', 24, { range: '10.0.0.0/16' }), /4096/);
+  assert.throws(() => planWebScan('10.42.0.14', 24, { range: '10.999.0.1' }), /valid/);
   assert.throws(() => planWebScan('10.42.0.14', 24, { ports: '9-2' }), /ports/);
 });
 

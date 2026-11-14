@@ -39,7 +39,7 @@ Enable a **shared dashboard password** in the same section to offer read-only ac
 
 In **Administration → Backup**, select **Download JSON**. The export contains tile names, descriptions, URLs, categories, and tags. Keep it private if the URLs expose details of your network.
 
-To merge an export into the dashboard, use **Preview a backup**, select entries, and review the details before importing. Nexus accepts version 1 backups with up to 500 entries and a request limit of 2 MiB. A merge adds entries whose URLs are new. It leaves matching tiles in place. Use the Ubuntu state backup procedure for accounts, sessions, and the full SQLite database. [Backup and recovery](INSTALL.md#backup-upgrade-and-recovery)
+To merge an export into the dashboard, use **Preview a backup**, select entries, and review the details before importing. Nexus accepts version 1 backups with up to 500 entries and a request limit of 2 MiB. A merge selects new URLs by default. Existing URLs are unselected and marked **Update existing**. Selecting one explicitly replaces its name, category, description, and tags; its ID and permissions stay intact. A stale update preview is rejected if saved tiles have changed, so reopen the preview before retrying. Use the Ubuntu state backup procedure for accounts, sessions, and the full SQLite database. [Backup and recovery](INSTALL.md#backup-upgrade-and-recovery)
 
 ## Jellyfin and system information
 
@@ -53,7 +53,7 @@ The tile editor lists existing categories and offers up to six reusable tags. Cl
 
 ## Administration history, permissions, and restore
 
-**Discovery history** keeps the 20 most recent completed network scans. Select **Review results** to reopen a scan, edit entries in the import review, and import the URLs you select. Reviewing a scan does not start a new scan.
+**Discovery history** keeps the 20 most recent network scans, including stopped scans. Select **Review results** to reopen a scan, edit entries in the import review, and import the URLs you select. Reviewing a scan does not start a new scan.
 
 In **Users**, create a group and select its members. Under **Tile permissions**, select a tile and enable **Restrict access**. Administrators always have access. Other users need an individual grant or membership in an allowed group. Role restrictions still apply, so viewers cannot edit tiles. These controls govern Nexus visibility and do not change the linked application's sign-in.
 
@@ -61,14 +61,43 @@ In **Backup**, save a named snapshot to the server's SQLite state. Select **Revi
 
 **System** shows host and kernel information, CPU, memory, process and host uptime, and the tile inventory. The inventory lists configured URLs and access scope.
 
-During discovery, the progress bar counts completed checks. The result shows the number of address and port combinations checked. Review labels show where a suggested name came from, and existing URLs appear under Already on dashboard.
+During discovery, the progress bar counts completed checks. The result shows the number of address and port combinations checked. Review labels show where a suggested name came from, and existing URLs are marked Update existing and start unselected.
 
 Review restore lists added, removed, and changed tiles, groups, and permissions. If the configuration changes while the preview is open, reopen the preview before restoring. The automatic snapshot includes the name of the restore target.
 
 Open Preview effective access while editing tile permissions to see who can view or edit the tile and which individual or group grants apply to the current selections. Save permissions to apply the selections.
 
-To customize discovery, select a server interface and enter one or more IPv4 addresses or inclusive start-end ranges within the displayed subnet. Enter addresses or ranges to exclude, and enter ports such as 80, 443, 8000-8010. Separate entries with commas. Blank IP and port fields use the displayed network and common homelab ports. Select Review scan scope to see the unique address, port, and check counts, then confirm permission and start. Editing the scope requires reviewing it again. Port selection controls HTTP and HTTPS discovery.
+## Configure and run discovery
 
-Each custom scan field has a preset dropdown. Choose a preset to fill the field, then edit the value as needed. Review the scope again after changing any field.
+1. Open **Administration → Discovery** and choose **Server network**. This selects the server's source interface, not your workstation's interface. The blank address field defaults to the displayed /24 (or a narrower interface subnet).
+2. Use **Add entry** within **IP addresses or ranges**, **Excluded IPs or ranges**, or **Ports or port ranges** to add separate rows. Remove a row with its labeled remove button. Each row accepts a typed value or a preset; comma-separated entries also work.
+3. Addresses accept individual IPv4 addresses, inclusive ranges such as `10.42.0.10-10.42.0.20`, and CIDRs such as `192.168.1.0/24`. Multiple routed private subnets can be included in one scan. A bare `.0` address is one address, not a subnet: use `/24` for that subnet. CIDRs omit network and broadcast addresses except for /31 and /32. Exclusions use the same syntax. Duplicate targets are checked once.
+4. Explicit targets outside the selected local subnet must be RFC 1918 private addresses: `10.0.0.0/8`, `172.16.0.0/12`, or `192.168.0.0/16`. Each scan accepts at most 4096 unique selected addresses before exclusions. Larger networks must be divided into smaller scans. Routing and firewalls determine reachability; Nexus does not create routes or change firewalls. mDNS remains local to the source interface and does not discover advertisements across routed subnets.
+5. Ports accept individual values and inclusive ranges from 1 through 65535. A blank field uses the common homelab catalog. Port presets include Standard web, Media servers, Proxmox, and Alternative web. A custom port list changes what is checked, not just the naming hints. Known secure ports use HTTPS; other custom ports use HTTP, so arbitrary HTTPS services on nonstandard ports are not guaranteed to be detected.
+6. Select **Review scan scope** and check the deduplicated address, port, and total check counts. Confirm that you have permission to scan every target, then select **Discover services**. Editing the scope clears the authorization and requires another review.
 
-Use Add entry in any discovery section to add another address, exclusion, or port. Each row can use a preset or a typed value. IP rows must belong to the selected subnet. To scan a different subnet, choose its interface and start a separate scan.
+There is no overall scan time limit. Nexus uses 48 concurrent workers and bounded individual requests. A full 65535-port scan can take a long time. Keep the page open to follow progress; this preview does not reconnect to a scan after a page reload or resume scans after a service restart.
+
+**Stop scan** stops scheduling new web probes. Current probes finish, and the short mDNS collection finishes, before the stopped result appears. You can review services found so far. A stopped scan is never a baseline for comparison. A failed probe or an unrecognized service does not prove the host is offline.
+
+### Saved scan profiles
+
+Enter a **Profile name** and select **Save profile** to store the source interface, address entries, exclusions, and port selection in the server's SQLite database. Saving the same name replaces its settings. Select a **Saved scan profile** to load it, review the scope, and authorize it again. Loading a profile never starts a scan. If the source interface no longer exists, select a current interface and review the targets again. Profiles are shared among administrators. Profile deletion, scheduling, and automatic scan execution are not implemented.
+
+### Compare scans and review history
+
+**Discovery history** retains the last 20 runs across service restarts. Select **Review results** to reopen an import review without probing the network again. Edits made in review are applied to tiles only when you select **Apply selected**; the historical scan itself stays unchanged.
+
+When a complete scan has a previous complete scan of exactly the same source interface, effective addresses, and ports, **Changes since the previous complete scan of the same targets** lists added URLs, missing URLs, and URLs whose reported name or identification source changed. Missing means no response during that run, not confirmed downtime. Tiles are never removed automatically. Older scans without comparison metadata and runs exceeding the 500-result review limit cannot provide a complete comparison.
+
+### Import or update services
+
+The review identifies **New tile** and **Update existing** entries and shows evidence such as Web page, mDNS advertisement, TLS certificate (unverified), or Port match. Live page evidence takes priority over catalog guesses. A TLS certificate clue is labeled unverified; Nexus does not disable certificate verification to fetch the application's HTTP content.
+
+- **Filter results** searches names, URLs, categories, and identification sources. Original names remain searchable while you edit them so a rename does not hide the active row. Selections survive filtering; the action count includes selected rows hidden by the filter.
+- **Select new** selects all new results across the entire review. Existing URLs remain unselected. **Clear selection** clears all entries.
+- Select a result, expand **Edit details**, and adjust its name, category, tags, or description. The category dropdown includes saved categories and **Create a category...**. Names must be nonempty and at most 80 characters; categories at most 40; descriptions at most 180; tags at most 12, each at most 32 characters.
+- **Apply selected (N)** creates new tiles and updates explicitly selected matching URLs. The operation is transactional. URLs are compared in normalized form, and duplicate entries are not inserted. Updating existing tiles preserves IDs and tile access rules. If legacy data contains several tiles for one normalized URL, all matching tiles receive the selected metadata update.
+- Read the success message for imported, updated, and skipped counts. If saved tiles change after preview, refresh the review before updating existing entries. A JSON export remains compatible with older version 1 tile backups.
+
+The review shows up to 500 services per run. Exported tile JSON contains tiles only; profiles, history, accounts, and sessions require a full database backup. Configuration snapshots contain tiles, groups, and tile permissions, but do not contain profiles or scan history.

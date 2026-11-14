@@ -132,3 +132,9 @@ If an upgrade fails, stop the service. Restore the previous application files, e
 ## Planned one-line installer
 
 A future Ubuntu installer should fetch a pinned release, verify its artifact, check the host and port, install the systemd service, and print the next setup step. An upgrade path should preserve data and include a tested rollback procedure. Track the work in the release roadmap. [Development status](DEVELOPMENT_STATUS.md)
+
+## Discovery state and network access
+
+Scan profiles and the last 20 scan results are stored in the same SQLite database as the dashboard. Back up the full state directory to preserve them. Tile JSON exports and configuration snapshots do not include these records. The discovery/import refinement uses schema 4 and does not require an additional migration.
+
+Ubuntu must have a route from the selected source interface to each requested private subnet. Permit the relevant outbound HTTP/HTTPS traffic and local mDNS where desired. Nexus does not install routes, modify firewall rules, or bridge mDNS between networks. Do not expose the application publicly for network discovery. Scans have no overall deadline; proxies must allow long-running responses. A service restart interrupts any active scan. See the user guide for target syntax, limits, and cancellation behavior.

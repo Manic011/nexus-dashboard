@@ -120,24 +120,42 @@ async function identify(url: URL, localAddress: string) {
 
 export function planWebScan(address: string, prefix: number, options: { range?: string; exclude?: string; ports?: string } = {}) {
   const scope = webScope(address, prefix);
-  const allowed = new Set(scope.hosts);
-  const ipNumber = (ip: string) => ip.split('.').reduce((value, octet) => value * 256 + Number(octet), 0);
+  const localHosts = new Set(scope.hosts);
+  const ipNumber = (ip: string) => {
+    if (!/^(?:\d{1,3}\.){3}\d{1,3}$/.test(ip) || ip.split('.').some(octet => Number(octet) > 255)) throw new Error('Use valid IPv4 addresses.');
+    return ip.split('.').reduce((value, octet) => value * 256 + Number(octet), 0);
+  };
+  const format = (value: number) => [24, 16, 8, 0].map(shift => (value >>> shift) & 255).join('.');
+  const privateIp = (ip: number) => (ip >= 0x0a000000 && ip <= 0x0affffff) ||
+    (ip >= 0xac100000 && ip <= 0xac1fffff) || (ip >= 0xc0a80000 && ip <= 0xc0a8ffff);
   const selectHosts = (input: string) => {
     const selected = new Set<string>();
     for (const part of input.split(',')) {
-      const [first, last = first, extra] = part.trim().split('-').map(value => value.trim());
-      if (extra !== undefined || !allowed.has(first) || !allowed.has(last) || ipNumber(first) > ipNumber(last)) {
-        throw new Error('Use IPv4 addresses or start–end ranges within ' + scope.cidr + '.');
+      let first: number, last: number;
+      if (part.includes('/')) {
+        const match = /^(.*?)\/(\d{1,2})$/.exec(part.trim());
+        if (!match || Number(match[2]) > 32) throw new Error('Use IPv4 CIDR prefixes from 0 to 32.');
+        const size = 2 ** (32 - Number(match[2]));
+        first = Math.floor(ipNumber(match[1]) / size) * size;
+        last = first + size - 1;
+        if (size > 2) { first++; last--; }
+      } else {
+        const parts = part.trim().split('-').map(value => value.trim());
+        if (parts.length > 2) throw new Error('Use an IPv4 address, CIDR, or start–end range.');
+        first = ipNumber(parts[0]); last = ipNumber(parts[1] ?? parts[0]);
       }
-      for (const host of scope.hosts) {
-        if (ipNumber(host) >= ipNumber(first) && ipNumber(host) <= ipNumber(last)) selected.add(host);
+      if (last < first || last - first + 1 > 4096) throw new Error('Select at most 4096 addresses per scan.');
+      for (let ip = first; ip <= last; ip++) {
+        if (!privateIp(ip) && !localHosts.has(format(ip))) throw new Error('Targets outside the selected subnet must use private IPv4 addresses (10/8, 172.16/12, or 192.168/16).');
+        selected.add(format(ip));
+        if (selected.size > 4096) throw new Error('Select at most 4096 addresses per scan.');
       }
     }
     return selected;
   };
-  const selected = options.range?.trim() ? selectHosts(options.range) : allowed;
+  const selected = options.range?.trim() ? selectHosts(options.range) : new Set(scope.hosts);
   const excluded = options.exclude?.trim() ? selectHosts(options.exclude) : new Set<string>();
-  const hosts = scope.hosts.filter(host => selected.has(host) && !excluded.has(host));
+  const hosts = [...selected].filter(host => !excluded.has(host)).sort((a, b) => ipNumber(a) - ipNumber(b));
   if (!hosts.length) throw new Error('Select at least one address after exclusions.');
 
   const custom = new Set<number>();
@@ -154,7 +172,7 @@ export function planWebScan(address: string, prefix: number, options: { range?: 
   return { cidr: scope.cidr, hosts, ports, checks: hosts.length * ports.length };
 }
 
-export async function discoverWebServices(address: string, prefix: number, progress?: (checked: number, total: number) => void, plan = planWebScan(address, prefix)) {
+export async function discoverWebServices(address: string, prefix: number, progress?: (checked: number, total: number) => void, plan = planWebScan(address, prefix), cancelled = () => false) {
   const { hosts, ports } = plan;
   const services: { title: string; url: string; category: string; description: string; identified: boolean; source: string }[] = [];
   const upgrades = new Map<string, string>();
@@ -162,7 +180,7 @@ export async function discoverWebServices(address: string, prefix: number, progr
   let completed = 0;
   progress?.(0, plan.checks);
   await Promise.all(Array.from({ length: 48 }, async () => {
-    while (next < plan.checks) {
+    while (next < plan.checks && !cancelled()) {
       const index = next++;
       const host = hosts[index % hosts.length];
       const port = ports[Math.floor(index / hosts.length)];
@@ -186,7 +204,8 @@ export async function discoverWebServices(address: string, prefix: number, progr
           identified: true,
           source: 'TLS certificate (unverified)',
           url: url.href,
-        } : { ...description, source: description.identified ? 'Web page' : description.description.includes('Port suggestion') ? 'Port match' : 'Unidentified', url: url.href });      } finally {
+        } : { ...description, source: description.identified ? 'Web page' : description.description.includes('Port suggestion') ? 'Port match' : 'Unidentified', url: url.href });
+      } finally {
         progress?.(++completed, plan.checks);
       }
     }
@@ -202,5 +221,5 @@ export async function discoverWebServices(address: string, prefix: number, progr
       url: source,
     });
   }
-  return { services, checked: next, total: plan.checks };
+  return { services, checked: completed, total: plan.checks, cancelled: cancelled() };
 }

@@ -10,14 +10,14 @@ This matrix follows sections 1–26 of the master instructions. Partial means th
 | 4. Architecture | React, Vite, TypeScript, REST and transactional SQLite migrations | OpenAPI, background jobs, integration adapters, event streams and persistence abstraction |
 | 5. UX | Responsive launcher, first-run account creation and tile forms | Guided onboarding, richer editing, layout controls and full accessibility verification |
 | 6. Tiles | Categorized web links with names and descriptions | Icons, bookmarks and other tile types, metrics, statuses, sizes, ordering and advanced settings |
-| 7. Discovery | Operator-selected IPv4 interface, mDNS HTTP/HTTPS advertisements, authorized checks of common web ports, and reviewed deduplicated import | SSDP, configurable port coverage, signatures, hostname enrichment, Docker/Proxmox inventory, more import formats, scheduling and notifications |
-| 8. Integrations | Roadmap | Jellyfin, Proxmox, UniFi, Home Assistant, Docker and further adapters, credential management and polling |
-| 9. Access | Administrator, editor, viewer, shared viewer password, session expiry and revocation on removal | Multiple dashboards, dashboard-specific passwords and ACLs, public mode, per-item permissions, profile fields, password changes/recovery, Argon2id migration, TOTP and audit events |
-| 10. Themes | One responsive dark presentation | Theme options, templates, portability and customization |
+| 7. Discovery | Operator-selected source interface, mDNS and web identification, private multi-subnet CIDR/range targets, exclusions, custom ports, profiles, cancellation, comparisons, and reviewed import/update | SSDP, wider service signatures, hostname enrichment, Docker/Proxmox inventory, more import formats, scheduling and notifications |
+| 8. Integrations | Jellyfin active-stream counts | Proxmox, UniFi, Home Assistant, Docker and further adapters, credential management and polling |
+| 9. Access | Administrator, editor, viewer, shared viewer password, user groups, per-tile user/group grants, effective-access preview, session expiry and revocation on removal | Multiple dashboards, dashboard-specific passwords and ACLs, public mode, profile fields, password changes/recovery, Argon2id migration, TOTP and audit events |
+| 10. Themes | Responsive dark/light/system themes and card density | Additional theme options, templates, portability and customization |
 | 11. Search | In-dashboard search over title, URL, description and category | Global navigation and command palette |
-| 12. Monitoring | Process health, runtime version, platform, schema and tile count | System metrics, service health, history and status widgets |
-| 13. Administration | User management, system information, discovery and tile export/import | Settings, per-dashboard management, integrations, themes, security settings, updates, logs and diagnostics |
-| 14. Backups | Versioned tile JSON export and reviewed merge | Full-instance restore, encryption, scheduled backups, compatibility tooling and Heimdall migration |
+| 12. Monitoring | Process health, host/runtime/kernel/CPU/memory/uptime information, schema and tile inventory | System metrics, service health, history and status widgets |
+| 13. Administration | Users/groups, tile access, host/service inventory, discovery history/profiles, JSON import/update, and configuration snapshots/restore | Settings, per-dashboard management, integrations, themes, security settings, updates, logs and diagnostics |
+| 14. Backups | Versioned tile JSON export and reviewed merge/update; local named configuration snapshots, restore diffs, and automatic pre-restore snapshot | Full-instance restore, encryption, scheduled backups, compatibility tooling and Heimdall migration |
 | 15. Updates | Local build and manual staging | In-app version checks, verified update packages, migration and rollback workflows |
 | 16. Security | Salted password hashes, session digests, role checks, origin validation, headers and request limits | Argon2id migration, audit trail, finer throttling, integration secret handling and comprehensive security testing |
 | 17. Reliability | Local persistence and bounded mDNS operation | Load tests, caching, retries, scheduled work and fault recovery verification |

@@ -21,7 +21,7 @@ Administrators manage accounts and discovery. Editors manage tiles. Viewers and 
 
 ## Discovery and integration
 
-The administrator selects a server interface. The web discovery route combines mDNS advertisements with bounded HTTP and HTTPS checks of the selected IPv4 range, capped at a /24. It uses live page evidence first, then the port catalog for suggestions. Recognized unverified certificate names can provide a labeled clue. The browser previews results through the same validation and duplicate checks as a backup import.
+The administrator selects a server interface. The web discovery route combines mDNS advertisements with bounded HTTP and HTTPS checks of the selected IPv4 targets: a /24 default, or explicit local/private CIDRs, individual addresses, and ranges capped at 4096 unique selected addresses before exclusions. It uses live page evidence first, then the port catalog for suggestions. Recognized unverified certificate names can provide a labeled clue. The browser previews results through the same validation and duplicate checks as a backup import.
 
 Jellyfin receives read-only requests at the configured base URL. Nexus sends the aggregate active stream count to authenticated clients when a tile matches the base URL. The key is supplied through server configuration.
 
@@ -49,8 +49,8 @@ Mutation requests use JSON and require the configured `Origin` header. Authentic
 | `POST /api/admin/discovery/web` | Administrator | Combine mDNS and web discovery. Send an interface `address` and `authorized: true`. |
 | `POST /api/admin/discovery/mdns` | Administrator | Check mDNS advertisements using a server interface `address`. |
 | `GET /api/admin/backup` | Administrator | Download a version 1 tile export. |
-| `POST /api/admin/backup/preview` | Administrator | Validate a tile export and preview the available entries. |
-| `POST /api/admin/backup/import` | Administrator | Merge selected tiles, skipping duplicate URLs. |
+| `POST /api/admin/backup/preview` | Administrator | Return new tiles, existing matching entries, duplicate count, and a revision hash. |
+| `POST /api/admin/backup/import` | Administrator | Create selected new tiles; explicitly update matching URLs with updateUrls and a preview revision. |
 
 Tile writes accept `title`, `description`, `url`, `category`, and optional `tags`. The example shows the backup envelope used for preview and import:
 
@@ -70,3 +70,26 @@ Tile writes accept `title`, `description`, `url`, `category`, and optional `tags
 ```
 
 Development and deployment instructions are in the [contributor guide](CONTRIBUTING.md) and [Ubuntu install guide](docs/INSTALL.md).
+
+## Discovery profiles, cancellation, comparison, and imports
+
+All endpoints below require an administrator session and the normal Origin checks for mutations.
+
+| Method and route | Contract |
+| --- | --- |
+| `POST /api/admin/discovery/plan` | Accept `address`, optional comma-separated `range`, `exclude`, and `ports`; return `hosts` count, `ports`, and `checks`. Does not probe targets. |
+| `POST /api/admin/discovery/web` | Accept the same scope plus `authorized: true`. Return `version`, up to 500 `tiles`, `found`, completed `checked`, `total`, `cancelled`, `scopeKey`, and nullable `comparison`. |
+| `GET /api/admin/discovery/progress` | Return the current process-wide `{progress: {checked,total}}`, or null when idle. |
+| `POST /api/admin/discovery/cancel` | Stop scheduling new probes in the process-wide active scan. In-flight work completes; partial results are returned and recorded. |
+| `GET /api/admin/discovery/profiles` | List named server-side profiles with `id`, `name`, `address`, `range`, `exclude`, `ports`, and record timestamps. |
+| `POST /api/admin/discovery/profiles` | Save those named settings; replace the profile of exactly the same name. Saving does not execute a scan. |
+| `GET /api/admin/console` | List groups, tiles with access rules, configuration snapshots, and scan history. |
+| `GET /api/admin/scans/{id}` | Return the recorded result for import review, including comparison metadata when available. |
+
+Profiles and scan records use the existing `admin_records` table (schema version 4); no database migration is needed for this release. The last 20 scan records are retained. Profiles do not have automatic retention or deletion yet. Requests and progress live in process memory; restarting loses active work, and reload does not reconnect the UI to the request. Only one discovery request can run at a time.
+
+Web targets are expanded lazily across 48 workers, with bounded individual requests and no overall deadline. Explicit targets beyond the default local subnet must use RFC 1918 addresses. Local interface subnets may also use link-local addresses. HTTP responses are bounded to 16 KiB for identification. The selected source IPv4 address is bound to requests; routed reachability is determined by Ubuntu. mDNS results are constrained to the effective hosts and ports, and advertisements remain local to the selected interface.
+
+Complete scans of identical effective scope compare URL sets with the most recent retained complete, non-truncated result. Comparisons contain `added`, `missing`, and `changed` URL arrays. Changed means title or identification-source changes. Stopped or truncated results do not produce a comparison. Missing URLs never trigger tile removal.
+
+`POST /api/admin/backup/preview` returns a SHA-256 `revision` of the saved tile rows along with `tiles`, `existing`, and `skipped`. Imports accept optional `updateUrls` (defaults to empty) and `revision`. Matching URLs are only updated when explicitly listed; updates require the current revision or return HTTP 409. Imports and updates run in one SQLite transaction and preserve tile IDs and access-rule rows. Existing clients that omit `updateUrls` retain the previous insert-only behavior. Duplicate legacy saved URLs all receive the selected metadata update. `updated` is present when at least one unique URL is updated; `skipped` includes existing URLs, so the UI subtracts the updated URL count for its skipped summary.

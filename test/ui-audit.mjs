@@ -109,12 +109,21 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
       await page.waitForFunction(() => document.activeElement?.getAttribute('aria-labelledby') === 'review-title');
       await review.getByText('Edit details').click();
       await review.getByLabel('Name', { exact: true }).fill('Imported app');
-      await review.getByLabel('Category', { exact: true }).fill('Utilities');
-      await button('Import selected (1)').click();
+      await review.getByLabel('Category', { exact: true }).selectOption('Utilities');
+      await button('Apply selected (1)').click();
       await page.getByText(/Imported 1 tiles/).waitFor();
       await field('Service addresses').fill('https://example.org/');
       await button('Preview addresses').click();
-      await review.getByText('Already on dashboard (1)').waitFor();
+      await review.getByText('Update existing', { exact: true }).waitFor();
+      assert.equal(await button('Apply selected (0)').isEnabled(), false);
+      await field('Filter results').fill('example.org');
+      await review.getByRole('checkbox').check();
+      await review.getByText('Edit details').click();
+      await review.getByLabel('Name', { exact: true }).fill('Imported app');
+      await review.getByLabel('Description', { exact: true }).fill('Updated through import review');
+      await review.getByLabel('Category', { exact: true }).selectOption('Utilities');
+      await button('Apply selected (1)').click();
+      await page.getByText(/Updated 1 existing services/).waitFor();
       const network = page.getByRole('combobox', { name: 'Server network' });
       if (await network.locator('option').count() > 1) {
         let releaseScan;
@@ -143,7 +152,13 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
         await button('Add entry for Excluded IPs or ranges').click();
         await button('Remove Excluded IPs or ranges 2').click();
         await button('Review scan scope').click();
-        await page.getByText(/4 ports ·/).waitFor();
+        await page.getByText(/4 ports/).waitFor().catch(async error => { throw new Error(await page.locator('main').innerText(), { cause: error }); });
+        await field('Profile name').fill('UI test profile');
+        await button('Save profile').click();
+        await page.getByText(/Scan profile saved/).waitFor();
+        await page.getByLabel('Saved scan profile').selectOption({ label: 'UI test profile' });
+        await button('Review scan scope').click();
+        await page.getByText(/4 ports/).waitFor();
         await page.getByRole('checkbox', { name: /I have permission/ }).check();
         await button('Discover services').click();
         try { await page.getByText('4 / 10 checks', { exact: true }).waitFor(); }

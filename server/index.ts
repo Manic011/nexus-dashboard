@@ -103,6 +103,7 @@ export function createApp(data: string, dist: string, origin: string, setupToken
   const consoleAdmin = configureAdministration(db);
   let scanProgress: { checked: number; total: number } | undefined;
   let discoveryRunning = false;
+  let scanCancelled = false;
   let loginAttempts = 0;
   let resetAt = 0;
   const secure = origin.startsWith('https:') ? '; Secure' : '';
@@ -199,6 +200,7 @@ export function createApp(data: string, dist: string, origin: string, setupToken
       if (method !== 'GET' && path.startsWith('/api/tiles') && authenticated.role === 'viewer') {
         throw new RequestError(403, 'Editing access is required.');
       }
+      if (method === 'POST' && path === '/api/admin/discovery/cancel') { scanCancelled = true; return send(200, {}); }
       if (method === 'GET' && path === '/api/admin/discovery/progress') return send(200, { progress: scanProgress ?? null });
       if (method === 'GET' && path === '/api/admin/discovery/interfaces') {
         return send(200, discoveryInterfaces().map(item => {
@@ -221,11 +223,12 @@ export function createApp(data: string, dist: string, origin: string, setupToken
         if (web && (!input.success || input.data.authorized !== true)) throw new RequestError(400, 'Confirm authorization for the displayed network range.');
         if (discoveryRunning) throw new RequestError(409, 'A discovery request is already running.');
         discoveryRunning = true;
+        scanCancelled = false;
         try {
           if (!web) return send(200, { version: 1, tiles: await discoverServices(selected.address, prefix) });
           const [advertised, probed] = await Promise.all([
             discoverServices(selected.address, Math.max(24, prefix)).catch(() => []),
-            discoverWebServices(selected.address, prefix, (checked, total) => { scanProgress = { checked, total }; }, plan),
+            discoverWebServices(selected.address, prefix, (checked, total) => { scanProgress = { checked, total }; }, plan, () => scanCancelled),
           ]);
           const allowedHosts = new Set(plan.hosts);
           const allowedPorts = new Set(plan.ports);
@@ -238,8 +241,20 @@ export function createApp(data: string, dist: string, origin: string, setupToken
             if (identified || !byUrl.has(item.url)) byUrl.set(item.url, item);
           }
           const results = [...byUrl.values()].sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true }));
-          const result = { version: 1, tiles: results.slice(0, 500), checked: probed.checked, total: probed.total, found: results.length };
-          consoleAdmin.recordDiscovery(plan.cidr + ' · ' + plan.hosts.length + ' addresses · ' + plan.ports.length + ' ports', result);
+          const scopeKey = digest(JSON.stringify({ address: selected.address, hosts: plan.hosts, ports: plan.ports }));
+          const previous = consoleAdmin.previousScan(scopeKey);
+          const previousUrls = new Set<string>(previous?.tiles.map((item: { url: string }) => item.url) ?? []);
+          const currentUrls = new Set(results.map(item => item.url));
+          const comparison = previous && !probed.cancelled && results.length <= 500 ? {
+            added: results.filter(item => !previousUrls.has(item.url)).map(item => item.url),
+            missing: [...previousUrls].filter(url => !currentUrls.has(url)),
+            changed: results.filter(item => {
+              const old = previous.tiles.find((entry: { url: string }) => entry.url === item.url);
+              return old && (old.title !== item.title || old.source !== item.source);
+            }).map(item => item.url),
+          } : null;
+          const result = { version: 1, scopeKey, comparison, cancelled: probed.cancelled, tiles: results.slice(0, 500), checked: probed.checked, total: probed.total, found: results.length };
+          consoleAdmin.recordDiscovery((probed.cancelled ? 'Stopped - ' : 'Complete - ') + (input.data.range?.trim() || plan.cidr) + ' · ' + plan.hosts.length + ' addresses · ' + plan.ports.length + ' ports', result);
           return send(200, result);
         } catch (error) {
           console.error(error);
@@ -249,7 +264,7 @@ export function createApp(data: string, dist: string, origin: string, setupToken
           discoveryRunning = false;
         }
       }
-      if (/^\/api\/admin\/(console|scans|snapshots|groups|tile-access)(?:\/|$)/.test(path)) {
+      if (/^\/api\/admin\/(console|scans|snapshots|groups|tile-access|discovery\/profiles)(?:\/|$)/.test(path)) {
         try {
           const result = consoleAdmin.handle(method, path, method === 'POST' || method === 'PUT' ? await body(req, 65536) : undefined);
           if (result === undefined) throw new RequestError(404, 'Item not found.');
@@ -305,9 +320,11 @@ export function createApp(data: string, dist: string, origin: string, setupToken
         });
       }
       if (method === 'POST' && ['/api/admin/backup/preview', '/api/admin/backup/import'].includes(path)) {
-        const parsed = backup.safeParse(await body(req, 2 * 1024 * 1024));
+        const raw = await body(req, 2 * 1024 * 1024);
+        const parsed = backup.extend({ updateUrls: z.array(z.string()).max(500).default([]), revision: z.string().optional() }).safeParse(raw);
         if (!parsed.success) throw new RequestError(400, 'Choose a version 1 Nexus backup containing up to 500 valid tiles.');
-        const existing = db.prepare('SELECT url FROM tiles').all();
+        const existing = db.prepare('SELECT * FROM tiles ORDER BY id').all();
+        const revision = digest(JSON.stringify(existing));
         const savedUrls = new Set(existing.map(row => new URL(String(row.url)).href));
         const seen = new Set(savedUrls);
         const available = parsed.data.tiles.filter(item => {
@@ -317,9 +334,21 @@ export function createApp(data: string, dist: string, origin: string, setupToken
           return true;
         });
         const skipped = parsed.data.tiles.length - available.length;
-        if (path.endsWith('/preview')) return send(200, { tiles: available, skipped, existing: parsed.data.tiles.filter(item => savedUrls.has(new URL(item.url).href)) });
+        if (path.endsWith('/preview')) return send(200, { revision, tiles: available, skipped, existing: parsed.data.tiles.filter(item => savedUrls.has(new URL(item.url).href)) });
+        const updates = parsed.data.tiles.filter(item => savedUrls.has(new URL(item.url).href) && parsed.data.updateUrls.includes(item.url));
+        if (updates.length && parsed.data.revision !== revision) throw new RequestError(409, 'Tiles changed. Preview the import again before updating existing tiles.');
         db.exec('BEGIN IMMEDIATE');
         try {
+          const update = db.prepare('UPDATE tiles SET title=?, description=?, category=?, tags=? WHERE id=?');
+          const updated = new Set<string>();
+          for (const item of updates) {
+            const url = new URL(item.url).href;
+            if (updated.has(url)) continue;
+            updated.add(url);
+            for (const row of existing.filter(row => new URL(String(row.url)).href === url)) {
+              update.run(item.title, item.description, item.category, JSON.stringify(item.tags), row.id);
+            }
+          }
           const insert = db.prepare('INSERT INTO tiles(title, description, url, category, tags) VALUES (?, ?, ?, ?, ?)');
           for (const item of available) insert.run(item.title, item.description, item.url, item.category, JSON.stringify(item.tags));
           db.exec('COMMIT');
@@ -327,7 +356,7 @@ export function createApp(data: string, dist: string, origin: string, setupToken
           db.exec('ROLLBACK');
           throw error;
         }
-        return send(200, { imported: available.length, skipped });
+        return send(200, { imported: available.length, skipped, ...(updates.length ? { updated: new Set(updates.map(item => new URL(item.url).href)).size } : {}) });
       }
       const match = /^\/api\/tiles\/([1-9]\d{0,14})$/.exec(path);
       if (match && !canSee(Number(match[1]))) throw new RequestError(404, 'Tile not found.');

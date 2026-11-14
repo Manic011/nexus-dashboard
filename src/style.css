@@ -168,3 +168,11 @@ dialog h2, dialog form p { overflow-wrap: anywhere; }
   .scan-section .scan-field { grid-template-columns: minmax(0, 1fr) auto; }
   .scan-section .scan-field input { grid-column: 1 / -1; }
 }
+
+.scan-profiles { margin-bottom: 16px; }
+.scan-profiles label, .profile-save { display: grid; gap: 8px; }
+.scan-profiles select, .profile-save input { width: 100%; }
+.profile-save { padding: 12px; border: 1px solid var(--border); border-radius: 9px; }
+.profile-save button { justify-self: start; }
+.review-fields > label, .review-fields > .category-picker { min-width: 0; }
+.review-fields select, .review-fields textarea { width: 100%; }

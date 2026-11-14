@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Discovery and import refinements
+
+- Added routed private IPv4 subnet scanning with CIDR targets, independent exclusion rows, port ranges, target deduplication, and a 4096-address scope limit.
+- Added named server-side scan profiles, explicit cancellation with partial-result review, and complete-scan comparisons for added, changed, and missing URLs.
+- Added import-result filtering, explicit updates for existing URLs, editable descriptions, and an accessible category dropdown with a create option. Existing-tile updates preserve IDs and permissions and reject stale previews.
+- Fixed filtered rows disappearing when their suggested names are edited. Added API and browser regression coverage for the refined workflow.
+
 ### Added
 
 - Token-gated administrator setup, login, and logout.

@@ -72,6 +72,18 @@ export function configureAdministration(db: DatabaseSync) {
         scans: list('scan'),
       };
     }
+    if (path === '/api/admin/discovery/profiles' && method === 'GET') {
+      return list('profile').map(row => ({ ...row, ...load('profile', Number(row.id)) }));
+    }
+    if (path === '/api/admin/discovery/profiles' && method === 'POST') {
+      const profile = z.object({ name: named.shape.name, address: z.ipv4(), range: z.string().max(2000), exclude: z.string().max(2000), ports: z.string().max(2000) }).parse(input);
+      const existing = db.prepare("SELECT id FROM admin_records WHERE kind='profile' AND label=?").get(profile.name);
+      if (existing) {
+        db.prepare('UPDATE admin_records SET payload=?,created=? WHERE id=?').run(JSON.stringify(profile), new Date().toISOString(), existing.id);
+        return { id: existing.id };
+      }
+      return { id: save('profile', profile.name, profile) };
+    }
     if (path === '/api/admin/snapshots' && method === 'POST') {
       const { name } = named.parse(input);
       return { id: snapshot(name) };
@@ -148,7 +160,13 @@ export function configureAdministration(db: DatabaseSync) {
     }
   }
 
-  return { visible, handle, recordDiscovery };
+  function previousScan(key: string) {
+    for (const row of list('scan')) {
+      const result = load('scan', Number(row.id));
+      if (result.scopeKey === key && !result.cancelled && result.checked === result.total && result.found <= 500) return result;
+    }
+  }
+  return { visible, handle, recordDiscovery, previousScan };
 }
 
 export function machineInfo() {

@@ -27,3 +27,25 @@ npm run test:ui
 On Linux CI, install the browser dependencies with the `--with-deps` option. The default test starts a local instance with a temporary database. For Ubuntu integration, set `NEXUS_UI_TEST_URL` and `NEXUS_UI_TEST_TOKEN` for a fresh disposable instance. The test creates accounts and tiles. [Playwright browser installation](https://playwright.dev/docs/browsers)
 
 The browser suite also checks discovery progress and source labels using controlled responses, restore diffs, individual grants, invalid tile input, and the Jellyfin activity count with a fixture.
+
+## Ubuntu verification - 2026-11-13
+
+The discovery/import refinement was exercised in the visible in-app browser against a disposable Ubuntu-hosted instance, with a separate state directory from the saved dashboard. The same locally built release was then promoted to the existing port 3000 instance after a SQLite backup. The existing dashboard retained 19 tiles.
+
+| Area | Result and evidence |
+| --- | --- |
+| Discovery planning | Rejected an off-subnet public target; accepted multiple private CIDR rows, exclusions, duplicate ports, and a /32. Effective preview correctly reduced the test to one host/port check. |
+| Profiles | Saved, loaded, and ran a named profile. Loading restored all settings and required scope review and authorization. |
+| Live scan | Full /24 scan completed **10,922 of 10,922** checks and returned **32 services**, while disposable test instances were running. Service count depends on network state; it is not an inventory guarantee. |
+| Cancellation | Stopped a 2,794-check scan after 56 completed checks; the stopped result and discovered services were available for review. |
+| History and comparison | Reopened recorded results; repeated an identical complete scope and verified the comparison panel with zero added/changed/missing URLs. Nonzero change categories have not been separately exercised in the visible browser. |
+| Import/update | Imported a live-discovered service with a new category and tags; rescanning marked it existing and left it unselected. Explicit update succeeded. The API test verifies stable IDs, preserved permissions, and rejection of stale revisions. |
+| Filtering | Verified result filtering, hidden selections, and editing a filtered name without losing its row. The browser test found this issue and the final release fixes it. |
+| Tile editor | Created/edited a tile and category, reused a suggested tag, canceled deletion, then deleted the disposable tile. Search and category filtering showed the expected empty state. |
+| Users and access | Created viewer/editor accounts and a group. A group grant allowed viewing; removing it hid the tile. Saved an individual grant. Shared sign-in hid the restricted tile. An editor could add a tile but could not see restricted tiles or administration. |
+| Backups | Downloaded tile JSON, uploaded it for duplicate review, saved a named configuration snapshot, inspected the removal diff, restored backward, then restored the automatic safety snapshot forward. |
+| Preferences | Light/compact settings persisted across reload. Verified the dashboard and administration at 375 pixels with no horizontal overflow; default viewport restored afterward. |
+| System | Confirmed Ubuntu runtime v24.14.1, schema 4, host/kernel/memory/uptime values, and tile access inventory. CPU model is unavailable in this container. |
+| Regression suite | Local build, API tests, and Chromium desktop/mobile flows passed. The same browser regression suite passed against a fresh Ubuntu-hosted backend. Initial sandbox connection denial and a first remote navigation timeout were resolved before rerunning. |
+
+This is a smoke test, not exhaustive security or accessibility certification. Screen reader behavior, systemd installation/reboot, real Jellyfin credentials, scheduled scans, IPv6, arbitrary HTTPS port detection, and nonzero scan-comparison changes remain outside this manual verification. The local browser suite covers Jellyfin against a fixture; real integration credentials were not configured for this run.

@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { DatabaseBackup, Radar, Server, UsersRound } from 'lucide-react';
 import { AdminWorkspace } from './AdminWorkspace.js';
 import { Users } from './Users.js';
+import { ImportCategory } from './ImportCategory.js';
 import { ScanField } from './ScanField.js';
 import { parseTags } from './tags.js';
 
 type Entry = { title: string; description: string; url: string; category: string; tags?: string[]; source?: string };
-type Preview = { tiles: Entry[]; skipped: number; existing?: Entry[] };
+type Preview = { tiles: Entry[]; skipped: number; existing?: Entry[]; revision?: string };
+type Profile = { id: number; name: string; address: string; range: string; exclude: string; ports: string };
 type Coverage = { checked: number; total: number };
 type SystemInfo = { runtime: string; platform: string; schema: number; tiles: number; hostname: string; kernel: string; architecture: string; cpu: string; logicalCpus: number; totalMemory: number; freeMemory: number; machineUptime: number; serviceUptime: number; serviceMemory: number };
 type Network = { name: string; address: string; webCidr: string; exampleRange: string };
@@ -23,6 +25,11 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
   const [section, setSection] = useState<(typeof sections)[number]['id']>('discovery');
   const [interfaces, setInterfaces] = useState<Network[]>([]);
   const [address, setAddress] = useState('');
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [profileName, setProfileName] = useState('');
+  const [filter, setFilter] = useState('');
+  const [comparison, setComparison] = useState<{ added: string[]; missing: string[]; changed: string[] } | null>(null);
+  const [cancelling, setCancelling] = useState(false);
   const [scope, setScope] = useState({ range: [''], exclude: [''], ports: [''] });
   const [plan, setPlan] = useState<{ hosts: number; ports: number[]; checks: number }>();
   function changeScope(field: keyof typeof scope, value: string[]) {
@@ -40,7 +47,7 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
   const [scanning, setScanning] = useState(false);
   const [coverage, setCoverage] = useState<Coverage>();
   const [preview, setPreview] = useState<Preview>();
-  const [edits, setEdits] = useState<Record<string, { title: string; category: string; tags: string }>>({});
+  const [edits, setEdits] = useState<Record<string, { title: string; category: string; tags: string; description: string }>>({});
   const [selection, setSelection] = useState<string[]>([]);
   const [workspaceRevision, setWorkspaceRevision] = useState(0);
   const [status, setStatus] = useState('');
@@ -50,6 +57,7 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
 
   useEffect(() => {
     api<SystemInfo>('admin/system').then(setSystem).catch(error => setStatus(error.message));
+    api<Profile[]>('admin/discovery/profiles').then(setProfiles).catch(error => setStatus(error.message));
     api<Network[]>('admin/discovery/interfaces').then(setInterfaces).catch(error => setStatus(error.message));
   }, [api]);
 
@@ -80,11 +88,16 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
 
   async function inspect(input: object) {
     const result = await api<Preview>('admin/backup/preview', 'POST', input);
-    setEdits(Object.fromEntries(result.tiles.map(item => [item.url, { title: item.title, category: item.category, tags: item.tags?.join(', ') ?? '' }])));
     const entries = (input as { tiles?: Entry[] }).tiles ?? [];
     const sources = new Map(entries.map(item => [item.url, item.source]));
-    setPreview({ ...result, tiles: result.tiles.map(item => ({ ...item, source: sources.get(item.url) })) });
+    const all = [...result.tiles, ...(result.existing ?? [])];
+    const unique = [...new Map(all.map(item => [new URL(item.url).href, item])).values()];
+    setEdits(Object.fromEntries(unique.map(item => [item.url, { title: item.title, category: item.category, tags: item.tags?.join(', ') ?? '', description: item.description }])));
+    setPreview({ ...result, tiles: unique.map(item => ({ ...item, source: sources.get(item.url) })) });
     setSelection(result.tiles.map(item => item.url));
+    setFilter('');
+    setComparison((input as { comparison?: typeof comparison }).comparison ?? null);
+
   }
 
   return <div className="admin">
@@ -116,25 +129,36 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
     </section>}
     {section === 'discovery' && <>
       <section className="tile"><h2>Find services on your network</h2>
-        <p className="muted">Discover advertised services and check common homelab ports. The review shows reported service names and port-based suggestions.</p>
+        <p className="muted">Scan private networks reachable from this server. Live page identification takes priority over port suggestions. Review every result before changing your dashboard.</p>
+        <div className="scan-profiles"><label>Saved scan profile<select disabled={busy} defaultValue="" onChange={event => {
+          const profile = profiles.find(item => item.id === Number(event.target.value));
+          if (!profile) return;
+          setAddress(profile.address); setProfileName(profile.name);
+          setScope({ range: profile.range.split(','), exclude: profile.exclude.split(','), ports: profile.ports.split(',') }); resetPlan();
+        }}><option value="">Choose a saved profile</option>{profiles.map(profile => <option key={profile.id} value={profile.id}>{profile.name}</option>)}</select></label></div>
+        {scanning && <button type="button" disabled={cancelling} onClick={() => {
+          setCancelling(true); void api('admin/discovery/cancel', 'POST').catch(error => { setStatus(error.message); setCancelling(false); });
+        }}>{cancelling ? 'Stopping…' : 'Stop scan'}</button>}
         {scanning && <p><progress aria-label="Discovery checks" max={coverage?.total} value={coverage?.checked} /> {coverage ? `${coverage.checked} / ${coverage.total} checks` : 'Starting scan…'}</p>}
         <form onSubmit={event => {
           event.preventDefault();
           if (!network || !plan || !authorized) return;
           void run(async () => {
             setPreview(undefined);
-            setStatus(`Checking ${network.webCidr}. Larger ranges can take several minutes.`);
+            setStatus(`Scanning the reviewed targets. Larger ranges can take several minutes.`);
             setScanning(true);
             setCoverage(undefined);
-            const result = await api<{ version: 1; tiles: Entry[]; checked: number; total: number; found: number }>(
+            setCancelling(false);
+            const result = await api<{ version: 1; tiles: Entry[]; checked: number; total: number; found: number; cancelled: boolean; comparison: typeof comparison }>(
               'admin/discovery/web', 'POST', { address, authorized, ...scanFields },
             ).finally(() => setScanning(false));
+            setComparison(result.comparison);
             await inspect(result);
             setWorkspaceRevision(value => value + 1);
             const coverage = ` Checked ${result.checked} of ${result.total} address and port combinations.`;
             const limit = result.found > result.tiles.length ? ` Showing the first ${result.tiles.length}.` : '';
-            const completion = result.checked < result.total ? 'Partial' : 'Complete';
-            setStatus(completion + '. ' + (result.found ? `Found ${result.found} services.${limit}${coverage}` : `No web services found on ${network.webCidr}.${coverage}`));
+            const completion = result.cancelled ? 'Stopped' : result.checked < result.total ? 'Partial' : 'Complete';
+            setStatus(completion + '. ' + (result.found ? `Found ${result.found} services.${limit}${coverage}` : `No web services responded in the reviewed scope.${coverage}`));
           });
         }}>
           <label>Server network<select name="address" required disabled={busy} value={address} onChange={event => {
@@ -165,13 +189,19 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
                 { label: 'Proxmox', value: '8006-8007' },
                 { label: 'Alternative web', value: '8080-8082, 8443' },
               ]} />
-            <p className="muted">Add a row for each entry. Use a hyphen for a range. IPs must be in the selected network.</p>
+            <p className="muted">Add a row for each entry. Use single IPv4 addresses, CIDRs (e.g. 192.168.1.0/24), or start–end ranges. Multiple private subnets are supported, up to 4096 addresses; routing and firewalls determine reachability.</p>
             <button type="button" disabled={busy} onClick={() => void run(async () => {
               setPlan(await api<typeof plan>('admin/discovery/plan', 'POST', { address, ...scanFields }));
             })}>Review scan scope</button>
           </>}
+          {network && <div className="profile-save"><label>Profile name<input value={profileName} maxLength={80} disabled={busy} onChange={event => setProfileName(event.target.value)} placeholder="e.g. Media and infrastructure" /></label>
+            <button type="button" disabled={busy || !profileName.trim()} onClick={() => void run(async () => {
+              await api('admin/discovery/plan', 'POST', { address, ...scanFields });
+              await api('admin/discovery/profiles', 'POST', { name: profileName, address, ...scanFields });
+              setProfiles(await api<Profile[]>('admin/discovery/profiles')); setStatus('Scan profile saved. Saving the same name replaces its settings.');
+            })}>Save profile</button></div>}
           {plan && <p role="status">{plan.hosts} addresses · {plan.ports.length} ports · {plan.checks.toLocaleString()} checks</p>}
-          {network && plan && <label className="consent"><input type="checkbox" checked={authorized} disabled={busy} onChange={event => setAuthorized(event.target.checked)} /> I have permission to run this scan within {network.webCidr}</label>}
+          {network && plan && <label className="consent"><input type="checkbox" checked={authorized} disabled={busy} onChange={event => setAuthorized(event.target.checked)} /> I have permission to scan all targets in this reviewed scope</label>}
           <button className="primary" disabled={busy || !network || !plan || !authorized}>{busy ? 'Checking network…' : 'Discover services'}</button>
         </form>
       </section>
@@ -195,49 +225,51 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
       </details>
     </>}
     <AdminWorkspace key={section + workspaceRevision} section={section} api={api} refresh={async () => { await onImport(); setSystem(await api<SystemInfo>('admin/system')); }} inspect={inspect} />
+    {section === 'discovery' && comparison && <details className="tile"><summary>Changes since the previous complete scan of the same targets</summary>
+      <p className="muted">Missing means no response during this scan; it does not prove a service is offline. Tiles are never removed automatically.</p>
+      {(['added', 'changed', 'missing'] as const).map(kind => <div key={kind}><h3>{kind[0].toUpperCase() + kind.slice(1)} ({comparison[kind].length})</h3><ul>{comparison[kind].map(url => <li key={url}>{url}</li>)}</ul></div>)}
+    </details>}
     {preview && <section className="tile" ref={review} tabIndex={-1} aria-labelledby="review-title"><h2 id="review-title">Review import</h2>
       {preview.tiles.length === 0 && <p>No new tiles to import.</p>}
-      <p className="muted">{preview.tiles.length} available · {preview.skipped} duplicate addresses skipped</p>
-      {!!preview.existing?.length && <details className="tile"><summary>Already on dashboard ({preview.existing.length})</summary>
-        <ul className="user-list">{preview.existing.map((item, index) => <li key={item.url + index}>{item.title} · {item.url}</li>)}</ul>
-      </details>}
+      <p className="muted">{preview.tiles.length} unique services · {preview.existing?.length ?? 0} already on dashboard</p>
+      {!!preview.existing?.length && <p className="muted">Existing tiles are unselected by default. Select an existing tile to replace its name, category, tags, and description. Permissions and tile IDs stay intact.</p>}
       {preview.tiles.length > 0 && <>
-        <div className="result-actions"><button disabled={busy} onClick={() => setSelection(preview.tiles.map(item => item.url))}>Select all</button>
+        <label>Filter results<input type="search" value={filter} onChange={event => setFilter(event.target.value)} placeholder="Search name, URL, category, or evidence" /></label>
+        <div className="result-actions"><button disabled={busy} onClick={() => setSelection(preview.tiles.filter(item => !preview.existing?.some(saved => saved.url === item.url)).map(item => item.url))}>Select new</button>
           <button disabled={busy} onClick={() => setSelection([])}>Clear selection</button></div>
-        <datalist id="import-categories">{categories.map(category => <option key={category} value={category} />)}</datalist>
         <form className="review-form" onSubmit={event => {
           event.preventDefault();
           void run(async () => {
             const tiles = preview.tiles.filter(item => selection.includes(item.url)).map(item => {
-              const { title, category, tags } = edits[item.url];
-              return { ...item, title, category, tags: parseTags(tags) };
+              const { title, category, tags, description } = edits[item.url];
+              return { ...item, title, category, description, tags: parseTags(tags) };
             });
             const invalid = tiles.find(tile => !tile.title.trim() || !tile.category.trim() || tile.tags.length > 12 || tile.tags.some(tag => tag.length > 32));
             if (invalid) throw new Error('Check the name, category, and tags for ' + (invalid.title || invalid.url) + '.');
-            const result = await api<{ imported: number; skipped: number }>('admin/backup/import', 'POST', { version: 1, tiles });
+            const result = await api<{ imported: number; skipped: number; updated?: number }>('admin/backup/import', 'POST', { version: 1, tiles, revision: preview.revision, updateUrls: tiles.filter(item => preview.existing?.some(saved => saved.url === item.url)).map(item => item.url) });
             setPreview(undefined);
             setSelection([]);
-            setStatus(`Imported ${result.imported} tiles. Skipped ${result.skipped} duplicates.`);
+            setStatus(`Imported ${result.imported} tiles. Updated ${result.updated ?? 0} existing services. Skipped ${result.skipped - (result.updated ?? 0)} duplicates.`);
             await onImport();
             setSystem(await api<SystemInfo>('admin/system'));
           });
         }}>
-        <div className="result-list">{preview.tiles.map(item => <div className="review-item" key={item.url}><label className="import-row">
-          <input type="checkbox" checked={selection.includes(item.url)} disabled={busy} onChange={event => {
+        <div className="result-list">{preview.tiles.filter(item => [item.title, edits[item.url].title, item.url, item.category, edits[item.url].category, item.source ?? ''].join(' ').toLowerCase().includes(filter.toLowerCase())).map(item => <div className="review-item" key={item.url}><label className="import-row">
+          <input type="checkbox" aria-label={"Select " + (edits[item.url].title || item.url)} checked={selection.includes(item.url)} disabled={busy} onChange={event => {
             setSelection(event.target.checked ? [...selection, item.url] : selection.filter(url => url !== item.url));
-          }} /><span><strong>{edits[item.url].title || item.title}</strong> <small className="muted">{edits[item.url].category}</small><br /><span className="muted">{item.url}</span>{item.source && <><br /><small className="muted">{item.source}</small></>}{item.description && <><br /><small className="muted">{item.description}</small></>}</span>
+          }} /><span><strong>{edits[item.url].title || item.title}</strong> <small>{preview.existing?.some(saved => saved.url === item.url) ? 'Update existing' : 'New tile'}</small> <small className="muted">{edits[item.url].category}</small><br /><span className="muted">{item.url}</span>{item.source && <><br /><small className="muted">{item.source}</small></>}{item.description && <><br /><small className="muted">{item.description}</small></>}</span>
         </label>
           {selection.includes(item.url) && <details className="review-edit"><summary>Edit details</summary>
-            <div className="review-fields">{(['title', 'category', 'tags'] as const).map(field => <label key={field}>
-              {field === 'title' ? 'Name' : field === 'category' ? 'Category' : 'Tags (comma separated)'}
-              <input value={edits[item.url][field]} disabled={busy} autoComplete="off"
-                maxLength={field === 'title' ? 80 : field === 'category' ? 40 : 420}
-                list={field === 'category' ? 'import-categories' : undefined}
-                onChange={event => setEdits(previous => ({ ...previous, [item.url]: { ...previous[item.url], [field]: event.target.value } }))} />
-            </label>)}</div>
+            <div className="review-fields">
+              <label>Name<input value={edits[item.url].title} disabled={busy} maxLength={80} autoComplete="off" onChange={event => setEdits(previous => ({ ...previous, [item.url]: { ...previous[item.url], title: event.target.value } }))} /></label>
+              <ImportCategory categories={categories} value={edits[item.url].category} disabled={busy} onChange={category => setEdits(previous => ({ ...previous, [item.url]: { ...previous[item.url], category } }))} />
+              <label>Tags (comma separated)<input value={edits[item.url].tags} disabled={busy} maxLength={420} autoComplete="off" onChange={event => setEdits(previous => ({ ...previous, [item.url]: { ...previous[item.url], tags: event.target.value } }))} /></label>
+              <label>Description<textarea value={edits[item.url].description} disabled={busy} maxLength={180} rows={2} onChange={event => setEdits(previous => ({ ...previous, [item.url]: { ...previous[item.url], description: event.target.value } }))} /></label>
+            </div>
           </details>}
         </div>)}</div>
-        <button className="primary" disabled={busy || !selection.length}>{busy ? 'Importing…' : `Import selected (${selection.length})`}</button>
+        <p className="muted">{selection.length} selected across all results, including results hidden by the filter.</p>
+        <button className="primary" disabled={busy || !selection.length}>{busy ? 'Importing…' : `Apply selected (${selection.length})`}</button>
         </form>
       </>}
     </section>}
