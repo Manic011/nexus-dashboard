@@ -2,6 +2,8 @@
 
 ## Runtime and storage
 
+When a separate Kasm HTTPS endpoint is configured, the administrator-only remote browser API derives a Kasm launch URL from a saved tile ID. The browser embeds the Kasm client and Kasm handles authentication, browser execution, and session lifecycle. Nexus stores no Kasm tokens or browser session data and performs no upstream requests for this feature.
+
 The tile service view loads a sandboxed frame directly in the browser. The sandbox gives services on a different origin access to their own cookies and storage, and allows scripts and forms. The browser separates Nexus from the service. Nexus blocks itself from being framed through CSP and X-Frame-Options, including after an embedded navigation. The sandbox restricts top-level navigation and popups. A tile opens the frame inside the dashboard, and closing the view unloads it. The credential vault uses versioned AES-256-GCM ciphertext with a fresh IV on each write, a per-vault random salt, and PBKDF2-SHA-256 with 600,000 iterations. The key stays in browser memory while unlocked. Web Locks and a ciphertext comparison prevent simultaneous tabs from overwriting a newer vault. The server has no vault API or database table.
 
 The React interface is built with Vite and served by the Node.js process alongside the TypeScript API. Browser requests share one origin. The backend validates input with Zod and uses prepared statements with Node's built-in SQLite bindings.

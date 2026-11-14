@@ -2,9 +2,38 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { X } from 'lucide-react';
 import { unlockVault } from './vault.js';
 
-export function ServiceDialog({ title, url, username, onClose }: { title: string; url: string; username?: string; onClose: () => void }) {
+type ServiceDialogProps = {
+  title: string;
+  url: string;
+  username?: string;
+  launchRemote?: () => Promise<{ url: string }>;
+  onClose: () => void;
+};
+
+export function ServiceDialog({ title, url, username, launchRemote, onClose }: ServiceDialogProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const address = new URL(url);
+  const [remote, setRemote] = useState<string>();
+  const [startingRemote, setStartingRemote] = useState(false);
+  const [remoteError, setRemoteError] = useState('');
+
+  async function openRemote() {
+    if (!launchRemote) return;
+    setStartingRemote(true);
+    setRemoteError('');
+    try {
+      const { url } = await launchRemote();
+      const workspace = new URL(url);
+      if (workspace.protocol !== 'https:' || workspace.origin === location.origin) {
+        throw new Error('Remote browser requires a separate HTTPS origin.');
+      }
+      setRemote(workspace.href);
+    } catch (error) {
+      setRemoteError(error instanceof Error ? error.message : 'Unable to open the remote browser.');
+    } finally {
+      setStartingRemote(false);
+    }
+  }
   const canEmbed = address.origin !== location.origin &&
     (address.protocol === 'https:' || location.protocol === 'http:');
   useEffect(() => {
@@ -24,7 +53,16 @@ export function ServiceDialog({ title, url, username, onClose }: { title: string
     </div>
     <p className="muted service-address">{address.origin}</p>
     {username && <CredentialPanel username={username} address={address.href} />}
-    {canEmbed ? <>
+    {launchRemote && <div className="service-actions">
+      {remote ? <button type="button" onClick={() => setRemote(undefined)}>Return to direct view</button>
+        : <button type="button" disabled={startingRemote} onClick={() => void openRemote()}>
+          {startingRemote ? 'Opening remote browser…' : 'Open in remote browser'}
+        </button>}
+      {remoteError && <p role="alert">{remoteError}</p>}
+    </div>}
+    {remote ? <iframe title={title + ' remote browser'} src={remote}
+      sandbox="allow-scripts allow-forms allow-same-origin" referrerPolicy="no-referrer" />
+    : canEmbed ? <>
       <iframe title={title + ' embedded service'} src={address.href}
         sandbox="allow-scripts allow-forms allow-same-origin" referrerPolicy="no-referrer" />
       <details className="service-help">

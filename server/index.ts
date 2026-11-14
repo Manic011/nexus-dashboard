@@ -56,7 +56,12 @@ async function body(req: IncomingMessage, limit = 8192) {
   }
 }
 
-export function createApp(data: string, dist: string, origin: string, setupToken?: string, jellyfinConfig?: { baseUrl: string; apiKey: string }, discoveryEnabled = true) {
+export function createApp(data: string, dist: string, origin: string, setupToken?: string, jellyfinConfig?: { baseUrl: string; apiKey: string }, discoveryEnabled = true, kasmUrl?: string) {
+  const kasm = kasmUrl === undefined ? undefined : URL.parse(kasmUrl);
+  if (kasmUrl !== undefined && (!kasm || kasm.protocol !== 'https:' || kasm.origin === new URL(origin).origin ||
+      kasm.username || kasm.password || kasm.search || kasm.hash)) {
+    throw new Error('NEXUS_KASM_URL must be an HTTPS base URL on a separate origin, without credentials, query, or fragment.');
+  }
   const jellyfin = createJellyfin(jellyfinConfig);
   mkdirSync(data, { recursive: true, mode: 0o700 });
   const db = new DatabaseSync(join(data, 'nexus.sqlite'));
@@ -308,8 +313,21 @@ export function createApp(data: string, dist: string, origin: string, setupToken
         const tiles = jellyfin ? urls.filter(item => canSee(item.id) && jellyfin.matches(String(item.url))).map(item => item.id) : [];
         return send(200, tiles.length ? { tiles, ...await jellyfin!.summary() } : { tiles });
       }
+      const remote = /^\/api\/admin\/remote-browser\/([1-9]\d{0,14})$/.exec(path);
+      if (method === 'GET' && remote) {
+        const row = db.prepare('SELECT url FROM tiles WHERE id=?').get(Number(remote[1]));
+        if (!kasm || !row) throw new RequestError(404, 'Remote browser is unavailable for this tile.');
+        const target = tile.shape.url.safeParse(row.url);
+        if (!target.success) throw new RequestError(400, 'The tile needs a valid web URL.');
+        const launch = new URL(kasm);
+        launch.hash = '/go?' + new URLSearchParams({ kasm_url: new URL(target.data).href });
+        return send(200, { url: launch.href });
+      }
       if (method === 'GET' && path === '/api/tiles') {
-        return send(200, db.prepare('SELECT * FROM tiles ORDER BY category COLLATE NOCASE, title COLLATE NOCASE, id').all().filter(item => canSee(item.id)).map(readTile));
+        const visible = db.prepare('SELECT * FROM tiles ORDER BY category COLLATE NOCASE, title COLLATE NOCASE, id').all()
+          .filter(item => canSee(item.id)).map(readTile);
+        return send(200, kasm && authenticated.role === 'admin'
+          ? visible.map(item => ({ ...item, remoteBrowser: true })) : visible);
       }
       if (method === 'GET' && path === '/api/admin/backup') {
         res.setHeader('Content-Disposition', 'attachment; filename="nexus-dashboard.json"');
@@ -406,7 +424,7 @@ if (import.meta.main) {
   if (discovery !== undefined && discovery !== 'on' && discovery !== 'off') {
     throw new Error('NEXUS_DISCOVERY must be on or off.');
   }
-  const server = createApp(process.env.NEXUS_DATA ?? 'data', process.env.NEXUS_DIST ?? 'dist', origin, process.env.NEXUS_SETUP_TOKEN, jellyfin, discovery !== 'off');
+  const server = createApp(process.env.NEXUS_DATA ?? 'data', process.env.NEXUS_DIST ?? 'dist', origin, process.env.NEXUS_SETUP_TOKEN, jellyfin, discovery !== 'off', process.env.NEXUS_KASM_URL);
   server.listen(port, host, () => console.log(`Nexus Dashboard listening on ${host}:${port}`));
   for (const signal of ['SIGTERM', 'SIGINT'] as const) process.once(signal, () => server.close());
 }

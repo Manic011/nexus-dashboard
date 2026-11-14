@@ -21,6 +21,8 @@ Under **Saved login**, create a vault with a separate master password of at leas
 
 The vault requires a secure browser context, such as HTTPS or localhost, and an individual Nexus account. It saves credentials for the exact tile URL and the signed-in account in this browser profile. A new dashboard address, another device, or a different browser profile uses a different vault. Clearing site data removes the vault. Nexus backups do not contain it, and there is no master-password recovery.
 
+Administrators can select **Open in remote browser** when the operator has configured Kasm. The remote browser opens the saved service and streams it into the same Nexus view. Sign in to Kasm and the service as needed. Use **Return to direct view** to switch back. End the remote session through Kasm when finished.
+
 ## Discover and import services
 
 1. Sign in as administrator and open **Administration → Discovery**.

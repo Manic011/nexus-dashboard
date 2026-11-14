@@ -10,7 +10,7 @@ import { parseTags } from './tags.js';
 
 type Session = { setup: boolean; setupTokenRequired: boolean; username: string | null; role?: 'admin' | 'editor' | 'viewer' | null; shared?: boolean };
 type Jellyfin = { tiles: number[]; state?: 'available' | 'unavailable'; streams?: number };
-type Tile = { id: number; title: string; description: string; url: string; category: string; tags: string[] };
+type Tile = { id: number; title: string; description: string; url: string; category: string; tags: string[]; remoteBrowser?: boolean };
 
 async function api<T>(path: string, method = 'GET', body?: object): Promise<T> {
   const result = await fetch('/api/' + path, method === 'GET' ? {} : {
@@ -178,7 +178,7 @@ function App() {
       </section>)}
     </>}
     </main>
-    {browsing && <ServiceDialog title={browsing.title} url={browsing.url} username={session.username === 'shared' ? undefined : session.username} onClose={() => { setBrowsing(null); serviceTrigger.current?.focus(); }} />}
+    {browsing && <ServiceDialog title={browsing.title} url={browsing.url} launchRemote={browsing.remoteBrowser ? () => api<{ url: string }>('admin/remote-browser/' + browsing.id) : undefined} username={session.username === 'shared' ? undefined : session.username} onClose={() => { setBrowsing(null); serviceTrigger.current?.focus(); }} />}
     <dialog ref={dialog} aria-labelledby="dialog-title" onCancel={event => { event.preventDefault(); if (!busy) closeDialog(); }}>
       {(editing || deleting) && <>
         <div className="dialog-head"><h2 id="dialog-title">{deleting ? 'Delete tile' : selected ? 'Edit tile' : 'Add tile'}</h2><button aria-label="Close" disabled={busy} onClick={closeDialog}><X size={19} /></button></div>

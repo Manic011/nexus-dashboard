@@ -12,7 +12,8 @@ test('release audit: permissions, stale restores, full database recovery, and re
   const state = join(directory, 'state');
   const origin = 'https://dashboard.example.invalid';
   const password = 'disposable-fixture-password';
-  let app = createApp(state, 'dist', origin, 'fixture-token');
+  const kasm = 'https://browser.example.invalid/';
+  let app = createApp(state, 'dist', origin, 'fixture-token', undefined, true, kasm);
   let base = '';
   let cookie = '';
   async function start() {
@@ -44,6 +45,14 @@ test('release audit: permissions, stale restores, full database recovery, and re
     const viewer = await (await request('admin/users', 'POST', { username: 'reader', password, role: 'viewer' })).json();
     await request('admin/users', 'POST', { username: 'editor', password, role: 'editor' });
     const created = await (await request('tiles', 'POST', tile)).json();
+    const remotePath = 'admin/remote-browser/' + created.id;
+    const listing = await (await request('tiles')).json();
+    assert.equal(listing[0].remoteBrowser, true);
+    const launch = new URL((await (await request(remotePath)).json()).url);
+    assert.equal(launch.origin, new URL(kasm).origin);
+    assert.ok(launch.hash.startsWith('#/go?'));
+    assert.equal(new URLSearchParams(launch.hash.split('?')[1]).get('kasm_url'), tile.url);
+    assert.equal((await request('admin/remote-browser/99999')).status, 404);
     const group = await (await request('admin/groups', 'POST', { name: 'Fixture group', users: [viewer.id] })).json();
     await request('admin/tile-access/' + created.id, 'PUT', { restricted: true, users: [], groups: [group.id] });
     const snapshot = await (await request('admin/snapshots', 'POST', { name: 'Restricted baseline' })).json();
@@ -53,7 +62,10 @@ test('release audit: permissions, stale restores, full database recovery, and re
     assert.equal((await request('tiles', 'POST', tile, 'http://untrusted.invalid')).status, 403);
 
     const readerSession = await login('reader');
-    assert.equal((await (await request('tiles')).json()).length, 1);
+    const readerTiles = await (await request('tiles')).json();
+    assert.equal(readerTiles.length, 1);
+    assert.equal(readerTiles[0].remoteBrowser, undefined);
+    assert.equal((await request(remotePath)).status, 403);
     assert.equal((await request('tiles/' + created.id, 'PUT', tile)).status, 403);
     assert.equal((await request('tiles/' + created.id, 'DELETE')).status, 403);
     const adminRoutes = ['users', 'system', 'console', 'backup', 'scans/' + snapshot.id, 'discovery/profiles', 'discovery/interfaces', 'discovery/progress', 'snapshots/' + snapshot.id];
@@ -68,6 +80,7 @@ test('release audit: permissions, stale restores, full database recovery, and re
     assert.equal((await request('tiles/' + created.id, 'DELETE')).status, 404);
     assert.equal((await request('admin/tile-access/' + created.id, 'PUT', { restricted: false, users: [], groups: [] })).status, 403);
     cookie = '';
+    assert.equal((await request(remotePath)).status, 401);
     assert.equal((await request('tiles')).status, 401);
     assert.equal((await request('admin/backup')).status, 401);
     const asset = await fetch(base + '/.env'); assert.equal(asset.status, 404);
@@ -108,6 +121,7 @@ test('release audit: permissions, stale restores, full database recovery, and re
     assert.equal((await request('admin/discovery/interfaces')).status, 401);
     await login('administrator');
     assert.equal((await (await request('admin/system')).json()).discoveryEnabled, false);
+    assert.equal((await request(remotePath)).status, 404);
     for (const path of ['interfaces', 'progress', 'profiles']) {
       assert.equal((await request('admin/discovery/' + path)).status, 403, path);
     }

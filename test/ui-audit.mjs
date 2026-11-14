@@ -21,7 +21,8 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
     res.end('<script>localStorage.setItem("service-ready", "yes"); document.cookie = "fixture=ready";</script>' +
       '<script>if (document.cookie.includes("fixture=ready")) document.write("<h1>Fixture service</h1>");</script>');
   });
-  const app = remote ? undefined : createApp(directory, 'dist', origin, token, { baseUrl: 'http://127.0.0.1:3420', apiKey: 'fixture' });
+  const provider = 'https://browser.example.invalid/';
+  const app = remote ? undefined : createApp(directory, 'dist', origin, token, { baseUrl: 'http://127.0.0.1:3420', apiKey: 'fixture' }, true, provider);
   try {
     if (app) {
       fixture.listen(3420, '127.0.0.1');
@@ -89,6 +90,16 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
         await frame.contentFrame().getByRole('heading', { name: 'Fixture service' }).waitFor();
         assert.equal(page.context().pages().length, 1);
         assert.equal(page.url(), origin + '/');
+        if (!remote) {
+          await page.route(provider, route => route.fulfill({ contentType: 'text/html', body: '<h1>Workspace session</h1>' }));
+          await button('Open in remote browser').click();
+          const workspace = dialog.frameLocator('iframe[title="Local tools remote browser"]');
+          await workspace.getByRole('heading', { name: 'Workspace session' }).waitFor();
+          assert.equal(page.context().pages().length, 1);
+          assert.equal(page.url(), origin + '/');
+          await button('Return to direct view').click();
+          await frame.contentFrame().getByRole('heading', { name: 'Fixture service' }).waitFor();
+        }
         await dialog.getByText('Saved login', { exact: true }).click();
         const master = 'fixture-vault-passphrase';
         const savedPassword = 'fixture-service-password';

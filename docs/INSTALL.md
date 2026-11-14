@@ -115,6 +115,7 @@ Open the configured URL, enter the token, and create the first administrator. Us
 | `NEXUS_ORIGIN` | Exact browser origin used for write requests and cookie security. Defaults to loopback HTTP on the configured port. |
 | `NEXUS_DATA` | SQLite state directory. Defaults to `data` locally. The systemd service uses `/var/lib/nexus-dashboard`. |
 | `NEXUS_DIST` | Directory containing the built frontend. Defaults to `dist` relative to the working directory. |
+| `NEXUS_KASM_URL` | Optional HTTPS base URL for a separate Kasm Workspaces server. Enables the remote browser action for administrators. |
 | `NEXUS_DISCOVERY` | `on` by default. Set to `off` to disable active web and mDNS discovery, interface enumeration, and scan profile endpoints. |
 | `NEXUS_SETUP_TOKEN` | Secret used when creating the first administrator. |
 | `NEXUS_JELLYFIN_URL` | Jellyfin base URL, including a proxy subpath when required. |
@@ -133,6 +134,16 @@ dashboard.example.net {
 ```
 
 Set `NEXUS_ORIGIN=https://dashboard.example.net` and `NEXUS_HOST=127.0.0.1`. Restart Nexus and open the HTTPS URL. The frontend and API share the same origin, and an HTTPS origin enables Secure session cookies. For a Cloudflare Tunnel, use the [private remote-access checklist](SECURITY.md#private-access-through-cloudflare).
+
+## Remote browser with Kasm Workspaces
+
+Set up Kasm on a supported LAN host with access to the services you intend to open. Kasm documents a 4 GB minimum for its services and additional resources for browser sessions. Give the Kasm host a trusted HTTPS URL that the user's browser can reach. [Kasm system requirements](https://docs.kasm.com/docs/install/system_requirements)
+
+1. In Kasm, assign the user a default browser workspace and configure its documented launch and resume behavior for the **/go** URL. Use authenticated sessions. Limit the workspace's network access to the services that user is allowed to reach. [Kasm browser launch configuration](https://docs.kasm.com/docs/develop/tutorials/remote-browser-isolation)
+2. Configure Kasm to support embedding from the Nexus page. Use the provider's documented cookie settings and prefer sibling HTTPS hostnames under your control. If the sites use Cloudflare Access, verify both login flows. [Kasm iframe setup](https://docs.kasm.com/docs/develop/how-to/workspaces-sessions/container-workspace/embed-kasm-in-iframe)
+3. Set `NEXUS_KASM_URL=https://browser.example.net/` in the protected Nexus environment file and restart Nexus. Open a saved tile as administrator, select **Open in remote browser**, and sign in to Kasm if prompted. Verify that the target loads in the Nexus tab and **Return to direct view** works. End sessions from Kasm when finished.
+
+Nexus sends the saved tile URL to Kasm as the browser destination. Use tile URLs without secrets. Kasm manages authentication, browser sessions, and session expiry. Closing the Nexus view disconnects the frame, while Kasm may keep the browser session running.
 
 ## Jellyfin activity
 

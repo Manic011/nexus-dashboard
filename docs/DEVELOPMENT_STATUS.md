@@ -4,6 +4,8 @@ Nexus Dashboard is a development preview. The [requirements audit](REQUIREMENTS_
 
 ## Available in the preview
 
+- Optional Kasm browser launch inside the service view for administrators. Real provider validation requires a configured Kasm deployment.
+
 - Sandboxed service view and browser-local encrypted login storage for individual accounts. Cross-device vault sync and recovery are outside the current implementation.
 
 - Setup token, administrator account, editor and viewer accounts, and shared read-only access.

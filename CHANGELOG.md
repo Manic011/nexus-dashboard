@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Added an optional Kasm remote browser action for administrators. The remote browser opens the saved tile inside Nexus.
+
 - Expanded the embedded service view and restored service-origin cookie and storage access for apps such as Proxmox. Nexus continues to reject framing of its own pages.
 
 - Added an embedded service view that opens directly from tile titles and a browser-local encrypted vault for individual accounts.

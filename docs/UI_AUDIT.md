@@ -13,6 +13,8 @@ Review every new or changed screen before merging. Apply the same review to dial
 
 ## Current coverage
 
+The remote browser regression uses a fixture provider to verify that the workspace renders in the same Nexus tab and that switching back restores the direct view. Check real Kasm authentication and browser delivery on a configured provider.
+
 The Chromium service-view check verifies immediate frame loading at mobile width with a service that requires cookie and storage access, dismissal and focus return, vault encryption and persistence, wrong-password handling, and credential removal.
 
 The Chromium smoke test covers setup and sign-in, the dashboard, tile creation and editor focus, delete cancellation, tag filtering, persisted appearance settings, manual import review, backup download, system information, and viewer creation and removal. It checks horizontal overflow at 320 pixels. Real network scanning and assistive-technology review are separate manual checks.
