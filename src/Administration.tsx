@@ -132,6 +132,7 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
       </details>
     </>}
     {preview && <section className="tile" ref={review} tabIndex={-1} aria-labelledby="review-title"><h2 id="review-title">Review import</h2>
+      {preview.tiles.length === 0 && <p>No new tiles to import.</p>}
       <p className="muted">{preview.tiles.length} available · {preview.skipped} duplicate addresses skipped</p>
       {preview.tiles.length > 0 && <>
         <div className="result-actions"><button disabled={busy} onClick={() => setSelection(preview.tiles.map(item => item.url))}>Select all</button>
@@ -144,6 +145,8 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
               const { title, category, tags } = edits[item.url];
               return { ...item, title, category, tags: parseTags(tags) };
             });
+            const invalid = tiles.find(tile => !tile.title.trim() || !tile.category.trim() || tile.tags.length > 12 || tile.tags.some(tag => tag.length > 32));
+            if (invalid) throw new Error('Check the name, category, and tags for ' + (invalid.title || invalid.url) + '.');
             const result = await api<{ imported: number; skipped: number }>('admin/backup/import', 'POST', { version: 1, tiles });
             setPreview(undefined);
             setSelection([]);

@@ -23,6 +23,7 @@ function App() {
   const [session, setSession] = useState<Session>();
   const preferences = usePreferences(session?.username);
   const [jellyfin, setJellyfin] = useState<Jellyfin>();
+  const [tilesLoading, setTilesLoading] = useState(true);
   const [tiles, setTiles] = useState<Tile[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -52,12 +53,17 @@ function App() {
   }, [session?.username, tiles]);
   useEffect(() => { api<Session>('session').then(setSession).catch(report); }, []);
   useEffect(() => {
-    if (session?.username) void refresh().catch(report);
+    if (!session?.username) return;
+    setTilesLoading(true);
+    void refresh().catch(report).finally(() => setTilesLoading(false));
   }, [session?.username]);
   useEffect(() => {
     const element = dialog.current;
     if (!element) return;
-    if ((editing || deleting) && !element.open) element.showModal();
+    if ((editing || deleting) && !element.open) {
+      element.showModal();
+      if (editing) element.querySelector<HTMLInputElement>('input[name="title"]')?.focus();
+    }
     if (editing) setTagDraft(editing === 'new' ? '' : editing.tags.join(', '));
     if (!editing && !deleting) element.close();
   }, [editing, deleting]);
@@ -75,6 +81,7 @@ function App() {
   }
   function submit(event: FormEvent<HTMLFormElement>, work: (data: object) => Promise<void>) {
     event.preventDefault();
+    if (busy) return;
     const data = Object.fromEntries(new FormData(event.currentTarget));
     void action(() => work(data));
   }
@@ -95,7 +102,8 @@ function App() {
     [tile.title, tile.description, tile.category, tile.url, ...tile.tags]
       .some(value => value.toLowerCase().includes(query.trim().toLowerCase())));
   const groups = Map.groupBy(visible, tile => tile.category.toLowerCase());
-  const tagSuggestions = [...tags].filter(([key]) => !parseTags(tagDraft).some(tag => tag.toLowerCase() === key)).slice(0, 6);
+  const draftTags = parseTags(tagDraft);
+  const tagSuggestions = draftTags.length < 12 ? [...tags].filter(([key]) => !draftTags.some(tag => tag.toLowerCase() === key)).slice(0, 6) : [];
   function clearFilters() { setQuery(''); setCategoryFilter(''); setTagFilter(''); }
   const warning = error && <p role="alert" className="error">{error}</p>;
   const brand = <span className="brand"><span className="mark"><Boxes size={21} /></span>Nexus <span className="brand-muted">Dashboard</span></span>;
@@ -122,8 +130,8 @@ function App() {
 
   return <>
     <header><div className="shell top">{brand}<div className="account">{session.role === 'admin' && <button onClick={() => setAdmin(value => !value)}>{admin ? 'Dashboard' : 'Administration'}</button>}<span>{session.username}</span><details className="preferences"><summary>Appearance</summary><div className="preferences-panel">
-      <label>Theme<select value={preferences.value.theme} onChange={event => preferences.update({ theme: event.target.value === 'light' ? 'light' : event.target.value === 'dark' ? 'dark' : 'system' })}><option value="system">System</option><option value="dark">Dark</option><option value="light">Light</option></select></label>
-      <label>Card density<select value={preferences.value.density} onChange={event => preferences.update({ density: event.target.value === 'compact' ? 'compact' : 'comfortable' })}><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></label>
+      <label><span>Theme</span><select aria-label="Theme" value={preferences.value.theme} onChange={event => preferences.update({ theme: event.target.value === 'light' ? 'light' : event.target.value === 'dark' ? 'dark' : 'system' })}><option value="system">System</option><option value="dark">Dark</option><option value="light">Light</option></select></label>
+      <label><span>Card density</span><select aria-label="Card density" value={preferences.value.density} onChange={event => preferences.update({ density: event.target.value === 'compact' ? 'compact' : 'comfortable' })}><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></label>
     </div></details><button disabled={busy} onClick={() => void action(async () => {
       await api('logout', 'POST');
       setSession(await api<Session>('session'));
@@ -133,6 +141,7 @@ function App() {
       setAdmin(false);
     })}><LogOut size={16} /> Sign out</button></div></div></header>
     <main className="shell dashboard">
+      {!editing && !deleting && warning}
       {admin ? <><h1>Administration</h1><Administration api={api} onImport={refresh} categories={[...categories.values()]} /></> : <><div className="intro"><div><h1>Applications</h1><p className="muted">Organize and open the services you use.</p></div>
         {session.role !== 'viewer' && <button className="primary" onClick={() => { setError(''); setEditing('new'); }}><Plus size={19} /> Add tile</button>}
       </div>
@@ -145,8 +154,8 @@ function App() {
         </select>
         {(query || categoryFilter || tagFilter) && <button onClick={clearFilters}>Clear filters</button>}
       </div>
-      {!editing && !deleting && warning}
-      {groups.size === 0 && <section className="empty"><Globe size={28} /><h2>{tiles.length ? 'No matching applications' : 'No applications yet'}</h2><p className="muted">{tiles.length ? 'Try a different search or clear your filters.' : 'Add a tile to save a link to your first service.'}</p></section>}
+      {tilesLoading && <p role="status">Loading applications…</p>}
+      {!tilesLoading && !error && groups.size === 0 && <section className="empty"><Globe size={28} /><h2>{tiles.length ? 'No matching applications' : 'No applications yet'}</h2><p className="muted">{tiles.length ? 'Try a different search or clear your filters.' : session.role === 'viewer' ? 'Applications will appear here when an editor adds them.' : 'Add a tile to save a link to your first service.'}</p></section>}
       {[...groups].map(([category, items]) => <section className="group" key={category}>
         <h2>{categories.get(category)} <span className="group-count">{items.length}</span></h2>
         <div className="grid">{items.map(tile => <article key={tile.id} className="tile app-tile">
@@ -178,12 +187,12 @@ function App() {
           clearFilters();
           await refresh();
         })}>
-          <label>Name<input name="title" defaultValue={selected?.title} maxLength={80} required /></label>
+          <label>Name<input name="title" autoFocus autoComplete="off" defaultValue={selected?.title} maxLength={80} required /></label>
           <label>URL<input name="url" type="url" autoComplete="off" spellCheck={false} placeholder="https://example.com" defaultValue={selected?.url} maxLength={2048} required /></label>
           <label>Category<input name="category" list="existing-categories" autoComplete="off" defaultValue={selected?.category ?? 'General'} maxLength={40} required /></label>
           <datalist id="existing-categories">{[...categories.values()].map(category => <option key={category} value={category} />)}</datalist>
-          <label>Tags <small className="muted">Separate tags with commas.</small><input name="tags" value={tagDraft} onChange={event => setTagDraft(event.target.value)} placeholder="Media, family" maxLength={420} /></label>
-          {tagSuggestions.length > 0 && <div className="tags tag-suggestions" aria-label="Existing tags">{tagSuggestions.map(([key, tag]) => <button type="button" key={key} onClick={() => setTagDraft([...parseTags(tagDraft), tag].join(', '))}>+ {tag}</button>)}</div>}
+          <label>Tags <small className="muted">Use up to 12 comma-separated tags.</small><input name="tags" value={tagDraft} onChange={event => setTagDraft(event.target.value)} placeholder="Media, family" maxLength={420} /></label>
+          {tagSuggestions.length > 0 && <div className="tags tag-suggestions" aria-label="Existing tags">{tagSuggestions.map(([key, tag]) => <button type="button" key={key} onClick={() => setTagDraft([...draftTags, tag].join(', '))}>+ {tag}</button>)}</div>}
           <label>Description<input name="description" defaultValue={selected?.description} maxLength={180} /></label>
           {warning}
           <div className="form-actions"><button type="button" disabled={busy} onClick={closeDialog}>Cancel</button><button className="primary" disabled={busy}>{busy ? 'Saving…' : 'Save tile'}</button></div>

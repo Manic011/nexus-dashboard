@@ -20,3 +20,5 @@
 - Expanded the README and added detailed usage, installation, API, and contribution guides.
 - Added a documentation checklist for future changes and documented the planned one-line Ubuntu installer.
 - Added browser-local appearance preferences, refreshed card spacing, reusable tag suggestions, and easier mobile import review.
+
+- Improved tile editor focus, mobile account management, and loading and import feedback. Added a browser UI audit to CI.

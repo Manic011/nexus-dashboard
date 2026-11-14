@@ -22,3 +22,5 @@ Use this checklist when reviewing a feature, behavior change, or deployment chan
 - [ ] Update [the roadmap](docs/DEVELOPMENT_STATUS.md) and the [requirements audit](docs/REQUIREMENTS_AUDIT.md) when work moves from planned to implemented or when validation changes.
 
 Check relative links and try changed commands in an appropriate environment. Keep examples generic, report verification accurately, and describe planned features as planned.
+
+For every new or changed screen, follow the [UI audit](docs/UI_AUDIT.md) and record the results in the pull request.

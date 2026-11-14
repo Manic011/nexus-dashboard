@@ -13,3 +13,5 @@ List the checks that ran and any checks still pending.
 - [ ] Verified new links and commands, or documented what still needs verification.
 
 See the [contributor checklist](../CONTRIBUTING.md#documentation-checklist) for which pages to update.
+
+- [ ] Reviewed affected screens using the UI audit checklist and recorded any manual verification still needed.
