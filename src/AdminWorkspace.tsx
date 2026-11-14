@@ -10,7 +10,8 @@ type Catalog = {
   scans: RecordInfo[];
   backups: RecordInfo[];
 };
-type Choice = { id: number; name: string };
+type Choice = { id: number; name: string; role?: string };
+type RestorePreview = { tiles: number; groups: number; revision: string; changes: { kind: string; added: string[]; removed: string[]; changed: string[] }[] };
 
 function Choices({ items, selected, change }: { items: Choice[]; selected: number[]; change: (ids: number[]) => void }) {
   return <div className="account-choices">{items.map(item => <label key={item.id}>
@@ -33,7 +34,7 @@ export function AdminWorkspace({ section, api, refresh, inspect }: {
   const [members, setMembers] = useState<number[]>([]);
   const [tileId, setTileId] = useState(0);
   const [policy, setPolicy] = useState<Policy>({ restricted: false, users: [], groups: [] });
-  const [target, setTarget] = useState<{ record: RecordInfo; tiles: number; groups: number }>();
+  const [target, setTarget] = useState<RestorePreview & { record: RecordInfo }>();
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -43,7 +44,7 @@ export function AdminWorkspace({ section, api, refresh, inspect }: {
       api<Catalog>('admin/console'), api<{ id: number; username: string; role: string }[]>('admin/users'),
     ]);
     setCatalog(data);
-    setAccounts(users.filter(user => user.role !== 'admin').map(user => ({ id: user.id, name: user.username })));
+    setAccounts(users.map(user => ({ id: user.id, name: user.username, role: user.role })));
   }
 
   useEffect(() => { void load().catch(err => setError(err.message)); }, [api]);
@@ -56,6 +57,7 @@ export function AdminWorkspace({ section, api, refresh, inspect }: {
     finally { setBusy(false); }
   }
 
+  const grantable = accounts.filter(account => account.role !== 'admin');
   const feedback = <>{error && <p role="alert" className="error">{error}</p>}{message && <p role="status">{message}</p>}</>;
   if (!catalog) return feedback;
   const date = (value: string) => new Date(value).toLocaleString();
@@ -84,15 +86,20 @@ export function AdminWorkspace({ section, api, refresh, inspect }: {
       <ul className="user-list">{catalog.backups.map(record => <li key={record.id}>
         <span><strong>{record.label}</strong><br /><small className="muted">{date(record.created)}</small></span>
         <button disabled={busy} onClick={() => void run(async () => {
-          const info = await api<{ tiles: number; groups: number }>('admin/snapshots/' + record.id);
+          const info = await api<RestorePreview>('admin/snapshots/' + record.id);
           setTarget({ ...info, record });
         })}>Review restore</button>
       </li>)}</ul>
       {target && <div className="account-confirmation">
         <p>Replace the current configuration with {target.record.label} ({target.tiles} tiles and {target.groups} groups)? Nexus saves the current configuration first.</p>
+        <ul className="restore-diff">{target.changes.map(change => <li key={change.kind}><strong>{change.kind}</strong>
+          <ul>{(['added', 'removed', 'changed'] as const).map(action => <li key={action}>
+            {action[0].toUpperCase() + action.slice(1)} · {change[action].length ? change[action].join(', ') : 'None'}
+          </li>)}</ul>
+        </li>)}</ul>
         <button disabled={busy} onClick={() => setTarget(undefined)}>Cancel</button>
         <button className="danger" disabled={busy} onClick={() => void run(async () => {
-          await api('admin/snapshots/' + target.record.id, 'POST');
+          await api('admin/snapshots/' + target.record.id, 'POST', { revision: target.revision });
           setTarget(undefined);
           await Promise.all([load(), refresh()]);
           setMessage('Configuration restored. The previous configuration is available in the list.');
@@ -115,7 +122,7 @@ export function AdminWorkspace({ section, api, refresh, inspect }: {
           setConfirmGroupRemoval(false); setGroupId(group?.id ?? 0); setGroupName(group?.name ?? ''); setMembers(group?.users ?? []);
         }}><option value={0}>New group</option>{catalog.groups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
         <label>Group name<input required maxLength={64} value={groupName} onChange={event => setGroupName(event.target.value)} /></label>
-        <fieldset><legend>Members</legend><Choices items={accounts} selected={members} change={setMembers} /></fieldset>
+        <fieldset><legend>Members</legend><Choices items={grantable} selected={members} change={setMembers} /></fieldset>
                 <div className="result-actions">
           <button disabled={busy}>Save group</button>
           {!!groupId && <button type="button" disabled={busy} onClick={() => setConfirmGroupRemoval(true)}>Remove group</button>}
@@ -146,9 +153,18 @@ export function AdminWorkspace({ section, api, refresh, inspect }: {
         {!!tileId && <>
           <label className="consent"><input type="checkbox" checked={policy.restricted} onChange={event => setPolicy({ ...policy, restricted: event.target.checked })} /> Restrict access</label>
           {policy.restricted && <>
-            <fieldset><legend>Allowed users</legend><Choices items={accounts} selected={policy.users} change={users => setPolicy({ ...policy, users })} /></fieldset>
+            <fieldset><legend>Allowed users</legend><Choices items={grantable} selected={policy.users} change={users => setPolicy({ ...policy, users })} /></fieldset>
             <fieldset><legend>Allowed groups</legend><Choices items={catalog.groups} selected={policy.groups} change={groups => setPolicy({ ...policy, groups })} /></fieldset>
           </>}
+          <details><summary>Preview effective access</summary>
+            <ul className="user-list">{accounts.map(account => {
+              const groups = catalog.groups.filter(group => policy.groups.includes(group.id) && group.users.includes(account.id));
+              const reasons = account.role === 'admin' ? ['Administrator'] : !policy.restricted ? ['All dashboard users']
+                : [...(policy.users.includes(account.id) ? ['Individual grant'] : []), ...groups.map(group => 'Group: ' + group.name)];
+              const access = !reasons.length ? 'No access' : account.role === 'viewer' ? 'View' : 'View and edit';
+              return <li key={account.id}><strong>{account.name}</strong><span>{access}{reasons.length ? ' · ' + reasons.join(', ') : ''}</span></li>;
+            })}</ul>
+          </details>
           <button disabled={busy}>Save permissions</button>
         </>}
       </form>

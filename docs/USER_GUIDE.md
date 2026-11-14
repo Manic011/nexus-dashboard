@@ -60,3 +60,9 @@ In **Users**, create a group and select its members. Under **Tile permissions**,
 In **Backup**, save a named snapshot to the server's SQLite state. Select **Review restore** beside a snapshot and confirm to replace the tile and group configuration. Nexus saves the current configuration automatically before restoring it, so you can return to either state. Snapshots include tiles, groups, and tile permissions. User accounts, passwords, and server settings require the full instance backup procedure. The JSON upload still previews a tile merge.
 
 **System** shows host and kernel information, CPU, memory, process and host uptime, and the tile inventory. The inventory lists configured URLs and access scope.
+
+During discovery, the progress bar counts completed checks. A Partial result shows how much of the range was checked. Review labels show where a suggested name came from, and existing URLs appear under Already on dashboard.
+
+Review restore lists added, removed, and changed tiles, groups, and permissions. If the configuration changes while the preview is open, reopen the preview before restoring. The automatic snapshot includes the name of the restore target.
+
+Open Preview effective access while editing tile permissions to see who can view or edit the tile and which individual or group grants apply to the current selections. Save permissions to apply the selections.

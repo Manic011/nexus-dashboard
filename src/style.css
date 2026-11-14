@@ -156,3 +156,4 @@ dialog h2, dialog form p { overflow-wrap: anywhere; }
 .account-choices label { display: flex; align-items: center; overflow-wrap: anywhere; }
 .admin-workspace hr { border: 0; border-bottom: 1px solid var(--border); margin: 24px 0; }
 .admin-workspace select { width: 100%; }
+.restore-diff { flex-basis: 100%; overflow-wrap: anywhere; }

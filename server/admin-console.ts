@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { cpus, freemem, hostname, platform, release, totalmem, uptime } from 'node:os';
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
@@ -19,16 +20,24 @@ export function configureAdministration(db: DatabaseSync) {
   }
 
   function load(kind: string, id: number) {
-    const row = db.prepare('SELECT payload FROM admin_records WHERE kind=? AND id=?').get(kind, id);
+    const row = db.prepare('SELECT payload,label FROM admin_records WHERE kind=? AND id=?').get(kind, id);
     return row ? JSON.parse(String(row.payload)) : undefined;
   }
 
-  function snapshot(label: string) {
-    return save('backup', label, {
+  function configuration() {
+    return {
       tiles: db.prepare('SELECT * FROM tiles ORDER BY id').all(),
-      rules: db.prepare('SELECT * FROM tile_access').all(),
-      groups: db.prepare('SELECT * FROM access_groups').all(),
-    });
+      rules: db.prepare('SELECT * FROM tile_access ORDER BY tile_id').all(),
+      groups: db.prepare('SELECT * FROM access_groups ORDER BY id').all(),
+    };
+  }
+
+  function snapshot(label: string) {
+    return save('backup', label, configuration());
+  }
+
+  function revision() {
+    return createHash('sha256').update(JSON.stringify(configuration())).digest('hex');
   }
 
   function policy(id: number) {
@@ -79,15 +88,36 @@ export function configureAdministration(db: DatabaseSync) {
     const id = Number(rawId);
     if (resource === 'scans' && method === 'GET') return load('scan', id);
     if (resource === 'snapshots' && method === 'GET') {
-      const configuration = load('backup', id);
-      return configuration && { tiles: configuration.tiles.length, groups: configuration.groups.length, restricted: configuration.rules.length };
+      const target = load('backup', id) as ReturnType<typeof configuration> | undefined;
+      if (!target) return undefined;
+      const current = configuration();
+      const entries = (state: ReturnType<typeof configuration>) => ({
+        Tiles: state.tiles.map(row => [row.id, String(row.title), JSON.stringify(row)] as const),
+        Groups: state.groups.map(row => [row.id, String(row.name), JSON.stringify(row)] as const),
+        Permissions: state.rules.map(row => [row.tile_id, String(state.tiles.find(tile => tile.id === row.tile_id)?.title), String(row.policy)] as const),
+      });
+      const before = entries(current);
+      const after = entries(target);
+      const changes = Object.entries(after).map(([kind, rows]) => {
+        const old = new Map(before[kind as keyof typeof before].map(([key, label, value]) => [key, { label, value }]));
+        const next = new Map(rows.map(([key, label, value]) => [key, { label, value }]));
+        return {
+          kind,
+          added: rows.filter(([key]) => !old.has(key)).map(([, label]) => label),
+          removed: [...old].filter(([key]) => !next.has(key)).map(([, row]) => row.label),
+          changed: rows.filter(([key, , value]) => old.has(key) && old.get(key)?.value !== value).map(([, label]) => label),
+        };
+      });
+      return { tiles: target.tiles.length, groups: target.groups.length, changes, revision: revision() };
     }
     if (resource === 'snapshots' && method === 'POST') {
       const target = load('backup', id);
       if (!target) return undefined;
       db.exec('BEGIN IMMEDIATE');
       try {
-        const previous = snapshot('Before restore');
+        if (z.object({ revision: z.string() }).parse(input).revision !== revision()) throw new Error('Configuration changed');
+        const row = db.prepare('SELECT label FROM admin_records WHERE kind=? AND id=?').get('backup', id);
+        const previous = snapshot('Before restoring ' + String(row?.label));
         db.exec('DELETE FROM tile_access; DELETE FROM tiles; DELETE FROM access_groups');
         const tile = db.prepare('INSERT INTO tiles(id,title,description,url,category,tags) VALUES (?,?,?,?,?,?)');
         for (const row of target.tiles) tile.run(row.id, row.title, row.description, row.url, row.category, row.tags);

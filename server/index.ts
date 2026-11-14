@@ -101,6 +101,7 @@ export function createApp(data: string, dist: string, origin: string, setupToken
   }
 
   const consoleAdmin = configureAdministration(db);
+  let scanProgress: { checked: number; total: number } | undefined;
   let discoveryRunning = false;
   let loginAttempts = 0;
   let resetAt = 0;
@@ -198,6 +199,7 @@ export function createApp(data: string, dist: string, origin: string, setupToken
       if (method !== 'GET' && path.startsWith('/api/tiles') && authenticated.role === 'viewer') {
         throw new RequestError(403, 'Editing access is required.');
       }
+      if (method === 'GET' && path === '/api/admin/discovery/progress') return send(200, { progress: scanProgress ?? null });
       if (method === 'GET' && path === '/api/admin/discovery/interfaces') {
         return send(200, discoveryInterfaces().map(item => ({ ...item, webCidr: webScope(item.address, Number(item.cidr.split('/')[1])).cidr })));
       }
@@ -214,9 +216,9 @@ export function createApp(data: string, dist: string, origin: string, setupToken
           if (!web) return send(200, { version: 1, tiles: await discoverServices(selected.address, prefix) });
           const [advertised, probed] = await Promise.all([
             discoverServices(selected.address, Math.max(24, prefix)).catch(() => []),
-            discoverWebServices(selected.address, prefix),
+            discoverWebServices(selected.address, prefix, (checked, total) => { scanProgress = { checked, total }; }),
           ]);
-          const byUrl = new Map(advertised.map(item => [item.url, item]));
+          const byUrl = new Map(advertised.map(item => [item.url, { ...item, source: 'mDNS advertisement' }]));
           for (const { identified, ...item } of probed.services) {
             if (identified || !byUrl.has(item.url)) byUrl.set(item.url, item);
           }
@@ -228,6 +230,7 @@ export function createApp(data: string, dist: string, origin: string, setupToken
           console.error(error);
           throw new RequestError(503, 'Discovery could not run on this interface.');
         } finally {
+          scanProgress = undefined;
           discoveryRunning = false;
         }
       }
@@ -238,6 +241,7 @@ export function createApp(data: string, dist: string, origin: string, setupToken
           return send(200, result);
         } catch (error) {
           if (error instanceof z.ZodError) throw new RequestError(400, 'Check the selected values and try again.');
+          if (error instanceof Error && error.message === 'Configuration changed') throw new RequestError(409, 'Configuration changed. Open the restore preview again.');
           throw error;
         }
       }
@@ -289,7 +293,8 @@ export function createApp(data: string, dist: string, origin: string, setupToken
         const parsed = backup.safeParse(await body(req, 2 * 1024 * 1024));
         if (!parsed.success) throw new RequestError(400, 'Choose a version 1 Nexus backup containing up to 500 valid tiles.');
         const existing = db.prepare('SELECT url FROM tiles').all();
-        const seen = new Set(existing.map(row => new URL(String(row.url)).href));
+        const savedUrls = new Set(existing.map(row => new URL(String(row.url)).href));
+        const seen = new Set(savedUrls);
         const available = parsed.data.tiles.filter(item => {
           const url = new URL(item.url).href;
           if (seen.has(url)) return false;
@@ -297,7 +302,7 @@ export function createApp(data: string, dist: string, origin: string, setupToken
           return true;
         });
         const skipped = parsed.data.tiles.length - available.length;
-        if (path.endsWith('/preview')) return send(200, { tiles: available, skipped });
+        if (path.endsWith('/preview')) return send(200, { tiles: available, skipped, existing: parsed.data.tiles.filter(item => savedUrls.has(new URL(item.url).href)) });
         db.exec('BEGIN IMMEDIATE');
         try {
           const insert = db.prepare('INSERT INTO tiles(title, description, url, category, tags) VALUES (?, ?, ?, ?, ?)');

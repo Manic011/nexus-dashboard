@@ -4,8 +4,9 @@ import { AdminWorkspace } from './AdminWorkspace.js';
 import { Users } from './Users.js';
 import { parseTags } from './tags.js';
 
-type Entry = { title: string; description: string; url: string; category: string; tags?: string[] };
-type Preview = { tiles: Entry[]; skipped: number };
+type Entry = { title: string; description: string; url: string; category: string; tags?: string[]; source?: string };
+type Preview = { tiles: Entry[]; skipped: number; existing?: Entry[] };
+type Coverage = { checked: number; total: number };
 type SystemInfo = { runtime: string; platform: string; schema: number; tiles: number; hostname: string; kernel: string; architecture: string; cpu: string; logicalCpus: number; totalMemory: number; freeMemory: number; machineUptime: number; serviceUptime: number; serviceMemory: number };
 type Network = { name: string; address: string; webCidr: string };
 type Api = <T>(path: string, method?: string, body?: object) => Promise<T>;
@@ -23,6 +24,8 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
   const [address, setAddress] = useState('');
   const [authorized, setAuthorized] = useState(false);
   const [system, setSystem] = useState<SystemInfo>();
+  const [scanning, setScanning] = useState(false);
+  const [coverage, setCoverage] = useState<Coverage>();
   const [preview, setPreview] = useState<Preview>();
   const [edits, setEdits] = useState<Record<string, { title: string; category: string; tags: string }>>({});
   const [selection, setSelection] = useState<string[]>([]);
@@ -39,6 +42,17 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
 
   useEffect(() => { if (preview) review.current?.focus(); }, [preview]);
 
+  useEffect(() => {
+    if (!scanning) return;
+    let active = true;
+    const timer = setInterval(() => {
+      void api<{ progress: Coverage | null }>('admin/discovery/progress').then(({ progress }) => {
+        if (active && progress) setCoverage(progress);
+      }).catch(() => {});
+    }, 1000);
+    return () => { active = false; clearInterval(timer); };
+  }, [api, scanning]);
+
   async function run(action: () => Promise<void>) {
     setBusy(true);
     setStatus('');
@@ -54,7 +68,9 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
   async function inspect(input: object) {
     const result = await api<Preview>('admin/backup/preview', 'POST', input);
     setEdits(Object.fromEntries(result.tiles.map(item => [item.url, { title: item.title, category: item.category, tags: item.tags?.join(', ') ?? '' }])));
-    setPreview(result);
+    const entries = (input as { tiles?: Entry[] }).tiles ?? [];
+    const sources = new Map(entries.map(item => [item.url, item.source]));
+    setPreview({ ...result, tiles: result.tiles.map(item => ({ ...item, source: sources.get(item.url) })) });
     setSelection(result.tiles.map(item => item.url));
   }
 
@@ -88,20 +104,24 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
     {section === 'discovery' && <>
       <section className="tile"><h2>Find services on your network</h2>
         <p className="muted">Discover advertised services and check common homelab ports. The review shows reported service names and port-based suggestions.</p>
+        {scanning && <p><progress aria-label="Discovery checks" max={coverage?.total} value={coverage?.checked} /> {coverage ? `${coverage.checked} / ${coverage.total} checks` : 'Starting scan…'}</p>}
         <form onSubmit={event => {
           event.preventDefault();
           if (!network || !authorized) return;
           void run(async () => {
             setPreview(undefined);
             setStatus(`Checking ${network.webCidr}. This can take up to 90 seconds.`);
+            setScanning(true);
+            setCoverage(undefined);
             const result = await api<{ version: 1; tiles: Entry[]; checked: number; total: number; found: number }>(
               'admin/discovery/web', 'POST', { address, authorized },
-            );
+            ).finally(() => setScanning(false));
             await inspect(result);
             setWorkspaceRevision(value => value + 1);
             const coverage = result.checked < result.total ? ` Checked ${result.checked} of ${result.total} address and port combinations.` : '';
             const limit = result.found > result.tiles.length ? ` Showing the first ${result.tiles.length}.` : '';
-            setStatus(result.found ? `Found ${result.found} services.${limit}${coverage}` : `No web services found on ${network.webCidr}.${coverage}`);
+            const completion = result.checked < result.total ? 'Partial' : 'Complete';
+            setStatus(completion + '. ' + (result.found ? `Found ${result.found} services.${limit}${coverage}` : `No web services found on ${network.webCidr}.${coverage}`));
           });
         }}>
           <label>Server network<select name="address" required disabled={busy} value={address} onChange={event => {
@@ -138,6 +158,9 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
     {preview && <section className="tile" ref={review} tabIndex={-1} aria-labelledby="review-title"><h2 id="review-title">Review import</h2>
       {preview.tiles.length === 0 && <p>No new tiles to import.</p>}
       <p className="muted">{preview.tiles.length} available · {preview.skipped} duplicate addresses skipped</p>
+      {!!preview.existing?.length && <details className="tile"><summary>Already on dashboard ({preview.existing.length})</summary>
+        <ul className="user-list">{preview.existing.map((item, index) => <li key={item.url + index}>{item.title} · {item.url}</li>)}</ul>
+      </details>}
       {preview.tiles.length > 0 && <>
         <div className="result-actions"><button disabled={busy} onClick={() => setSelection(preview.tiles.map(item => item.url))}>Select all</button>
           <button disabled={busy} onClick={() => setSelection([])}>Clear selection</button></div>
@@ -162,7 +185,7 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
         <div className="result-list">{preview.tiles.map(item => <div className="review-item" key={item.url}><label className="import-row">
           <input type="checkbox" checked={selection.includes(item.url)} disabled={busy} onChange={event => {
             setSelection(event.target.checked ? [...selection, item.url] : selection.filter(url => url !== item.url));
-          }} /><span><strong>{edits[item.url].title || item.title}</strong> <small className="muted">{edits[item.url].category}</small><br /><span className="muted">{item.url}</span>{item.description && <><br /><small className="muted">{item.description}</small></>}</span>
+          }} /><span><strong>{edits[item.url].title || item.title}</strong> <small className="muted">{edits[item.url].category}</small><br /><span className="muted">{item.url}</span>{item.source && <><br /><small className="muted">{item.source}</small></>}{item.description && <><br /><small className="muted">{item.description}</small></>}</span>
         </label>
           {selection.includes(item.url) && <details className="review-edit"><summary>Edit details</summary>
             <div className="review-fields">{(['title', 'category', 'tags'] as const).map(field => <label key={field}>

@@ -25,3 +25,5 @@ npm run test:ui
 ```
 
 On Linux CI, install the browser dependencies with the `--with-deps` option. The default test starts a local instance with a temporary database. For Ubuntu integration, set `NEXUS_UI_TEST_URL` and `NEXUS_UI_TEST_TOKEN` for a fresh disposable instance. The test creates accounts and tiles. [Playwright browser installation](https://playwright.dev/docs/browsers)
+
+The browser suite also checks discovery progress and source labels using controlled responses, restore diffs, individual grants, invalid tile input, and the Jellyfin activity count with a fixture.

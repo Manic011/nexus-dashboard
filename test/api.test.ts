@@ -56,7 +56,7 @@ test('setup, authentication, tile CRUD, persistence and logout', async () => {
     assert.deepEqual(await (await request('tiles')).json(), []);
     const snapshot = { version: 1, tiles: [tile, { ...tile, url: 'https://example.com/' }] };
     assert.equal((await request('admin/backup/import', 'POST', { ...snapshot, version: 2 })).status, 400);
-    assert.deepEqual(await (await request('admin/backup/preview', 'POST', snapshot)).json(), { tiles: [tile], skipped: 1 });
+    assert.deepEqual(await (await request('admin/backup/preview', 'POST', snapshot)).json(), { tiles: [tile], skipped: 1, existing: [] });
     assert.deepEqual(await (await request('admin/backup/import', 'POST', snapshot)).json(), { imported: 1, skipped: 1 });
     assert.deepEqual(await (await request('admin/backup/import', 'POST', snapshot)).json(), { imported: 0, skipped: 2 });
     assert.deepEqual(await (await request('admin/backup')).json(), { version: 1, tiles: [tile] });

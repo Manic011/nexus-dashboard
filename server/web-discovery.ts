@@ -118,35 +118,41 @@ async function identify(url: URL, localAddress: string) {
   return first;
 }
 
-export async function discoverWebServices(address: string, prefix: number) {
+export async function discoverWebServices(address: string, prefix: number, progress?: (checked: number, total: number) => void) {
   const { hosts } = webScope(address, prefix);
   const targets = homelabPorts.flatMap(port => hosts.map(host => ({ host, port })));
-  const services: { title: string; url: string; category: string; description: string; identified: boolean }[] = [];
+  const services: { title: string; url: string; category: string; description: string; identified: boolean; source: string }[] = [];
   const upgrades = new Map<string, string>();
   let next = 0;
+  let completed = 0;
+  progress?.(0, targets.length);
   const deadline = Date.now() + 90_000;
   await Promise.all(Array.from({ length: 48 }, async () => {
     while (next < targets.length && Date.now() < deadline) {
       const { host, port } = targets[next++];
-      const secure = httpsPorts.has(port);
-      const url = new URL(`${secure ? 'https' : 'http'}://${host}:${port}/`);
-      const result = await identify(url, address);
-      if (!result) continue;
-      if (result.redirectTo) {
-        upgrades.set(url.href, result.redirectTo);
-        continue;
+      try {
+        const secure = httpsPorts.has(port);
+        const url = new URL(`${secure ? 'https' : 'http'}://${host}:${port}/`);
+        const result = await identify(url, address);
+        if (!result) continue;
+        if (result.redirectTo) {
+          upgrades.set(url.href, result.redirectTo);
+          continue;
+        }
+        const certificate = result.certificateIssue ? await certificateName(url, address) : undefined;
+        const names = interfaceNames(result);
+        const description = describeService(host, port, names, !!result.certificateIssue);
+        services.push(certificate ? {
+          ...description,
+          title: certificate,
+          category: 'Networking',
+          description: 'Device suggested by an unverified TLS certificate.',
+          identified: true,
+          source: 'TLS certificate (unverified)',
+          url: url.href,
+        } : { ...description, source: description.identified ? 'Web page' : description.description.includes('Port suggestion') ? 'Port match' : 'Unidentified', url: url.href });      } finally {
+        progress?.(++completed, targets.length);
       }
-      const certificate = result.certificateIssue ? await certificateName(url, address) : undefined;
-      const names = interfaceNames(result);
-      const description = describeService(host, port, names, !!result.certificateIssue);
-      services.push(certificate ? {
-        ...description,
-        title: certificate,
-        category: 'Networking',
-        description: 'Device suggested by an unverified TLS certificate.',
-        identified: true,
-        url: url.href,
-      } : { ...description, url: url.href });
     }
   }));
   const foundUrls = new Set(services.map(service => service.url));
@@ -156,6 +162,7 @@ export async function discoverWebServices(address: string, prefix: number) {
     services.push({
       ...describeService(url.hostname, Number(url.port || 80), [], false),
       description: 'Redirects to HTTPS.',
+      source: 'HTTP redirect',
       url: source,
     });
   }
