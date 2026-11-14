@@ -176,3 +176,13 @@ dialog h2, dialog form p { overflow-wrap: anywhere; }
 .profile-save button { justify-self: start; }
 .review-fields > label, .review-fields > .category-picker { min-width: 0; }
 .review-fields select, .review-fields textarea { width: 100%; }
+
+.service-dialog { width: min(1100px, calc(100% - 24px)); padding: clamp(14px, 3vw, 25px); }
+.service-dialog > * + * { margin-top: 12px; }
+.service-address { overflow-wrap: anywhere; }
+.service-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.service-dialog iframe { display: block; width: 100%; height: min(64dvh, 760px); border: 1px solid var(--border); border-radius: 8px; background: white; }
+.credential-panel { border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+.credential-panel summary { cursor: pointer; }
+.vault-form { max-width: 520px; margin-top: 12px; }
+.credential-panel p[role="status"] { margin-top: 10px; }

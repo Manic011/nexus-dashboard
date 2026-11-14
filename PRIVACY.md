@@ -10,6 +10,8 @@ There is no application analytics or telemetry exporter. Authorized discovery co
 
 ## Backups and logs
 
+The service vault lives in browser site storage for an individual Nexus account. It encrypts saved URLs and login values before storage. The vault is outside server backups and exports. Copying a login places it on the device clipboard.
+
 Tile exports contain service URLs and metadata. Database backups contain account hashes and configuration; they can also contain session digests and discovery records. They are sensitive operational files, not release assets. Recovery revokes restored sessions. Protect backups with restrictive filesystem permissions, encrypted storage where appropriate, and a tested retention policy. Back up the protected environment file separately when recovering a complete instance.
 
 Logs can include operational errors and network information. Keep them on the deployment host with operator-only access. Never attach unredacted logs, network scans, account exports, or production screenshots to GitHub issues or releases.

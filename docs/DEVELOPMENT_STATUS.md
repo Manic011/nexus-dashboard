@@ -4,6 +4,8 @@ Nexus Dashboard is a development preview. The [requirements audit](REQUIREMENTS_
 
 ## Available in the preview
 
+- Sandboxed service view and browser-local encrypted login storage for individual accounts. Cross-device vault sync and recovery are outside the current implementation.
+
 - Setup token, administrator account, editor and viewer accounts, and shared read-only access.
 - Tile editing with searchable categories and tags, plus a review step for imports.
 - Administrator-approved mDNS and web discovery with routed private subnet/CIDR scopes, exclusions, custom ports, profiles, cancellation, scan comparisons, and editable import/update review.

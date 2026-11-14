@@ -14,7 +14,12 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
   const password = 'fixture-password-123';
   const remote = process.env.NEXUS_UI_TEST_URL;
   const origin = remote ?? 'http://127.0.0.1:3419';
-  const fixture = createServer((_req, res) => res.end(JSON.stringify([{ NowPlayingItem: { Id: 'test' } }, {}])));
+  const serviceFixture = process.env.NEXUS_UI_TEST_SERVICE ?? (remote ? undefined : 'http://127.0.0.1:3420');
+  const fixture = createServer((req, res) => {
+    if (req.url === '/Sessions') return res.end(JSON.stringify([{ NowPlayingItem: { Id: 'test' } }, {}]));
+    res.setHeader('Content-Type', 'text/html');
+    res.end('<h1>Fixture service</h1>');
+  });
   const app = remote ? undefined : createApp(directory, 'dist', origin, token, { baseUrl: 'http://127.0.0.1:3420', apiKey: 'fixture' });
   try {
     if (app) {
@@ -60,7 +65,7 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
       await button('Save tile').click();
       await page.getByRole('alert').waitFor();
       assert.equal(await field('URL').evaluate(input => input.value), 'https://user@example.net');
-      await field('URL').fill(remote ? origin : 'http://127.0.0.1:3420');
+      await field('URL').fill(serviceFixture ?? origin);
       await button('Save tile').click();
       await page.getByRole('link', { name: 'Local tools' }).waitFor();
       if (!remote || process.env.NEXUS_UI_TEST_JELLYFIN) await page.getByText('1 active stream', { exact: true }).waitFor();
@@ -71,6 +76,46 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
       await button('Save tile').click();
       await page.getByRole('link', { name: 'Other app' }).waitFor();
       await fits(320, 568);
+      if (serviceFixture) {
+        const trigger = button('View Local tools in Nexus');
+        await trigger.click();
+        await dialog.waitFor();
+        assert.equal(await dialog.locator('iframe').count(), 0);
+        assert.equal(await dialog.getByRole('link', { name: 'Open in new tab' }).getAttribute('href'), new URL(serviceFixture).href);
+        await dialog.getByText('Saved login', { exact: true }).click();
+        const master = 'fixture-vault-passphrase';
+        const savedPassword = 'fixture-service-password';
+        await field('Master password').fill(master);
+        await field('Confirm master password').fill(master);
+        await button('Create vault').click();
+        await field('Service username').fill('fixture-user');
+        await field('Service password').fill(savedPassword);
+        await button('Save login').click();
+        await dialog.getByText('Login saved.', { exact: true }).waitFor();
+        const stored = await page.evaluate(() => localStorage.getItem('nexus.vault.v1:admin'));
+        assert.ok(stored && !stored.includes(savedPassword) && !stored.includes(master) && !stored.includes('fixture-user'));
+        await button('Load embedded page').click();
+        const frame = dialog.locator('iframe');
+        assert.equal(await frame.getAttribute('sandbox'), 'allow-scripts allow-forms');
+        await frame.contentFrame().getByRole('heading', { name: 'Fixture service' }).waitFor();
+        assert.ok(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth + 1));
+        await page.keyboard.press('Escape');
+        await dialog.waitFor({ state: 'hidden' });
+
+        await page.reload();
+        await trigger.click();
+        await dialog.getByText('Saved login', { exact: true }).click();
+        await field('Master password').fill('fixture-wrong-passphrase');
+        await button('Unlock vault').click();
+        await dialog.getByText('Unable to unlock the vault. Check your master password.').waitFor();
+        await field('Master password').fill(master);
+        await button('Unlock vault').click();
+        assert.equal(await field('Service password').inputValue(), savedPassword);
+        await button('Remove login').click();
+        await dialog.getByText('Login removed.', { exact: true }).waitFor();
+        await button('Close service view').click();
+        await dialog.waitFor({ state: 'hidden' });
+      }
       await button('Edit Local tools').click();
       assert.equal(await field('Category').locator('option:checked').textContent(), 'Utilities');
       await field('Category').selectOption({ label: 'Create a category…' });
@@ -185,7 +230,7 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
       await page.getByRole('group', { name: 'Members' }).getByLabel('reader').check();
       await button('Save group').click();
       await page.getByText('Group saved.', { exact: true }).waitFor();
-      await field('Tile').selectOption({ label: 'Local tools · ' + (remote ? origin : 'http://127.0.0.1:3420') });
+      await field('Tile').selectOption({ label: 'Local tools · ' + (serviceFixture ?? origin) });
       await field('Restrict access').check();
       await button('Save permissions').click();
       await page.getByText('Tile permissions saved.', { exact: true }).waitFor();
@@ -194,7 +239,7 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
       await button('Save snapshot').click();
       await page.getByText('Snapshot saved.', { exact: true }).waitFor();
       await button('Users').click();
-      await field('Tile').selectOption({ label: 'Local tools · ' + (remote ? origin : 'http://127.0.0.1:3420') });
+      await field('Tile').selectOption({ label: 'Local tools · ' + (serviceFixture ?? origin) });
       await field('Restrict access').uncheck();
       await button('Save permissions').click();
       await page.getByText('Tile permissions saved.', { exact: true }).waitFor();
@@ -214,7 +259,7 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
       await login('admin', password);
       await button('Administration').click();
       await button('Users').click();
-      await field('Tile').selectOption({ label: 'Local tools · ' + (remote ? origin : 'http://127.0.0.1:3420') });
+      await field('Tile').selectOption({ label: 'Local tools · ' + (serviceFixture ?? origin) });
       await page.getByRole('group', { name: 'Allowed users' }).getByLabel('reader').check();
       await page.getByText('Preview effective access', { exact: true }).click();
       await page.getByText('View · Individual grant', { exact: true }).waitFor();

@@ -13,6 +13,14 @@ Open the exact URL configured by the operator. On a fresh instance, select a use
 
 Select a tile's pencil button to edit it. Select its trash button and confirm to remove it from the dashboard. Use the search field to match names, descriptions, URLs, categories, and tags. Combine search with either filter, or click a tag on a card to filter by that tag. **Clear filters** returns to the complete dashboard.
 
+## Open a service and save its login
+
+Select **View in Nexus** on a tile, then **Load embedded page**. Use **Open in new tab** if the service refuses embedding or needs its own browser storage, cookies, or sign-in redirects. On an HTTPS dashboard, embedding requires an HTTPS service. Your browser needs network access to the service URL.
+
+Under **Saved login**, create a vault with a separate master password of at least 16 characters. Enter the service username and password, then select **Save login**. Unlock the vault and use **Copy username** or **Copy password** when signing in. Verify the service's address before pasting, especially if its login page redirected. Close the panel or dialog to lock the vault. An unlocked vault also locks after two minutes.
+
+The vault requires a secure browser context, such as HTTPS or localhost, and an individual Nexus account. It saves credentials for the exact tile URL and the signed-in account in this browser profile. A new dashboard address, another device, or a different browser profile uses a different vault. Clearing site data removes the vault. Nexus backups do not contain it, and there is no master-password recovery.
+
 ## Discover and import services
 
 1. Sign in as administrator and open **Administration → Discovery**.

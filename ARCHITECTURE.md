@@ -2,6 +2,8 @@
 
 ## Runtime and storage
 
+The tile service view loads a sandboxed frame directly in the browser. The sandbox allows scripts and forms and omits same-origin access, top-level navigation, and popups. A separate tab supports services that require those capabilities. The credential vault uses versioned AES-256-GCM ciphertext with a fresh IV on each write, a per-vault random salt, and PBKDF2-SHA-256 with 600,000 iterations. The key stays in browser memory while unlocked. Web Locks and a ciphertext comparison prevent simultaneous tabs from overwriting a newer vault. The server has no vault API or database table.
+
 The React interface is built with Vite and served by the Node.js process alongside the TypeScript API. Browser requests share one origin. The backend validates input with Zod and uses prepared statements with Node's built-in SQLite bindings.
 
 SQLite uses WAL mode and transactional migrations tracked with `PRAGMA user_version`. The database stores accounts, session token digests, and application tiles. Tiles have a single category and a JSON array of tags. The migration to schema 3 adds an empty tag array to existing tiles. Version 1 JSON exports accept older entries without tags.
