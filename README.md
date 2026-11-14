@@ -18,39 +18,12 @@ Nexus Dashboard is a self-hosted application launcher for homelabs. It helps you
 
 See the [release readiness audit](docs/RELEASE_READINESS.md) for verification results and remaining production gates, and [Privacy](PRIVACY.md) for data and publishing boundaries.
 
-## Run locally
+## Get started
 
-Install Git and Node.js **24.14.1 or newer within the 24.x series**. Replace `YOUR_REPOSITORY_URL` with the URL of your repository. With access to the repository, clone it and run the following from the checkout. [Node.js downloads](https://nodejs.org/en/download)
+For an **Ubuntu server**, follow the [native Ubuntu installation guide](docs/INSTALL.md). It walks through building and transferring a release, installing the systemd service, and creating your administrator account. A one-line installer is planned.
 
-```sh
-git clone YOUR_REPOSITORY_URL nexus-dashboard
-cd nexus-dashboard
-npm ci
-npm run build
-npm test
-```
+For **local development**, open **Code** on this repository's GitHub page. Copy the clone URL into your Git client, use **Open with GitHub Desktop**, or choose **Download ZIP** to try the app without Git history. Then follow the [local development guide](docs/LOCAL_DEVELOPMENT.md) for your operating system.
 
-Set a random first-run setup token and start the server. In PowerShell:
-
-```powershell
-$env:NEXUS_SETUP_TOKEN = node -p "require('node:crypto').randomBytes(32).toString('hex')"
-$env:NEXUS_SETUP_TOKEN
-npm start
-```
-
-In Bash:
-
-```bash
-export NEXUS_SETUP_TOKEN="$(node -p "require('node:crypto').randomBytes(32).toString('hex')")"
-printf '%s\n' "$NEXUS_SETUP_TOKEN"
-npm start
-```
-
-Open `http://127.0.0.1:3000` and use the token to create the first administrator. Choose a password of at least 12 characters. Local state is stored in `data/`.
-
-## Install on Ubuntu
-
-Build and test on a workstation, transfer the release to Ubuntu, and run the native installer from the staged bundle. The install guide covers packaging, the systemd service, first-run setup, HTTPS, Jellyfin, backups, and recovery. A one-line installer is planned. [Ubuntu installation guide](docs/INSTALL.md)
 
 ## Documentation
 
@@ -58,6 +31,7 @@ Build and test on a workstation, transfer the release to Ubuntu, and run the nat
 | --- | --- |
 | [User guide](docs/USER_GUIDE.md) | Setup, dashboard editing, discovery, import, access, backups, and Jellyfin. |
 | [Ubuntu installation](docs/INSTALL.md) | Build a release, install with systemd, configure HTTPS, and back up or recover a deployment. |
+| [Local development](docs/LOCAL_DEVELOPMENT.md) | Build, test, and run on Linux, macOS, or Windows. |
 | [Service port catalog](docs/HOMELAB_PORTS.md) | Web ports used by discovery and how Nexus chooses a service name. |
 | [Architecture and API](ARCHITECTURE.md) | Application layout, data model, authorization, and API reference. |
 | [Contributing](CONTRIBUTING.md) | Development workflow, verification, and documentation requirements. |

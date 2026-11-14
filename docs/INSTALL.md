@@ -2,57 +2,76 @@
 
 Nexus Dashboard can run as a systemd service on Ubuntu. Build the application on a workstation and transfer the tested release to the server. The current installer performs a first installation from a staged bundle and can deliberately import an existing schema 4 state directory. It refuses to overwrite existing installation paths.
 
+The workstation steps below use Bash, or Git Bash on Windows. After transferring the archive, run the remaining commands in a Bash session on Ubuntu. For a local Windows run, see [Local development](LOCAL_DEVELOPMENT.md#windows-powershell).
+
 ## Requirements
 
 - An Ubuntu release receiving current security maintenance, with systemd, sudo access, and an available TCP port 3000 for the initial install.
 - Git and Node.js 24.14.1 or newer within 24.x on the build workstation.
 - An official Node.js 24.x Linux runtime for the target CPU architecture. Verify the archive against the signed checksums for that release. On the server, `uname -m` reports the architecture. [Node.js downloads and verification instructions](https://nodejs.org/en/download)
-- The final browser origin, such as `https://dashboard.example.net` behind a reverse proxy or `http://SERVER:3000` on a trusted test network.
+- The exact URL used to open Nexus in a browser. For a trusted LAN test, use HTTP with your Ubuntu server's address and port 3000. For HTTPS, configure a [reverse proxy](#https-behind-a-reverse-proxy) on the server.
 
-## Build and stage the release
+## On your workstation: Build and package
 
-From the repository root on the workstation, run:
-
-```sh
-npm ci
-npm run build
-npm test
-```
-
-Create a clean staging directory. This example uses Bash or Git Bash:
+On GitHub, open the repository's **Code** menu to get the clone URL. Open Bash in the checkout directory containing `package.json` and run:
 
 ```bash
-stage="$(mktemp -d)"
-cp -R dist server deploy package.json package-lock.json "$stage/"
-npm ci --omit=dev --prefix "$stage"
+npm ci && npm run build && npm test
 ```
 
-Extract the verified Linux Node.js distribution so that the executable is at `$stage/runtime/bin/node`. For an official `.tar.xz` archive:
+Continue after the checks pass. Download and verify the official Linux Node.js `.tar.xz` archive for the server's architecture. When prompted, enter the path to that archive. These commands create `nexus-dashboard-release.tar.gz` in the project directory.
 
 ```bash
-mkdir -p "$stage/runtime"
-tar -xJf /path/to/verified-node-linux.tar.xz -C "$stage/runtime" --strip-components=1
-tar -czf nexus-dashboard-release.tar.gz -C "$stage" .
+(
+  set -e
+  read -r -p 'Path to the verified Linux Node.js .tar.xz archive: ' runtime_archive
+  stage="$(mktemp -d)"
+  cp -R dist server deploy package.json package-lock.json "$stage/"
+  npm ci --omit=dev --prefix "$stage"
+  mkdir "$stage/runtime"
+  tar -xJf "$runtime_archive" -C "$stage/runtime" --strip-components=1
+  tar -czf nexus-dashboard-release.tar.gz -C "$stage" .
+)
 ```
 
-Transfer the archive over SSH. On Ubuntu, extract it into an empty directory owned by the operator. From that directory, verify that the runtime works and that the installer parses:
+Transfer the bundle over SSH. Enter the same `user@host` you normally use to connect to Ubuntu. Verify the server's SSH host key against a trusted record before proceeding.
 
 ```bash
-./runtime/bin/node --version
-bash -n deploy/install.sh
-ss -ltn 'sport = :3000'
+read -r -p 'Ubuntu SSH login (user@host): ' ubuntu_login
+scp nexus-dashboard-release.tar.gz "${ubuntu_login}:nexus-dashboard-release.tar.gz" &&
+  ssh "$ubuntu_login"
+```
+
+## On Ubuntu: Unpack and check the release
+
+Run this in the Ubuntu SSH session. The archive is in your login directory. Extract it to a fresh staging directory:
+
+```bash
+stage="$(mktemp -d)" &&
+  tar -xzf ~/nexus-dashboard-release.tar.gz -C "$stage" &&
+  cd "$stage" &&
+  chmod u+x runtime/bin/node &&
+  ./runtime/bin/node --version &&
+  bash -n deploy/install.sh &&
+  ss -ltn 'sport = :3000'
 ```
 
 Use the archive from the build you tested. If a preview already occupies port 3000, coordinate stopping that preview before installing the service.
 
-## Install and create the administrator
+## On Ubuntu: Install and create the administrator
 
-Run this from the extracted release directory. Replace the example origin with the URL you will use in your browser.
+Run this from the extracted release directory. At the prompt, enter the browser origin, including the scheme, host, and any nondefault port. Leave off the trailing slash and any path. For an HTTPS origin, configure the reverse proxy before opening the dashboard.
 
 ```bash
-sudo bash deploy/install.sh "$PWD" "https://dashboard.example.net"
-sudo systemctl status nexus-dashboard --no-pager
-curl --fail http://127.0.0.1:3000/healthz
+read -r -p 'Dashboard browser origin: ' nexus_origin
+sudo bash deploy/install.sh "$PWD" "$nexus_origin" &&
+  systemctl is-enabled nexus-dashboard &&
+  systemctl is-active nexus-dashboard &&
+  /opt/nexus-dashboard/runtime/bin/node --input-type=module -e '
+    const response = await fetch("http://127.0.0.1:3000/healthz");
+    if (!response.ok || (await response.json()).status !== "ok") process.exit(1);
+    console.log("Nexus is healthy");
+  '
 ```
 
 The installer checks the runtime version, staged-file boundaries, existing Nexus paths, service account, port conflicts, and startup health. It creates a dedicated `nexus-dashboard` system user, protects configuration, and enables the service. An HTTPS origin binds Nexus to loopback for a reverse proxy on the same host. An HTTP origin binds to all interfaces on port 3000.
@@ -125,7 +144,7 @@ If an upgrade fails, stop the service. Restore the previous application files, e
 | --- | --- |
 | Service exits during startup | Run `sudo journalctl -u nexus-dashboard -n 100 --no-pager`. Check the Linux runtime architecture, release contents, and SQLite schema compatibility. |
 | Page loads, but sign-in or saving returns 403 | Check that the exact browser origin matches `NEXUS_ORIGIN`, and confirm proxy routing sends both the frontend and API to Nexus. |
-| Browser cannot connect | Check `sudo systemctl status nexus-dashboard`, the listen address and port, and the reverse proxy. Run `curl --fail http://127.0.0.1:3000/healthz` on Ubuntu. |
+| Browser cannot connect | Check `systemctl is-active nexus-dashboard`, the listen address and port, and the reverse proxy. Run the Ubuntu health check from the installation step to confirm that the app responds on the server. |
 | First-run token is rejected | Check that you are connecting to the intended instance and using the token from its protected environment file. |
 | Jellyfin reports unavailable | Check the configured base URL, API key, network reachability, and the server's trust of the upstream HTTPS certificate. |
 
@@ -141,10 +160,12 @@ Ubuntu must have a route from the selected source interface to each requested pr
 
 ## Adopt an existing preview
 
-Stop the preview before transferring its state to the installed service. Keep the old release and a consistent database backup. Pass the existing state directory as the optional third installer argument:
+Stop the preview before transferring its state to the installed service. Keep the old release and a consistent database backup. From the extracted release directory on Ubuntu, use the third installer argument to import the existing state directory:
 
 ```bash
-sudo bash deploy/install.sh "$PWD" "https://dashboard.example.net" /path/to/existing-state
+read -r -p 'Dashboard browser origin: ' nexus_origin
+read -r -p 'Absolute path to the existing Nexus state directory: ' nexus_state
+sudo bash deploy/install.sh "$PWD" "$nexus_origin" "$nexus_state"
 ```
 
 The source directory must contain a valid schema 4 `nexus.sqlite` with an administrator. The installer copies it consistently through the SQLite backup API into the new service state directory and sets ownership for the dedicated account. It leaves the source state in place. Existing integrations or extra environment settings must be migrated explicitly; the installer does not infer them from another process. Confirm tile, account, group, permission, profile, and history preservation after adoption.

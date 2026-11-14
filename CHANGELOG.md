@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Removed the repository URL placeholder from the README, moved workstation commands into a local development guide, and separated Ubuntu deployment steps by where they run.
+
 ### Release readiness and privacy
 
 - Fixed portable backup validation leaving WAL sidecars that could block a dedicated service account after ownership transfer.
