@@ -113,6 +113,7 @@ export function createApp(data: string, dist: string, origin: string, setupToken
 
   const server = createServer({ requestTimeout: 15000, headersTimeout: 10000 }, async (req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Referrer-Policy', 'no-referrer');
     const frameSources = secure ? 'https:' : 'https: http:';
     res.setHeader('Content-Security-Policy', "default-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; frame-src " + frameSources);

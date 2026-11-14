@@ -15,7 +15,7 @@ Select a tile's pencil button to edit it. Select its trash button and confirm to
 
 ## Open a service and save its login
 
-Select the tile title to open its service in Nexus. Close the view or press **Escape** to return to your dashboard and filters. Your browser needs network access to the service URL. On an HTTPS dashboard, the service must use HTTPS. Services that forbid framing or depend on browser features blocked by the sandbox may show a blank page or have limited sign-in support.
+Select the tile title to open its service in Nexus. Close the view or press **Escape** to return to your dashboard and filters. Your browser needs network access to the service URL. On an HTTPS dashboard, the service must use HTTPS. Embedded services can use their own cookies and site storage, subject to your browser settings. If a service forbids framing, the service administrator must explicitly allow the Nexus origin using that service’s supported configuration. Use **Page not displaying?** for checks you can make from the service view.
 
 Under **Saved login**, create a vault with a separate master password of at least 16 characters. Enter the service username and password, then select **Save login**. Unlock the vault and use **Copy username** or **Copy password** when signing in. Verify the service's address before pasting, especially if its login page redirected. Close the panel or dialog to lock the vault. An unlocked vault also locks after two minutes.
 

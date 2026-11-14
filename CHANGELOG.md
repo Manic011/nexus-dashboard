@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Expanded the embedded service view and restored service-origin cookie and storage access for apps such as Proxmox. Nexus continues to reject framing of its own pages.
+
 - Added an embedded service view that opens directly from tile titles and a browser-local encrypted vault for individual accounts.
 
 - Raised the minimum Node.js version and Ubuntu bundle runtime to 24.22.3, the November 2026 security release.

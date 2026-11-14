@@ -26,8 +26,11 @@ export function ServiceDialog({ title, url, username, onClose }: { title: string
     {username && <CredentialPanel username={username} address={address.href} />}
     {canEmbed ? <>
       <iframe title={title + ' embedded service'} src={address.href}
-        sandbox="allow-scripts allow-forms" referrerPolicy="no-referrer" />
-      <p className="muted service-note">If this view is blank or sign-in fails, check the service’s framing and sign-in settings.</p>
+        sandbox="allow-scripts allow-forms allow-same-origin" referrerPolicy="no-referrer" />
+      <details className="service-help">
+        <summary>Page not displaying?</summary>
+        <p className="muted">The service must allow Nexus to embed it. Check the saved URL, certificate trust, and the service’s embedding settings. Some sign-in flows also require cookies that your browser may restrict in embedded pages.</p>
+      </details>
     </> : <p role="status">{address.origin === location.origin
       ? 'Choose a service URL on a different origin to open it here.'
       : 'Use an HTTPS service URL to open it inside this HTTPS dashboard.'}</p>}

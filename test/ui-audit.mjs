@@ -18,7 +18,8 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
   const fixture = createServer((req, res) => {
     if (req.url === '/Sessions') return res.end(JSON.stringify([{ NowPlayingItem: { Id: 'test' } }, {}]));
     res.setHeader('Content-Type', 'text/html');
-    res.end('<h1>Fixture service</h1>');
+    res.end('<script>localStorage.setItem("service-ready", "yes"); document.cookie = "fixture=ready";</script>' +
+      '<script>if (document.cookie.includes("fixture=ready")) document.write("<h1>Fixture service</h1>");</script>');
   });
   const app = remote ? undefined : createApp(directory, 'dist', origin, token, { baseUrl: 'http://127.0.0.1:3420', apiKey: 'fixture' });
   try {
@@ -82,7 +83,9 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
         await dialog.waitFor();
         const frame = dialog.locator('iframe');
         assert.equal(await frame.getAttribute('src'), new URL(serviceFixture).href);
-        assert.equal(await frame.getAttribute('sandbox'), 'allow-scripts allow-forms');
+        assert.equal(await frame.getAttribute('sandbox'), 'allow-scripts allow-forms allow-same-origin');
+        assert.equal(await page.evaluate(() => localStorage.getItem('service-ready')), null, 'Service storage remains isolated from Nexus');
+        assert.equal((await page.request.get(origin)).headers()['x-frame-options'], 'DENY');
         await frame.contentFrame().getByRole('heading', { name: 'Fixture service' }).waitFor();
         assert.equal(page.context().pages().length, 1);
         assert.equal(page.url(), origin + '/');
