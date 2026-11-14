@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { once } from 'node:events';
 import { createApp } from '../server/index.ts';
-import { webScope } from '../server/web-discovery.ts';
+import { planWebScan, webScope } from '../server/web-discovery.ts';
 
 test('setup, authentication, tile CRUD, persistence and logout', async () => {
   const data = mkdtempSync(join(tmpdir(), 'nexus-test-'));
@@ -93,6 +93,15 @@ test('setup, authentication, tile CRUD, persistence and logout', async () => {
     await stop();
     rmSync(data, { recursive: true, force: true });
   }
+});
+
+test('custom scan ranges deduplicate targets and honor exclusions', () => {
+  const plan = planWebScan('10.42.0.14', 24, { range: '10.42.0.10-10.42.0.13, 10.42.0.10', exclude: '10.42.0.11-10.42.0.12', ports: '80, 8000-8002, 8001' });
+  assert.deepEqual(plan.hosts, ['10.42.0.10', '10.42.0.13']);
+  assert.deepEqual(plan.ports, [80, 8000, 8001, 8002]);
+  assert.equal(plan.checks, 8);
+  assert.throws(() => planWebScan('10.42.0.14', 24, { range: '10.42.1.10' }), /within/);
+  assert.throws(() => planWebScan('10.42.0.14', 24, { ports: '9-2' }), /ports/);
 });
 
 test('web discovery stays inside the selected local range', () => {

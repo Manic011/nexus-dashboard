@@ -22,6 +22,9 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
   const [section, setSection] = useState<(typeof sections)[number]['id']>('discovery');
   const [interfaces, setInterfaces] = useState<Network[]>([]);
   const [address, setAddress] = useState('');
+  const [scope, setScope] = useState({ range: '', exclude: '', ports: '' });
+  const [plan, setPlan] = useState<{ hosts: number; ports: number[]; checks: number }>();
+  function resetPlan() { setPlan(undefined); setAuthorized(false); }
   const [authorized, setAuthorized] = useState(false);
   const [system, setSystem] = useState<SystemInfo>();
   const [scanning, setScanning] = useState(false);
@@ -107,14 +110,14 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
         {scanning && <p><progress aria-label="Discovery checks" max={coverage?.total} value={coverage?.checked} /> {coverage ? `${coverage.checked} / ${coverage.total} checks` : 'Starting scan…'}</p>}
         <form onSubmit={event => {
           event.preventDefault();
-          if (!network || !authorized) return;
+          if (!network || !plan || !authorized) return;
           void run(async () => {
             setPreview(undefined);
             setStatus(`Checking ${network.webCidr}. Larger ranges can take several minutes.`);
             setScanning(true);
             setCoverage(undefined);
             const result = await api<{ version: 1; tiles: Entry[]; checked: number; total: number; found: number }>(
-              'admin/discovery/web', 'POST', { address, authorized },
+              'admin/discovery/web', 'POST', { address, authorized, ...scope },
             ).finally(() => setScanning(false));
             await inspect(result);
             setWorkspaceRevision(value => value + 1);
@@ -126,13 +129,23 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
         }}>
           <label>Server network<select name="address" required disabled={busy} value={address} onChange={event => {
             setAddress(event.target.value);
-            setAuthorized(false);
+            resetPlan();
           }}>
             <option value="">Select a network</option>
             {interfaces.map(item => <option key={item.address} value={item.address}>{item.webCidr} · {item.name}</option>)}
           </select></label>
-          {network && <label className="consent"><input type="checkbox" checked={authorized} disabled={busy} onChange={event => setAuthorized(event.target.checked)} /> I have permission to check {network.webCidr}</label>}
-          <button className="primary" disabled={busy || !network || !authorized}>{busy ? 'Checking network…' : 'Discover services'}</button>
+          {network && <>
+            <label>IP addresses or ranges<input value={scope.range} disabled={busy} maxLength={2000} placeholder="Entire displayed range" onChange={event => { setScope({ ...scope, range: event.target.value }); resetPlan(); }} /></label>
+            <label>Excluded IPs or ranges<input value={scope.exclude} disabled={busy} maxLength={2000} placeholder="None" onChange={event => { setScope({ ...scope, exclude: event.target.value }); resetPlan(); }} /></label>
+            <label>Ports or port ranges<input value={scope.ports} disabled={busy} maxLength={2000} placeholder="Common homelab ports" onChange={event => { setScope({ ...scope, ports: event.target.value }); resetPlan(); }} /></label>
+            <p className="muted">Separate entries with commas. Use a hyphen between the first and last IP or port in a range.</p>
+            <button type="button" disabled={busy} onClick={() => void run(async () => {
+              setPlan(await api<typeof plan>('admin/discovery/plan', 'POST', { address, ...scope }));
+            })}>Review scan scope</button>
+          </>}
+          {plan && <p role="status">{plan.hosts} addresses · {plan.ports.length} ports · {plan.checks.toLocaleString()} checks</p>}
+          {network && plan && <label className="consent"><input type="checkbox" checked={authorized} disabled={busy} onChange={event => setAuthorized(event.target.checked)} /> I have permission to run this scan within {network.webCidr}</label>}
+          <button className="primary" disabled={busy || !network || !plan || !authorized}>{busy ? 'Checking network…' : 'Discover services'}</button>
         </form>
       </section>
       <details className="tile"><summary>Add known service addresses</summary>

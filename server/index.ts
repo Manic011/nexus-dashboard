@@ -6,7 +6,7 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
 import { discoverServices, discoveryInterfaces } from './discovery.ts';
-import { discoverWebServices, webScope } from './web-discovery.ts';
+import { discoverWebServices, planWebScan, webScope } from './web-discovery.ts';
 import { configureAdministration, machineInfo } from './admin-console.ts';
 import { createJellyfin } from './jellyfin.ts';
 
@@ -203,28 +203,38 @@ export function createApp(data: string, dist: string, origin: string, setupToken
       if (method === 'GET' && path === '/api/admin/discovery/interfaces') {
         return send(200, discoveryInterfaces().map(item => ({ ...item, webCidr: webScope(item.address, Number(item.cidr.split('/')[1])).cidr })));
       }
-      if (method === 'POST' && ['/api/admin/discovery/mdns', '/api/admin/discovery/web'].includes(path)) {
-        const input = z.object({ address: z.ipv4(), authorized: z.boolean().optional() }).safeParse(await body(req));
+      if (method === 'POST' && ['/api/admin/discovery/mdns', '/api/admin/discovery/web', '/api/admin/discovery/plan'].includes(path)) {
+        const input = z.object({ address: z.ipv4(), authorized: z.boolean().optional(), range: z.string().max(2000).optional(), exclude: z.string().max(2000).optional(), ports: z.string().max(2000).optional() }).safeParse(await body(req));
         const selected = input.success && discoveryInterfaces().find(item => item.address === input.data.address);
         if (!selected) throw new RequestError(400, 'Select an IPv4 interface on this server.');
+        const prefix = Number(selected.cidr.split('/')[1]);
+        let plan;
+        try { plan = planWebScan(selected.address, prefix, input.success ? input.data : {}); }
+        catch (error) { throw new RequestError(400, (error as Error).message); }
+        if (path.endsWith('/plan')) return send(200, { hosts: plan.hosts.length, ports: plan.ports, checks: plan.checks });
         const web = path.endsWith('/web');
         if (web && (!input.success || input.data.authorized !== true)) throw new RequestError(400, 'Confirm authorization for the displayed network range.');
         if (discoveryRunning) throw new RequestError(409, 'A discovery request is already running.');
         discoveryRunning = true;
         try {
-          const prefix = Number(selected.cidr.split('/')[1]);
           if (!web) return send(200, { version: 1, tiles: await discoverServices(selected.address, prefix) });
           const [advertised, probed] = await Promise.all([
             discoverServices(selected.address, Math.max(24, prefix)).catch(() => []),
-            discoverWebServices(selected.address, prefix, (checked, total) => { scanProgress = { checked, total }; }),
+            discoverWebServices(selected.address, prefix, (checked, total) => { scanProgress = { checked, total }; }, plan),
           ]);
-          const byUrl = new Map(advertised.map(item => [item.url, { ...item, source: 'mDNS advertisement' }]));
+          const allowedHosts = new Set(plan.hosts);
+          const allowedPorts = new Set(plan.ports);
+          const scoped = advertised.filter(item => {
+            const url = new URL(item.url);
+            return allowedHosts.has(url.hostname) && allowedPorts.has(Number(url.port || (url.protocol === 'https:' ? 443 : 80)));
+          });
+          const byUrl = new Map(scoped.map(item => [item.url, { ...item, source: 'mDNS advertisement' }]));
           for (const { identified, ...item } of probed.services) {
             if (identified || !byUrl.has(item.url)) byUrl.set(item.url, item);
           }
           const results = [...byUrl.values()].sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true }));
           const result = { version: 1, tiles: results.slice(0, 500), checked: probed.checked, total: probed.total, found: results.length };
-          consoleAdmin.recordDiscovery(webScope(selected.address, prefix).cidr, result);
+          consoleAdmin.recordDiscovery(plan.cidr + ' · ' + plan.hosts.length + ' addresses · ' + plan.ports.length + ' ports', result);
           return send(200, result);
         } catch (error) {
           console.error(error);

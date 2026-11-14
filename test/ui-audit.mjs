@@ -128,6 +128,9 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
           } });
         });
         await network.selectOption({ index: 1 });
+        await page.getByLabel('Ports or port ranges').fill('80, 8000-8002');
+        await button('Review scan scope').click();
+        await page.getByText(/4 ports ·/).waitFor();
         await page.getByRole('checkbox', { name: /I have permission/ }).check();
         await button('Discover services').click();
         try { await page.getByText('4 / 10 checks', { exact: true }).waitFor(); }
