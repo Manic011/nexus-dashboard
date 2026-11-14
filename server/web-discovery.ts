@@ -126,9 +126,8 @@ export async function discoverWebServices(address: string, prefix: number, progr
   let next = 0;
   let completed = 0;
   progress?.(0, targets.length);
-  const deadline = Date.now() + 90_000;
   await Promise.all(Array.from({ length: 48 }, async () => {
-    while (next < targets.length && Date.now() < deadline) {
+    while (next < targets.length) {
       const { host, port } = targets[next++];
       try {
         const secure = httpsPorts.has(port);

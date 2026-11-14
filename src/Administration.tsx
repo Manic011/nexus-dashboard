@@ -110,7 +110,7 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
           if (!network || !authorized) return;
           void run(async () => {
             setPreview(undefined);
-            setStatus(`Checking ${network.webCidr}. This can take up to 90 seconds.`);
+            setStatus(`Checking ${network.webCidr}. Larger ranges can take several minutes.`);
             setScanning(true);
             setCoverage(undefined);
             const result = await api<{ version: 1; tiles: Entry[]; checked: number; total: number; found: number }>(
@@ -118,7 +118,7 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
             ).finally(() => setScanning(false));
             await inspect(result);
             setWorkspaceRevision(value => value + 1);
-            const coverage = result.checked < result.total ? ` Checked ${result.checked} of ${result.total} address and port combinations.` : '';
+            const coverage = ` Checked ${result.checked} of ${result.total} address and port combinations.`;
             const limit = result.found > result.tiles.length ? ` Showing the first ${result.tiles.length}.` : '';
             const completion = result.checked < result.total ? 'Partial' : 'Complete';
             setStatus(completion + '. ' + (result.found ? `Found ${result.found} services.${limit}${coverage}` : `No web services found on ${network.webCidr}.${coverage}`));

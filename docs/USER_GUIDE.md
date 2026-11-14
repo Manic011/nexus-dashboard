@@ -17,7 +17,7 @@ Select a tile's pencil button to edit it. Select its trash button and confirm to
 
 1. Sign in as administrator and open **Administration → Discovery**.
 2. Choose the server network and confirm permission to check the displayed range.
-3. Select **Discover services**. The web check is limited to the selected local IPv4 range, capped at a /24. Allow up to about 90 seconds. If the time limit is reached, the status shows how many address and port combinations were checked.
+3. Select **Discover services**. The web check is limited to the selected local IPv4 range, capped at a /24. Nexus checks every address and port combination in the selected range. Larger ranges can take several minutes.
 4. Under **Review import**, select the entries you want. Use **Edit details** to revise a name, category, or tags before saving.
 5. Select **Import selected**. Nexus skips URLs that are already saved and repeated URLs within the import.
 
@@ -61,7 +61,7 @@ In **Backup**, save a named snapshot to the server's SQLite state. Select **Revi
 
 **System** shows host and kernel information, CPU, memory, process and host uptime, and the tile inventory. The inventory lists configured URLs and access scope.
 
-During discovery, the progress bar counts completed checks. A Partial result shows how much of the range was checked. Review labels show where a suggested name came from, and existing URLs appear under Already on dashboard.
+During discovery, the progress bar counts completed checks. The result shows the number of address and port combinations checked. Review labels show where a suggested name came from, and existing URLs appear under Already on dashboard.
 
 Review restore lists added, removed, and changed tiles, groups, and permissions. If the configuration changes while the preview is open, reopen the preview before restoring. The automatic snapshot includes the name of the restore target.
 
