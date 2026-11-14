@@ -2,7 +2,7 @@
 
 Nexus Dashboard is a self-hosted application launcher for homelabs. It helps you discover web services on your local network, organize them into a searchable dashboard, and share access with other users.
 
-**Status:** Development preview. The application runs locally with Node.js and SQLite and can be staged for native installation on Ubuntu with systemd.
+**Status:** Development preview. Built locally with Node.js and SQLite, with native Ubuntu systemd deployment and recovery paths verified in the development audit. Stable-release gates remain open.
 
 ## Features
 

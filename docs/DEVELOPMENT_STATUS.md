@@ -10,13 +10,13 @@ Nexus Dashboard is a development preview. The [requirements audit](REQUIREMENTS_
 - JSON tile export, reviewed import/update, named configuration snapshots with restore, user groups and per-tile permissions, host and service inventory, and a server-configured Jellyfin activity count.
 - Local build and API tests, native Ubuntu staging, and a systemd first-install script.
 
-The Ubuntu integration preview has exercised sign-in, tile edits and imports, discovery, tag filtering, mobile-width navigation, SQLite migration, and Jellyfin playback counts against a fixture. The native installation guide describes the systemd workflow. Systemd installation, reboot checks, and supported upgrade and rollback still need end-to-end verification.
+The Ubuntu integration preview has exercised sign-in, tile edits and imports, discovery, tag filtering, mobile-width navigation, SQLite migration, and Jellyfin playback counts against a fixture. The native installation guide describes the systemd workflow. Dedicated-account systemd installation, preserved-state adoption, service restart, and installed-service browser writes/discovery have passed. Actual reboot, supported application upgrade, and release rollback still need end-to-end verification.
 
 ## Roadmap
 
 | Area | Remaining work |
 | --- | --- |
-| Ubuntu installation | Verify systemd installation, reboot, upgrade, and rollback. Publish verified release artifacts and then build the one-line installer. |
+| Ubuntu installation | Verify actual reboot, application upgrade, and release rollback. Dedicated-account service installation and restart pass. Publish verified release artifacts and then build the one-line installer. |
 | Dashboard experience | Add further layout controls and tile types. Light, dark, and system themes and card density preferences are available. |
 | Discovery | Add more discovery sources and optional schedules. |
 | Live integrations | Add supported integrations beyond Jellyfin. |

@@ -4,7 +4,7 @@ Audit date: 2026-11-14. Scope: the current development preview, its permission m
 
 ## Decision
 
-The application remains a **development preview**, not a generally available production release. Permission and recovery checks pass. Deployment verification is tracked below; a passing application smoke test does not establish host security, reboot recovery, or a supported upgrade policy.
+The application remains a **development preview**, not a generally available production release. Permission and recovery checks pass. The dedicated systemd deployment, restart, and browser checks pass. A passing application smoke test does not establish host security, reboot recovery, or a supported upgrade policy.
 
 ## Verification matrix
 
@@ -19,10 +19,10 @@ The application remains a **development preview**, not a generally available pro
 | Import/update | Duplicate handling, explicit updates, stable IDs and permissions, stale-revision rejection | Passed API/browser coverage |
 | Configuration snapshots | Restore diff, stale-preview rejection, automatic safety snapshot, group/rule preservation | Passed API/browser coverage |
 | Database backup/recovery | Consistent SQLite backup, integrity and schema checks, protected output, refusal to overwrite a populated directory, credentials and configuration restored | Passed locally and on Ubuntu; recovered instance exercised in the browser |
-| Native service | Dedicated service user, protected configuration and state, startup health check, restart, and preserved data | Awaiting privileged installation verification |
+| Native service | Dedicated service user, protected configuration and state, startup health check, restart, and preserved data | Passed on Ubuntu after the portable-backup correction; installed-service browser CRUD and discovery passed |
 | Browser regression | Desktop/mobile dashboard, editor, import, discovery controls, users, permissions, snapshots, preferences, and system page against an Ubuntu backend | Passed |
 | Release privacy | Operator-specific repository references and network examples removed; generic privacy checks added to CI | Current files and reachable local history sanitized; guarded publication pending |
-| Distribution | Explicit staging allowlist and production dependencies; no local state, environment files, screenshots, private keys, or Git database in the bundle | Staged and inspected; final artifact inspection required after documentation freeze |
+| Distribution | Explicit staging allowlist and production dependencies; no local state, environment files, screenshots, private keys, or Git database in the bundle | Allowlist staged; operator-reference and archive-owner scans pass; final checksum recorded with the preview artifact |
 
 ## Fixes made during the audit
 
@@ -36,7 +36,7 @@ The application remains a **development preview**, not a generally available pro
 
 ## Remaining gates before a stable release
 
-1. Complete the privileged service migration and verify discovery and normal browser writes while running as the dedicated account. Verify actual boot startup in a scheduled reboot window; enabled-at-boot alone is not a reboot test.
+1. Verify actual boot startup in a scheduled reboot window; enabled-at-boot alone is not a reboot test. Dedicated-account migration, restart, filesystem restrictions, state preservation, discovery, and normal browser writes have passed.
 2. Confirm that the host OS receives current security maintenance. Use a supported Ubuntu LTS release or appropriately maintained extended support. Host-specific version, subscription, addresses, and machine details are intentionally excluded from this public-facing report.
 3. Validate HTTPS/reverse-proxy deployment with a trusted certificate before exposing credentials beyond a trusted development network. Secure-cookie behavior depends on the configured HTTPS origin.
 4. Test a supported application upgrade and rollback procedure, not just initial installation and database recovery. The first-install script deliberately refuses to overwrite an installation.
@@ -47,3 +47,9 @@ The application remains a **development preview**, not a generally available pro
 ## Privacy boundary
 
 This report contains generalized test outcomes, not a deployment inventory. Source and artifacts must not contain operator account names, real network examples, hostnames, user paths, credentials, database files, private screenshots, or deployment logs. Runtime operator configuration remains private and is preserved; administrators will still see their own host and service inventory. See [Privacy](../PRIVACY.md), [the UI audit](UI_AUDIT.md), and [installation/recovery](INSTALL.md).
+
+## Installed-service verification
+
+The first service trial exposed the portable-backup sidecar issue described above. The preview was recovered while the fix was tested. The corrected migration retained both the previous installed state and a fresh database backup, preserved the account/tile/group/permission/discovery tables, verified database/sidecar ownership, and passed startup and restart health checks.
+
+The service is active and enabled under the dedicated non-root account with no automatic restart failures observed after correction. Configuration is protected; the account cannot write application code or read the environment file directly. The visible browser verified the existing session, temporary tile create/edit/delete, preservation of original tiles, source-interface enumeration, a completed self-scan, and all administration sections. Sensitive hostnames, addresses, process IDs, account names, and backup locations are kept only in private operational records.
