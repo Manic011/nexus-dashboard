@@ -12,14 +12,15 @@ import { categoryName, orderedCategories, orderGroupedTiles, type LayoutCategori
 import { arrangeTiles, comparePositions, gridPlacement, tileKey, type Position } from './tileLayout.js';
 import { parseTags } from './tags.js';
 const Diagnostics = lazy(() => import('./Diagnostics.js').then(module => ({ default: module.Diagnostics })));
+const MachineConsole = lazy(() => import('./MachineConsole.js').then(module => ({ default: module.MachineConsole })));
 
 type Session = { setup: boolean; setupTokenRequired: boolean; username: string | null; role?: 'admin' | 'editor' | 'viewer' | null; shared?: boolean };
 type Jellyfin = { tiles: number[]; state?: 'available' | 'unavailable'; streams?: number };
 type Tile = { id: number; title: string; description: string; url: string; category: string; tags: string[]; openMode?: OpenMode | 'default'; remoteBrowser?: boolean };
 
-async function api<T>(path: string, method = 'GET', body?: object): Promise<T> {
-  const result = await fetch('/api/' + path, method === 'GET' ? {} : {
-    method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body ?? {}),
+async function api<T>(path: string, method = 'GET', body?: object, signal?: AbortSignal): Promise<T> {
+  const result = await fetch('/api/' + path, method === 'GET' ? { signal } : {
+    method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body ?? {}), signal,
   });
   const payload = await result.json();
   if (!result.ok) throw new Error(payload.error);
@@ -35,7 +36,8 @@ function App() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [sharedLogin, setSharedLogin] = useState(false);
-  const [page, setPage] = useState<'dashboard' | 'administration' | 'diagnostics'>('dashboard');
+  const [page, setPage] = useState<'dashboard' | 'administration' | 'diagnostics' | 'ssh'>('dashboard');
+  const [sshVisited, setSshVisited] = useState(false);
   const [editingLayout, setEditingLayout] = useState(false);
   const [layoutMessage, setLayoutMessage] = useState('');
   const layoutTrigger = useRef<HTMLButtonElement>(null);
@@ -76,6 +78,51 @@ function App() {
     return () => { active = false; clearInterval(timer); setJellyfin(undefined); };
   }, [session?.username, tiles]);
   useEffect(() => { api<Session>('session').then(setSession).catch(report); }, []);
+  useEffect(() => {
+    if (!session?.username) return;
+    let mounted = true;
+    let activity = false;
+    let checking = false;
+    let lastActivity = Date.now();
+    const noteActivity = (event: Event) => {
+      if (!event.isTrusted || document.visibilityState !== 'visible') return;
+      activity = true;
+      if (Date.now() - lastActivity >= 10_000) void check();
+    };
+    const events = ['pointerdown', 'keydown', 'wheel'] as const;
+    for (const event of events) window.addEventListener(event, noteActivity, { capture: true, passive: true });
+    async function check() {
+      if (checking) return;
+      checking = true;
+      try {
+        const current = await api<Session>('session');
+        if (!mounted) return;
+        if (current.username !== session?.username || current.role !== session?.role) {
+          setSession(current);
+          setSshVisited(false);
+          setPage('dashboard');
+          setEditing(null); setDeleting(null); setBrowsing(null); setEditingLayout(false); setTiles([]);
+          setError(current.username ? '' : 'You were signed out. Sign in to continue.');
+          return;
+        }
+        if (activity) {
+          activity = false;
+          await api('session/activity', 'POST');
+          lastActivity = Date.now();
+        }
+      } catch { /* Retry on the next check when the connection returns. */ }
+      finally { checking = false; }
+    }
+    const timer = setInterval(() => void check(), 10_000);
+    const onVisibility = () => { if (document.visibilityState === 'visible') void check(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      mounted = false;
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibility);
+      for (const event of events) window.removeEventListener(event, noteActivity, true);
+    };
+  }, [session?.username, session?.role]);
   useEffect(() => {
     if (!session?.username) return;
     setTilesLoading(true);
@@ -209,8 +256,9 @@ function App() {
 
   return <>
     <header><div className="shell top">{brand}<div className="account">{session.role === 'admin' && <nav className="main-nav" aria-label="Main navigation">
-      {([['dashboard', 'Dashboard'], ['diagnostics', 'Diagnostics'], ['administration', 'Administration']] as const).map(([id, label]) =>
+      {([['dashboard', 'Dashboard'], ['diagnostics', 'Diagnostics'], ['ssh', 'SSH machines'], ['administration', 'Administration']] as const).map(([id, label]) =>
         <button key={id} disabled={busy} aria-current={page === id ? 'page' : undefined} onClick={() => {
+          if (id === 'ssh') setSshVisited(true);
           setEditingLayout(false); setPage(id);
         }}>{label}</button>)}
     </nav>}<span>{session.username}</span><details className="preferences"><summary>Appearance</summary><div className="preferences-panel">
@@ -223,6 +271,7 @@ function App() {
     </div></details><button disabled={busy} onClick={() => void action(async () => {
       await api('logout', 'POST');
       setSession(await api<Session>('session'));
+      setSshVisited(false);
       setSharedLogin(false);
       setTiles([]);
       setBrowsing(null);
@@ -233,9 +282,12 @@ function App() {
     })}><LogOut size={16} /> Sign out</button></div></div></header>
     <main className="shell dashboard">
       {!editing && !deleting && warning}
-      {page === 'administration' ? <><h1>Administration</h1><Administration api={api} onImport={refresh} categories={[...categories.values()]} /></>
+      {session.role === 'admin' && sshVisited && <div hidden={page !== 'ssh'}><Suspense fallback={<p role="status">Loading SSH machines…</p>}>
+        <MachineConsole api={api} username={session.username} visible={page === 'ssh'} />
+      </Suspense></div>}
+      {page === 'ssh' ? null : page === 'administration' ? <><h1>Administration</h1><Administration api={api} onImport={refresh} categories={[...categories.values()]} /></>
       : page === 'diagnostics' ? <><h1>Diagnostics</h1><Suspense fallback={<p role="status">Loading diagnostics…</p>}>
-        <Diagnostics api={api} username={session.username} serviceLink={(service, label) => serviceLink({ ...service, description: '', tags: [] }, label, 'diagnostic-launch')} />
+        <Diagnostics api={api} serviceLink={(service, label) => serviceLink({ ...service, description: '', tags: [] }, label, 'diagnostic-launch')} />
       </Suspense></> : <><div className="intro"><div><h1>Applications</h1><p className="muted">Organize and open the services you use.</p></div>
         <div className="dashboard-actions">
           <button ref={layoutTrigger} disabled={busy} hidden={!tiles.length || tilesLoading} aria-expanded={editingLayout} onClick={() => {

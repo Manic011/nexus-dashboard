@@ -1,6 +1,6 @@
 # Native Ubuntu installation
 
-StackJetty can run as a systemd service on Ubuntu. Build the application on a workstation and transfer the tested release to the server. The current installer performs a first installation from a staged bundle and can deliberately import an existing schema 4 or 5 state directory. It refuses to overwrite existing installation paths.
+StackJetty can run as a systemd service on Ubuntu. Build the application on a workstation and transfer the tested release to the server. The current installer performs a first installation from a staged bundle and can deliberately import an existing schema 4, 5, or 6 state directory. It refuses to overwrite existing installation paths.
 
 The workstation steps below use Bash, or Git Bash on Windows. After transferring the archive, run the remaining commands in a Bash session on Ubuntu. For a local Windows run, see [Local development](LOCAL_DEVELOPMENT.md#windows-powershell).
 
@@ -203,7 +203,7 @@ read -r -p 'Absolute path to the existing StackJetty state directory: ' source_s
 sudo bash deploy/install.sh "$PWD" "$browser_origin" "$source_state"
 ```
 
-The source directory must contain a valid schema 4 or 5 `nexus.sqlite` with an administrator. The installer copies it consistently through the SQLite backup API into the new service state directory and sets ownership for the dedicated account. It leaves the source state in place. Existing integrations or extra environment settings must be migrated explicitly; the installer does not infer them from another process. Confirm tile, account, group, permission, profile, and history preservation after adoption.
+The source directory must contain a valid schema 4, 5, or 6 `nexus.sqlite` with an administrator. The installer copies it consistently through the SQLite backup API into the new service state directory and sets ownership for the dedicated account. It leaves the source state in place. Existing integrations or extra environment settings must be migrated explicitly; the installer does not infer them from another process. Confirm tile, account, group, permission, profile, and history preservation after adoption.
 
 The service code and runtime are root-owned. Configuration is root-readable only. The dedicated service account can write its state directory but cannot write application code or read the environment file directly; systemd supplies its configured values. Kernel, device, privilege, and filesystem restrictions are set in the unit. AF_NETLINK is retained so Linux interface enumeration works alongside HTTP and mDNS.
 
@@ -220,7 +220,7 @@ sudo /opt/nexus-dashboard/runtime/bin/node /opt/nexus-dashboard/server/state-bac
   /var/backups/nexus-dashboard/state-backup.sqlite
 ```
 
-The destination must not already exist. The tool checks SQLite integrity, schema 4 or 5, required tables, and the presence of an administrator. It writes a consistent SQLite backup, switches the output to DELETE journal mode so no WAL/shared-memory sidecars need to travel with it, and restricts its file permissions. Use unique names or your own retention mechanism; automatic scheduling, encryption, and pruning are not implemented.
+The destination must not already exist. The tool checks SQLite integrity, schema 4, 5, or 6, required tables, and the presence of an administrator. It writes a consistent SQLite backup, switches the output to DELETE journal mode so no WAL/shared-memory sidecars need to travel with it, and restricts its file permissions. Use unique names or your own retention mechanism; automatic scheduling, encryption, and pruning are not implemented.
 
 To recover, restore into a new directory first:
 

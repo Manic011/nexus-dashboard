@@ -4,11 +4,11 @@ import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { formatBytes, formatUptime, type DiagnosticApi } from './Diagnostics.js';
 import { VaultForm } from './ServiceDialog.js';
+import { RemoteFiles } from './RemoteFiles.js';
 
 type Host = { id: number; name: string; host: string; port: number; username: string; fingerprint?: string };
 type Catalog = { enabled: boolean; secureTransport: boolean; hosts: Host[] };
-type Connection = { id: string; name: string };
-type FileListing = { path: string; entries: { name: string; directory: boolean; link: boolean; size: number; modified: number }[] };
+type Connection = { id: string; name: string; hostId: number; number: number };
 type Stats = {
   system: string; uptime: number; cores: number; cpuPercent: number | null; load: number[];
   memory: { total: number; available: number; swapTotal: number; swapFree: number };
@@ -16,10 +16,11 @@ type Stats = {
   disks: string; processes: string;
 };
 
-function RemoteTerminal({ api, connection }: { api: DiagnosticApi; connection: Connection }) {
+function RemoteTerminal({ api, connection, visible }: { api: DiagnosticApi; connection: Connection; visible: boolean }) {
   const container = useRef<HTMLDivElement>(null);
   const [error, setError] = useState('');
   const [ready, setReady] = useState(false);
+  const followOutput = useRef<(signal: AbortSignal) => Promise<void>>(undefined);
   useEffect(() => {
     if (!container.current) return;
     const terminal = new Terminal({ cursorBlink: true, disableStdin: true, fontSize: 14, scrollback: 2000, allowProposedApi: false, screenReaderMode: true,
@@ -30,45 +31,88 @@ function RemoteTerminal({ api, connection }: { api: DiagnosticApi; connection: C
     fit.fit();
     const root = 'admin/diagnostics/ssh/' + connection.id;
     let active = true;
-    let timer: ReturnType<typeof setTimeout>;
+    let inputTimer: ReturnType<typeof setTimeout> | undefined;
     let cursor = 0;
     let sequence = 0;
-    let queue = Promise.resolve();
+    let pending = '';
+    let sending = false;
     let failed = false;
-    function sendInput(data: string) {
-      for (let start = 0; start < data.length; start += 8192) {
-        const chunk = data.slice(start, start + 8192);
-        queue = queue.then(async () => {
-          if (!active || failed) return;
-          try { await api(root + '/input', 'POST', { sequence: ++sequence, data: chunk }); }
-          catch { failed = true; if (active) setError('Shell input stopped. Reconnect to continue.'); }
-        });
+    async function flushInput() {
+      inputTimer = undefined;
+      if (sending || !active || failed) return;
+      sending = true;
+      try {
+        while (pending && active) {
+          // Don't split a surrogate pair between SSH writes.
+          let end = Math.min(pending.length, 8192);
+          if (end < pending.length && /[\ud800-\udbff]/.test(pending[end - 1])) end--;
+          const data = pending.slice(0, end);
+          pending = pending.slice(end);
+          await api(root + '/input', 'POST', { sequence: ++sequence, data });
+        }
+      } catch {
+        failed = true;
+        if (active) {
+          terminal.options.disableStdin = true;
+          setError('Shell input stopped. Reconnect to continue.');
+        }
+      } finally {
+        sending = false;
       }
     }
-    async function poll() {
-      try {
-        const response = await api<{ output: string; cursor: number; truncated: boolean; closed: boolean }>(root + '/output', 'POST', { cursor });
-        if (!active) return;
-        if (response.truncated) terminal.writeln('\r\n[Earlier output was discarded]\r\n');
-        terminal.write(response.output);
-        cursor = response.cursor;
-        if (response.closed) { setError('The remote shell closed.'); return; }
-        timer = setTimeout(poll, 250);
-      } catch (error) { if (active) setError(error instanceof Error ? error.message : 'Shell connection failed.'); }
-    }
-    const input = terminal.onData(sendInput);
+    followOutput.current = async signal => {
+      let retry = true;
+      while (active && !signal.aborted) {
+        try {
+          const response = await api<{ output: string; cursor: number; truncated: boolean; closed: boolean }>(root + '/output', 'POST', { cursor, wait: true }, signal);
+          if (!active || signal.aborted) return;
+          retry = true;
+          if (response.truncated) terminal.writeln('\r\n[Earlier output was discarded]\r\n');
+          if (response.output) terminal.write(response.output);
+          cursor = response.cursor;
+          if (response.closed) { terminal.options.disableStdin = true; setError('The remote shell closed.'); return; }
+        } catch (error) {
+          if (!active || signal.aborted) return;
+          const message = error instanceof Error ? error.message : 'Shell connection failed.';
+          if (retry && message === 'A shell output request is already waiting.') {
+            retry = false;
+            await new Promise(resolve => setTimeout(resolve, 150));
+            continue;
+          }
+          terminal.options.disableStdin = true;
+          setError(message);
+          return;
+        }
+      }
+    };
+    const input = terminal.onData(data => {
+      if (failed) return;
+      if (pending.length + data.length > 262144) {
+        setError('The paste is too large. Send smaller chunks.');
+        return;
+      }
+      pending += data;
+      if (!sending && inputTimer === undefined) inputTimer = setTimeout(() => void flushInput(), 8);
+    });
     const resize = terminal.onResize(size => {
       if (active) void api(root + '/resize', 'POST', { rows: Math.max(2, Math.min(200, size.rows)), columns: Math.max(10, Math.min(300, size.cols)) }).catch(() => {});
     });
     const observer = new ResizeObserver(() => { if (active && container.current?.clientWidth) fit.fit(); });
     observer.observe(container.current);
     void api(root + '/shell', 'POST').then(() => { if (active) {
-      terminal.options.disableStdin = false; setReady(true); fit.fit(); terminal.focus(); void poll();
+      terminal.options.disableStdin = false; setReady(true);
+      if (container.current?.clientWidth) { fit.fit(); terminal.focus(); }
     } })
       .catch(error => { if (active) setError(error.message); });
-    return () => { active = false; clearTimeout(timer); observer.disconnect(); input.dispose(); resize.dispose(); terminal.dispose(); };
+    return () => { active = false; followOutput.current = undefined; clearTimeout(inputTimer); observer.disconnect(); input.dispose(); resize.dispose(); terminal.dispose(); };
   }, [api, connection.id]);
-  return <><p role="status">{ready ? 'Shell ready' : 'Opening shell…'}</p><div className="ssh-terminal" ref={container} aria-label={connection.name + ' SSH terminal'} />
+  useEffect(() => {
+    if (!ready || !visible) return;
+    const controller = new AbortController();
+    void followOutput.current?.(controller.signal);
+    return () => controller.abort();
+  }, [ready, visible]);
+  return <><p role="status">{ready ? 'Shell ready' : 'Opening shell…'}</p><div inert={!visible} className="ssh-terminal" ref={container} aria-label={connection.name + ' SSH terminal'} />
     {error && <p role="alert" className="error">{error}</p>}</>;
 }
 
@@ -91,73 +135,76 @@ function SavedSshPassword({ username, host, connect }: {
   </details>;
 }
 
-export function MachineConsole({ api, username }: { api: DiagnosticApi; username: string }) {
+export function MachineConsole({ api, username, visible }: { api: DiagnosticApi; username: string; visible: boolean }) {
   const [catalog, setCatalog] = useState<Catalog>();
   const [hostId, setHostId] = useState('');
-  const [connection, setConnection] = useState<Connection>();
-  const [mode, setMode] = useState('stats');
-  const [stats, setStats] = useState<Stats>();
-  const [listing, setListing] = useState<FileListing>();
-  const [path, setPath] = useState('.');
-  const [file, setFile] = useState<{ path: string; text: string }>();
+  const [connections, setConnections] = useState<Connection[]>([]);
+  const [activeId, setActiveId] = useState('');
+  const sessionIds = useRef(new Set<string>());
+  const mounted = useRef(false);
+  const nextNumber = useRef(0);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [pendingRemoval, setPendingRemoval] = useState<number>();
-  const [shellOpen, setShellOpen] = useState(false);
   const [authentication, setAuthentication] = useState('password');
   const [observedKey, setObservedKey] = useState<{ hostId: number; fingerprint: string }>();
   const addMachineDetails = useRef<HTMLDetailsElement>(null);
   const connectionHeading = useRef<HTMLHeadingElement>(null);
   async function load() { setCatalog(await api('admin/diagnostics/ssh')); }
   useEffect(() => { void load().catch(error => setError(error.message)); }, [api]);
+  function release(id: string) {
+    void fetch('/api/admin/diagnostics/ssh/' + id, { method: 'DELETE', keepalive: true,
+      headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(() => {});
+  }
   useEffect(() => {
-    if (!connection) return;
-    const disconnect = () => {
-      void fetch('/api/admin/diagnostics/ssh/' + connection.id, { method: 'DELETE', keepalive: true,
-        headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(() => {});
+    mounted.current = true;
+    const disconnectAll = () => {
+      mounted.current = false;
+      for (const id of sessionIds.current) release(id);
+      sessionIds.current.clear();
     };
-    window.addEventListener('pagehide', disconnect);
-    return () => { window.removeEventListener('pagehide', disconnect); disconnect(); };
-  }, [connection?.id]);
-  useEffect(() => {
-    if (!connection || mode !== 'stats') return;
-    let active = true;
-    let timer: ReturnType<typeof setTimeout>;
-    async function refresh() {
-      try {
-        const result = await api<Stats>('admin/diagnostics/ssh/' + connection!.id + '/stats');
-        if (active) setStats(result);
-      } catch (error) { if (active) setError(error instanceof Error ? error.message : 'Machine statistics failed.'); }
-      finally { if (active) timer = setTimeout(refresh, 5000); }
-    }
-    void refresh();
-    return () => { active = false; clearTimeout(timer); };
-  }, [api, connection?.id, mode]);
+    const restore = (event: PageTransitionEvent) => {
+      if (event.persisted) { mounted.current = true; setConnections([]); setActiveId(''); }
+    };
+    window.addEventListener('pagehide', disconnectAll);
+    window.addEventListener('pageshow', restore);
+    return () => {
+      window.removeEventListener('pagehide', disconnectAll);
+      window.removeEventListener('pageshow', restore);
+      disconnectAll();
+    };
+  }, []);
   async function run(work: () => Promise<void>) {
     setBusy(true); setError('');
     try { await work(); } catch (error) { setError(error instanceof Error ? error.message : 'SSH operation failed.'); }
     finally { setBusy(false); }
   }
-  async function browse(path: string) {
-    const result = await api<FileListing>('admin/diagnostics/ssh/' + connection!.id + '/files', 'POST', { path });
-    setListing(result); setPath(result.path); setFile(undefined);
-  }
   async function connect(credentials: object) {
-    const session = await api<Connection>('admin/diagnostics/ssh/connect', 'POST', { ...credentials, hostId: Number(hostId) });
-    setStats(undefined); setListing(undefined); setShellOpen(false); setMode('stats'); setConnection(session); setPath('.');
+    const targetId = Number(hostId);
+    const result = await api<{ id: string; name: string }>('admin/diagnostics/ssh/connect', 'POST', { ...credentials, hostId: targetId });
+    if (!mounted.current) { release(result.id); return; }
+    const session = { ...result, hostId: targetId, number: ++nextNumber.current };
+    sessionIds.current.add(session.id);
+    setConnections(current => [...current, session]);
+    setActiveId(session.id);
+    setHostId('');
   }
+  function forget(id: string) {
+    sessionIds.current.delete(id);
+    setConnections(current => current.filter(session => session.id !== id));
+  }
+  const selectedId = connections.some(session => session.id === activeId) ? activeId : connections.at(-1)?.id;
   const selectedHost = catalog?.hosts.find(host => String(host.id) === hostId);
   const secure = window.isSecureContext && catalog?.secureTransport;
   useEffect(() => {
-    if (selectedHost && secure && !connection) connectionHeading.current?.focus();
-  }, [selectedHost?.id, selectedHost?.fingerprint, secure, connection?.id]);
+    if (visible && selectedHost && secure) connectionHeading.current?.focus();
+  }, [selectedHost?.id, selectedHost?.fingerprint, secure, visible]);
   return <section className="tile machine-console">
     <h2>SSH machines</h2>
-    <p className="muted">Sign in with the remote machine’s username and password, or a private key. Saved passwords are encrypted in this browser. Connections close after ten minutes without activity or one hour total.</p>
+    <p className="muted">Sign in with the remote machine’s username and password, or a private key. Saved passwords are encrypted in this browser. Sessions stay open while you switch views. Signing out closes all sessions.</p>
     {error && <p role="alert" className="error">{error}</p>}
     {!catalog ? <p>Loading saved machines…</p> : !catalog.enabled ? <p>Enable NEXUS_SSH=on in the server environment to connect machines.</p> : <>
       {!secure && <p className="error">Open StackJetty over HTTPS or through an SSH-encrypted localhost connection to enter SSH credentials.</p>}
-      {!connection && <>
         <details ref={addMachineDetails}><summary>Add SSH machine</summary>
           <p className="muted">Leave the fingerprint blank to review the server’s key on your first connection.</p>
           <form className="machine-form" onSubmit={event => {
@@ -191,6 +238,8 @@ export function MachineConsole({ api, username }: { api: DiagnosticApi; username
           {pendingRemoval === host.id && <div className="account-confirmation"><p>Remove this saved machine?</p>
             <button disabled={busy} onClick={() => void run(async () => {
               await api('admin/diagnostics/ssh/hosts/' + host.id, 'DELETE');
+              for (const session of connections) if (session.hostId === host.id) sessionIds.current.delete(session.id);
+              setConnections(current => current.filter(session => session.hostId !== host.id));
               const key = sshVaultKey(username, host.id);
               try {
                 if (navigator.locks) await navigator.locks.request(key, () => localStorage.removeItem(key));
@@ -237,17 +286,56 @@ export function MachineConsole({ api, username }: { api: DiagnosticApi; username
           <SavedSshPassword username={username} host={selectedHost} connect={password =>
             run(() => connect({ authentication: 'password', password }))} />
         </div>}
+      {connections.length > 0 && <>
+        <h3>Open sessions</h3>
+        <nav className="admin-nav ssh-sessions" aria-label="Open SSH sessions">
+          {connections.map(session => <button key={session.id} aria-current={selectedId === session.id ? 'true' : undefined}
+            onClick={() => setActiveId(session.id)}>{session.name} · {session.number}</button>)}
+        </nav>
+        {connections.map(session => <div key={session.id} hidden={selectedId !== session.id}>
+          <MachineSession api={api} connection={session} active={visible && selectedId === session.id} busy={busy}
+            disconnect={() => run(async () => {
+              try { await api('admin/diagnostics/ssh/' + session.id, 'DELETE'); }
+              catch { release(session.id); }
+              finally { forget(session.id); }
+            })} />
+        </div>)}
       </>}
-      {connection && <>
-        <div className="diagnostic-service-head"><h3>{connection.name}</h3><button disabled={busy} onClick={() => void run(async () => {
-          await api('admin/diagnostics/ssh/' + connection.id, 'DELETE'); setConnection(undefined); setStats(undefined); setFile(undefined);
-        })}>Disconnect SSH</button></div>
-        <nav className="admin-nav" aria-label="Machine sections">{[['stats', 'Machine statistics'], ['files', 'File browser'], ['shell', 'Shell']].map(([id, label]) =>
-          <button key={id} disabled={busy} aria-current={mode === id ? 'page' : undefined} onClick={() => {
-            setMode(id); setError('');
-            if (id === 'files' && !listing) void run(() => browse('.'));
-          }}>{label}</button>)}</nav>
-        {mode === 'stats' && (stats ? <>
+    </>}
+  </section>;
+}
+
+function MachineSession({ api, connection, active, busy, disconnect }: {
+  api: DiagnosticApi; connection: Connection; active: boolean; busy: boolean; disconnect: () => Promise<void>;
+}) {
+  const [mode, setMode] = useState('stats');
+  const [stats, setStats] = useState<Stats>();
+  const [error, setError] = useState('');
+  const [shellOpen, setShellOpen] = useState(false);
+  const [filesOpen, setFilesOpen] = useState(false);
+  useEffect(() => {
+    if (!active || mode !== 'stats') return;
+    let mounted = true;
+    let timer: ReturnType<typeof setTimeout>;
+    async function refresh() {
+      try {
+        const result = await api<Stats>('admin/diagnostics/ssh/' + connection.id + '/stats');
+        if (mounted) { setStats(result); setError(''); }
+      } catch (error) { if (mounted) setError(error instanceof Error ? error.message : 'Machine statistics failed.'); }
+      finally { if (mounted) timer = setTimeout(refresh, 5000); }
+    }
+    void refresh();
+    return () => { mounted = false; clearTimeout(timer); };
+  }, [active, api, connection.id, mode]);
+  return <section className="ssh-session-panel">
+    <div className="diagnostic-service-head"><h3>{connection.name}</h3><button disabled={busy} onClick={() => void disconnect()}>Disconnect SSH</button></div>
+    <nav className="admin-nav" aria-label="Machine sections">{[['stats', 'Machine statistics'], ['files', 'File browser'], ['shell', 'Shell']].map(([id, label]) =>
+      <button key={id} aria-current={mode === id ? 'page' : undefined} onClick={() => {
+        setMode(id);
+        if (id === 'files') setFilesOpen(true);
+      }}>{label}</button>)}</nav>
+    {mode === 'stats' && error && <p role="alert" className="error">{error}</p>}
+    {mode === 'stats' && (stats ? <>
           <p className="muted diagnostic-system">{stats.system}</p>
           <div className="metric-grid diagnostic-metrics">
             <div><span>CPU</span><strong>{stats.cpuPercent === null ? 'Sampling…' : stats.cpuPercent.toFixed(1) + '%'}</strong><progress aria-label="Remote CPU usage" max={100} value={stats.cpuPercent ?? undefined} /></div>
@@ -260,35 +348,9 @@ export function MachineConsole({ api, username }: { api: DiagnosticApi; username
             <div><dt>Network send</dt><dd>{stats.network.txPerSecond === null ? 'Sampling…' : formatBytes(stats.network.txPerSecond) + '/s'}</dd></div></dl>
           <h3>Filesystems</h3><pre className="diagnostic-output">{stats.disks}</pre>
           <h3>Processes by CPU</h3><pre className="diagnostic-output">{stats.processes}</pre>
-        </> : <p>Loading Linux machine statistics…</p>)}
-        {mode === 'files' && <>
-          <form className="admin-controls" onSubmit={event => { event.preventDefault(); void run(() => browse(path)); }}>
-            <label>Remote path<input value={path} onChange={event => setPath(event.target.value)} maxLength={4096} /></label>
-            <button disabled={busy}>Open directory</button>
-            <button type="button" disabled={busy} onClick={() => void run(async () => {
-              const result = await api<{ text: string }>('admin/diagnostics/ssh/' + connection.id + '/file', 'POST', { path });
-              setFile({ path, text: result.text });
-            })}>Preview file</button>
-            <button type="button" disabled={busy || !listing} onClick={() => void run(() => browse(listing!.path + '/..'))}>Parent directory</button>
-          </form>
-          {listing && <><p className="muted diagnostic-url">{listing.path} · up to 2,000 entries</p>
-            <ul className="user-list remote-files">{[...listing.entries].sort((a, b) => Number(b.directory) - Number(a.directory) || a.name.localeCompare(b.name)).map(entry =>
-              <li key={entry.name}><button disabled={busy} onClick={() => void run(async () => {
-                const target = listing.path.replace(/\/$/, '') + '/' + entry.name;
-                if (entry.directory || entry.link) await browse(target);
-                else {
-                  const result = await api<{ text: string }>('admin/diagnostics/ssh/' + connection.id + '/file', 'POST', { path: target });
-                  setFile({ path: target, text: result.text });
-                }
-              })}>{entry.directory ? '▸ ' : entry.link ? '↗ ' : ''}{entry.name}</button>
-                <small className="muted">{formatBytes(entry.size)} · {new Date(entry.modified * 1000).toLocaleString()}</small></li>)}</ul></>}
-          {file && <section><h3 className="diagnostic-url">{file.path}</h3><p className="muted">Text preview, up to 128 KiB</p><pre className="diagnostic-output">{file.text}</pre></section>}
-        </>}
-        <div hidden={mode !== 'shell'}>{shellOpen ? <RemoteTerminal api={api} connection={connection} /> : <>
-          <p className="muted">The shell runs commands with this SSH account’s permissions. Commands can change the remote machine.</p>
-          <button disabled={busy} onClick={() => setShellOpen(true)}>Open interactive shell</button>
-        </>}</div>
-      </>}
-    </>}
+        </> : !error && <p>Loading Linux machine statistics…</p>)}
+    {filesOpen && <div hidden={mode !== 'files'}><RemoteFiles api={api} sessionId={connection.id} /></div>}
+    <div hidden={mode !== 'shell'}>{shellOpen ? <RemoteTerminal api={api} connection={connection} visible={active && mode === 'shell'} /> :
+      <button onClick={() => setShellOpen(true)}>Open interactive shell</button>}</div>
   </section>;
 }

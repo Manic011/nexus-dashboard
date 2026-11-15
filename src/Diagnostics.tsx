@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { MachineConsole } from './MachineConsole.js';
 import type { OpenMode } from './preferences.js';
 
-export type DiagnosticApi = <T>(path: string, method?: string, body?: object) => Promise<T>;
+export type DiagnosticApi = <T>(path: string, method?: string, body?: object, signal?: AbortSignal) => Promise<T>;
 export function formatBytes(value: number) {
   if (!Number.isFinite(value)) return 'Unavailable';
   if (value < 1024) return Math.round(value) + ' B';
@@ -24,7 +23,7 @@ type Summary = {
     dayPercent: number | null; weekPercent: number | null; history: Sample[] })[];
 };
 
-export function Diagnostics({ api, username, serviceLink }: { api: DiagnosticApi; username: string; serviceLink: (service: DiagnosticService, label: string) => ReactNode }) {
+export function Diagnostics({ api, serviceLink }: { api: DiagnosticApi; serviceLink: (service: DiagnosticService, label: string) => ReactNode }) {
   const [tab, setTab] = useState('services');
   const [summary, setSummary] = useState<Summary>();
   const [error, setError] = useState('');
@@ -62,7 +61,7 @@ export function Diagnostics({ api, username, serviceLink }: { api: DiagnosticApi
   const services = summary?.services.filter(service => [service.title, service.url, service.category].some(value => value.toLowerCase().includes(filter.toLowerCase()))) ?? [];
   return <div className="diagnostics">
     <nav className="admin-nav" aria-label="Diagnostic sections">
-      {[['services', 'Service uptime'], ['host', 'Dashboard host'], ['network', 'Network test'], ['machines', 'SSH machines']].map(([id, label]) =>
+      {[['services', 'Service uptime'], ['host', 'Dashboard host'], ['network', 'Network test']].map(([id, label]) =>
         <button key={id} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}>{label}</button>)}
     </nav>
     {error && <p role="alert" className="error">{error}</p>}
@@ -128,6 +127,5 @@ export function Diagnostics({ api, username, serviceLink }: { api: DiagnosticApi
       {speed && <dl className="metric-grid diagnostic-metrics" role="status"><div><dt>Round trip</dt><dd>{speed.latency.toFixed(1)} ms</dd></div>
         <div><dt>Download</dt><dd>{speed.down.toFixed(1)} Mbps</dd></div><div><dt>Upload</dt><dd>{speed.up.toFixed(1)} Mbps</dd></div></dl>}
     </section>}
-    {tab === 'machines' && <MachineConsole api={api} username={username} />}
   </div>;
 }

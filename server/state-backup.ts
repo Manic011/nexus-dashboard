@@ -6,7 +6,7 @@ function validate(db: DatabaseSync) {
   const result = db.prepare('PRAGMA quick_check').get();
   if (result?.quick_check !== 'ok') throw new Error('Database integrity check failed.');
   const version = Number(db.prepare('PRAGMA user_version').get()?.user_version);
-  if (version !== 4 && version !== 5) throw new Error('This recovery tool requires a schema 4 or 5 database.');
+  if (![4, 5, 6].includes(version)) throw new Error('This recovery tool requires a schema 4, 5, or 6 database.');
   for (const table of ['accounts', 'sessions', 'tiles', 'access_groups', 'tile_access', 'admin_records']) {
     if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(table)) throw new Error('Backup is missing required tables.');
   }

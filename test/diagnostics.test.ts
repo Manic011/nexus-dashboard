@@ -6,6 +6,7 @@ import { createSshFixture } from './ssh-fixture.ts';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { createApp } from '../server/index.ts';
 
 test('diagnostic monitoring and SSH sessions enforce access, fingerprints and owner isolation', { timeout: 30_000 }, async () => {
@@ -102,8 +103,22 @@ test('diagnostic monitoring and SSH sessions enforce access, fingerprints and ow
     assert.equal((await request('admin/diagnostics/speed')).status, 403);
     assert.equal((await request('admin/diagnostics/ssh/connect', 'POST', { hostId: saved.id, password: 'fixture-password' })).status, 403);
     cookie = adminCookie;
+    const shellClosed = once(input, 'shell-close');
     await request('logout', 'POST');
     assert.equal((await request(root + '/stats')).status, 401);
+    await shellClosed;
+    cookie = secondLogin.headers.get('set-cookie')!.split(';')[0];
+    assert.equal((await request('session/activity', 'POST')).status, 200);
+    const idleConnection = await (await request('admin/diagnostics/ssh/connect', 'POST', { hostId: saved.id, password: 'fixture-password' })).json();
+    const idleRoot = 'admin/diagnostics/ssh/' + idleConnection.id;
+    assert.equal((await request(idleRoot + '/shell', 'POST')).status, 200);
+    const idleShellClosed = once(input, 'shell-close');
+    const inspection = new DatabaseSync(join(directory, 'nexus.sqlite'));
+    try { inspection.exec('UPDATE sessions SET idle_until=0'); } finally { inspection.close(); }
+    assert.equal((await (await request('session')).json()).username, null);
+    assert.equal((await request('session/activity', 'POST')).status, 401);
+    assert.equal((await request(idleRoot + '/stats')).status, 401);
+    await idleShellClosed;
   } finally {
     if (previousSsh === undefined) delete process.env.NEXUS_SSH; else process.env.NEXUS_SSH = previousSsh;
     const closed = once(app, 'close'); app.close(); app.closeAllConnections(); await closed;

@@ -1,6 +1,6 @@
 # Diagnostics and SSH machines
 
-Open **Diagnostics** in the main header as an administrator. The area has four sections. Editors and viewers cannot access these APIs.
+Administrators can open **Diagnostics** or **SSH machines** from the main header. Editors and viewers cannot access these APIs.
 
 ## Service uptime
 
@@ -78,15 +78,21 @@ The statistics panel supports Linux hosts with procfs and standard utilities suc
 
 ### File browser
 
-**File browser** starts in the remote account's home directory. Open a directory, follow a directory link, enter a **Remote path**, or use **Parent directory**. Listings show up to 2,000 entries. Select a regular file, or enter a file path and choose **Preview file**, to read up to 128 KiB as text. Binary files show a message. Access follows remote filesystem permissions.
+**File browser** starts in the remote account's home directory. Use Back, Forward, Up, Refresh, or the path bar to navigate. Filter the current folder or sort by name, size, or modification time. Open a file by clicking its name to see a text preview of up to 128 KiB. Listings show up to 2,000 entries.
+
+Select a row to use **New folder**, **Rename**, **Cut**, **Copy**, **Paste**, **Delete**, **Upload**, or **Download**. Cut moves the item when pasted. The clipboard belongs to that SSH session. Use Ctrl or Command with C, X, or V, F2 to rename, and Delete to open the confirmation. Deleting a folder permanently removes its contents after confirmation.
+
+StackJetty uses SFTP and the remote account's filesystem permissions. Existing names are protected from overwrite. Folder copy and deletion are limited to 1,000 items and 32 levels. Copy is limited to 64 MiB. Browser uploads and downloads handle one regular file up to 4 MiB. Copy doesn't follow symbolic links. If a remote operation fails or is interrupted, refresh the folder to check which changes completed.
 
 ### Interactive shell
 
 Open **Shell → Open interactive shell** to start an xterm-compatible terminal within StackJetty. Wait for **Shell ready** before typing. The shell supports interactive commands, control keys, and resizing. It executes commands with the remote account's permissions, including destructive commands that account is allowed to run.
 
-The browser uses authenticated same-origin requests to send input and poll output. Input is ordered and duplicate sequence numbers are ignored. Output is bounded, with a message when older buffered output has been discarded. Shell commands and output are excluded from persistent application records.
+The browser batches keystrokes and waits for output from the active shell as soon as it arrives. Input retains its order. Background shells continue running on their hosts and buffer output for when you return. The terminal indicates when older buffered output has been discarded. Shell commands and output are excluded from persistent application records.
 
-**Disconnect SSH**, signing out, leaving the SSH screen, or closing the page closes the connection. If the browser disappears without sending a disconnect request, the server reaps sessions after ten minutes without requests. Every connection has a one-hour maximum lifetime. The server permits eight open or opening SSH connections in total. A separate login session cannot access another session's connection.
+Open another machine or connect again to the same machine. Switch between workspaces under **Open sessions**. Each workspace keeps its own terminal, folder, and clipboard when switching sessions or visiting other StackJetty pages. **Disconnect SSH** closes the selected session.
+
+StackJetty signs out after 15 minutes without user interaction. Background metrics and terminal output do not extend the timer. Signing out closes all SSH sessions tied to that login, and the server closes them on expiration even if the browser disappears. Reloading or closing the page normally disconnects its sessions. Connections have a one-hour maximum lifetime and a server-wide limit of eight open or opening sessions. Separate dashboard logins cannot access each other's sessions.
 
 ## Troubleshooting
 

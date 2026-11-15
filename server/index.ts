@@ -111,7 +111,11 @@ export function createApp(data: string, dist: string, origin: string, setupToken
         CHECK (open_mode IN ('default','new-tab','embedded','kasm'));
       PRAGMA user_version=5;
     `);
-    if (Number(user_version) > 5) throw new Error('Database requires a newer release.');
+    if (Number(user_version) < 6) {
+      db.exec('ALTER TABLE sessions ADD COLUMN idle_until INTEGER NOT NULL DEFAULT 0; PRAGMA user_version=6;');
+      db.prepare('UPDATE sessions SET idle_until=?').run(Date.now() + 15 * 60_000);
+    }
+    if (Number(user_version) > 6) throw new Error('Database requires a newer release.');
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');
@@ -180,11 +184,12 @@ export function createApp(data: string, dist: string, origin: string, setupToken
       }
       const token = req.headers.cookie?.match(/(?:^|; *)nexus_session=([a-f0-9]{64})(?:;|$)/)?.[1];
       const configured = !!admin.get();
+      const now = Date.now();
       const authenticated = token ? db.prepare(`
         SELECT accounts.id, accounts.username, accounts.role
         FROM sessions JOIN accounts ON accounts.id=sessions.account_id
-        WHERE sessions.token=? AND sessions.expires>?
-      `).get(digest(token), Date.now()) : undefined;
+        WHERE sessions.token=? AND sessions.expires>? AND sessions.idle_until>?
+      `).get(digest(token), now, now) : undefined;
       if (method === 'GET' && path === '/api/session') {
         return send(200, { setup: !configured, setupTokenRequired: !configured && !!setupToken, username: authenticated?.username ?? null, role: authenticated?.role ?? null, shared: lookup.get('shared')?.role === 'viewer' });
       }
@@ -217,12 +222,21 @@ export function createApp(data: string, dist: string, origin: string, setupToken
           throw new RequestError(401, 'Invalid credentials.');
         }
         const session = randomBytes(32).toString('hex');
-        db.prepare('DELETE FROM sessions WHERE expires <= ? OR token = ?').run(Date.now(), token ? digest(token) : '');
-        db.prepare('INSERT INTO sessions (token, expires, account_id) VALUES (?, ?, ?)').run(digest(session), Date.now() + lifetime * 1000, setup ? 1 : account!.id);
+        if (token) ssh.closeOwner(digest(token));
+        db.prepare('DELETE FROM sessions WHERE expires <= ? OR idle_until <= ? OR token = ?').run(now, now, token ? digest(token) : '');
+        db.prepare('INSERT INTO sessions (token, expires, account_id, idle_until) VALUES (?, ?, ?, ?)').run(digest(session), now + lifetime * 1000, setup ? 1 : account!.id, now + 15 * 60_000);
         res.setHeader('Set-Cookie', cookie(session, lifetime));
         return send(200, { setup: false, setupTokenRequired: false, username, role: setup ? 'admin' : account!.role });
       }
       if (!authenticated || !token) throw new RequestError(401, 'Sign in to continue.');
+      if (method === 'POST' && path === '/api/session/activity') {
+        await body(req);
+        const timestamp = Date.now();
+        const renewed = db.prepare('UPDATE sessions SET idle_until=? WHERE token=? AND expires>? AND idle_until>?')
+          .run(timestamp + 15 * 60_000, digest(token), timestamp, timestamp);
+        if (!renewed.changes) throw new RequestError(401, 'Sign in to continue.');
+        return send(200, {});
+      }
       if (method === 'POST' && path === '/api/logout') {
         ssh.closeOwner(digest(token));
         db.prepare('DELETE FROM sessions WHERE token=?').run(digest(token));
@@ -250,9 +264,13 @@ export function createApp(data: string, dist: string, origin: string, setupToken
             res.end(speedPayload());
             return;
           }
-          const input = method === 'GET' || method === 'DELETE' ? undefined : await body(req, 65536);
+          const fileUpload = /^\/api\/admin\/diagnostics\/ssh\/[a-f0-9]{48}\/file-operation$/.test(path);
+          if (fileUpload && !localTransport && !secure) throw new RequestError(403, 'SSH file operations require HTTPS or the private SSH tunnel.');
+          const input = method === 'GET' || method === 'DELETE' ? undefined : await body(req, fileUpload ? 6 * 1024 * 1024 : 65536);
+          const controller = new AbortController();
+          res.once('close', () => controller.abort());
           const result = path.startsWith('/api/admin/diagnostics/ssh')
-            ? await ssh.handle(method!, path, input, digest(token), localTransport)
+            ? await ssh.handle(method!, path, input, digest(token), localTransport, controller.signal)
             : await diagnostics.handle(method!, path, input);
           if (result === undefined) return send(404, { error: 'Diagnostic endpoint not found.' });
           return send(200, result);

@@ -309,5 +309,30 @@ button.diagnostic-launch { border: 0; background: transparent; padding: 0; min-h
 .diagnostic-output { max-width: 100%; overflow: auto; max-height: 420px; padding: 14px; background: var(--field); border: 1px solid var(--border); border-radius: 8px; font-size: .85rem; white-space: pre; }
 .diagnostic-system { white-space: pre-line; }
 .ssh-terminal { height: 420px; padding: 10px; background: #10171c; border-radius: 8px; margin-top: 16px; overflow: hidden; }
+.ssh-session-panel { min-width: 0; }
+.ssh-sessions { display: flex; flex-wrap: wrap; gap: 6px; }
+.ssh-sessions [aria-current="true"] { outline: 2px solid currentColor; outline-offset: -2px; }
+.remote-explorer { display: grid; gap: 12px; margin-top: 16px; min-width: 0; }
+.explorer-address, .explorer-toolbar, .explorer-navigation, .explorer-confirm { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.explorer-address > input { flex: 1 1 170px; min-width: 0; }
+.explorer-address > select { width: auto; max-width: 100%; }
+.explorer-toolbar button, .explorer-upload { display: inline-flex; align-items: center; gap: 6px; }
+.explorer-upload { position: relative; padding: 8px 10px; border: 1px solid currentColor; border-radius: 8px; cursor: pointer; }
+.explorer-upload:focus-within { outline: 2px solid currentColor; }
+.explorer-upload:has(input:disabled) { opacity: .5; cursor: default; }
+.explorer-upload input { position: absolute; inset: 0; width: 100%; opacity: 0; cursor: inherit; }
+.explorer-confirm { padding: 12px; border: 1px solid currentColor; border-radius: 8px; }
+.explorer-confirm p { flex-basis: 100%; overflow-wrap: anywhere; }
+.explorer-list { overflow: auto; max-height: 55vh; }
+.explorer-list table { width: 100%; border-collapse: collapse; text-align: left; font-size: .9rem; }
+.explorer-list th, .explorer-list td { padding: 6px 8px; border-bottom: 1px solid color-mix(in srgb, currentColor 15%, transparent); }
+.explorer-list td > button { display: inline-flex; gap: 8px; align-items: center; text-align: left; white-space: normal; overflow-wrap: anywhere; }
+.explorer-list td > button svg { flex-shrink: 0; }
+.explorer-list tr.selected { background: color-mix(in srgb, currentColor 12%, transparent); }
+.explorer-status { margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 580px) {
+  .explorer-list th:nth-child(4), .explorer-list td:nth-child(4) { display: none; }
+  .explorer-list th, .explorer-list td { padding-inline: 4px; }
+}
 .remote-files { max-height: 420px; overflow: auto; }
 .remote-files button { max-width: 100%; overflow-wrap: anywhere; text-align: left; justify-content: flex-start; }

@@ -1,9 +1,11 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { EventEmitter } from 'node:events';
 import { StringDecoder } from 'node:string_decoder';
 import type { DatabaseSync } from 'node:sqlite';
 import ssh2, { type Client, type ClientChannel, type SFTPWrapper } from 'ssh2';
 import { z } from 'zod';
 import { DiagnosticError } from './diagnostics.ts';
+import { fileOperation } from './ssh-files.ts';
 
 const hostFingerprint = z.string().trim().regex(/^SHA256:[A-Za-z0-9+/]{43}$/);
 const hostInput = z.object({
@@ -16,10 +18,11 @@ const hostInput = z.object({
 const fingerprintOf = (key: Buffer) => 'SHA256:' + createHash('sha256').update(key).digest('base64').replace(/=+$/, '');
 type Host = z.infer<typeof hostInput>;
 type Connection = {
-  client: Client; owner: string; hostId: number; touched: number; created: number; closed: boolean;
+  client: Client; owner: string; hostId: number; created: number; closed: boolean;
   shell?: ClientChannel; sftp?: SFTPWrapper; output: string; offset: number; inputSequence: number;
   shellOpening?: Promise<void>; cpu?: { total: number; idle: number };
-  network?: { at: number; rx: number; tx: number };
+  network?: { at: number; rx: number; tx: number }; outputEvents: EventEmitter; waitingForOutput?: boolean;
+  fileOperation?: AbortController;
 };
 const remotePath = z.string().min(1).max(4096).refine(value => !value.includes('\0'));
 const statsCommand = `printf '__SYSTEM__\\n'; uname -srm; hostname; printf '__UPTIME__\\n'; cat /proc/uptime; printf '__CPU__\\n'; head -n 1 /proc/stat; getconf _NPROCESSORS_ONLN; printf '__MEMORY__\\n'; cat /proc/meminfo; printf '__LOAD__\\n'; cat /proc/loadavg; printf '__NETWORK__\\n'; cat /proc/net/dev; printf '__DISKS__\\n'; df -Pk; printf '__PROCESSES__\\n'; ps -eo pid,comm,pcpu,pmem --sort=-pcpu | head -n 11`;
@@ -34,21 +37,28 @@ function deadline<T>(work: Promise<T>, milliseconds = 10_000): Promise<T> {
 export function configureSsh(db: DatabaseSync, enabled: boolean, secureTransport: boolean) {
   const sessions = new Map<string, Connection>();
   const connecting = new Set<string>();
+  const ownerQuery = db.prepare("SELECT 1 FROM sessions JOIN accounts ON accounts.id=sessions.account_id WHERE token=? AND expires>? AND idle_until>? AND role='admin'");
+  function validOwner(owner: string) {
+    const now = Date.now();
+    return ownerQuery.get(owner, now, now);
+  }
   function close(id: string) {
     const connection = sessions.get(id);
     if (!connection) return;
+    sessions.delete(id);
+    connection.closed = true;
+    connection.outputEvents.emit('change');
+    connection.fileOperation?.abort();
     connection.shell?.destroy();
     connection.sftp?.end();
     connection.client.end();
     connection.client.destroy();
-    sessions.delete(id);
   }
   const timer = setInterval(() => {
     for (const [id, session] of sessions) {
-      const valid = db.prepare('SELECT 1 FROM sessions WHERE token=? AND expires>?').get(session.owner, Date.now());
-      if (!valid || Date.now() - session.touched > 10 * 60_000 || Date.now() - session.created > 60 * 60_000) close(id);
+      if (!validOwner(session.owner) || Date.now() - session.created > 60 * 60_000) close(id);
     }
-  }, 30_000);
+  }, 5_000);
   timer.unref();
   function list() {
     return db.prepare("SELECT id,payload FROM admin_records WHERE kind='ssh-host' ORDER BY label").all()
@@ -57,11 +67,10 @@ export function configureSsh(db: DatabaseSync, enabled: boolean, secureTransport
   function owned(id: string, owner: string) {
     const session = sessions.get(id);
     if (!session || session.owner !== owner) throw new DiagnosticError(404, 'SSH session not found. Connect again.');
-    if (Date.now() - session.touched > 10 * 60_000 || Date.now() - session.created > 60 * 60_000) {
+    if (!validOwner(owner) || Date.now() - session.created > 60 * 60_000) {
       close(id);
       throw new DiagnosticError(410, 'SSH session expired. Connect again.');
     }
-    session.touched = Date.now();
     return session;
   }
   async function sftp(session: Connection) {
@@ -123,7 +132,7 @@ export function configureSsh(db: DatabaseSync, enabled: boolean, secureTransport
   return {
     closeOwner(owner: string) { for (const [id, session] of sessions) if (session.owner === owner) close(id); },
     close() { clearInterval(timer); for (const id of sessions.keys()) close(id); },
-    async handle(method: string, path: string, input: unknown, owner: string, localTransport = false) {
+    async handle(method: string, path: string, input: unknown, owner: string, localTransport = false, requestSignal?: AbortSignal) {
       if (!path.startsWith('/api/admin/diagnostics/ssh')) return undefined;
       if (method === 'GET' && path === '/api/admin/diagnostics/ssh') return { enabled, secureTransport: secureTransport || localTransport, hosts: list() };
       if (!enabled) throw new DiagnosticError(403, 'Enable NEXUS_SSH=on in the server environment to use SSH.');
@@ -213,18 +222,40 @@ export function configureSsh(db: DatabaseSync, enabled: boolean, secureTransport
           client.destroy();
           throw new DiagnosticError(502, verified ? 'SSH authentication or connection failed.' : 'SSH connection or trusted host-key verification failed.');
         } finally { connecting.delete(owner); }
+        if (!validOwner(owner)) { client.destroy(); throw new DiagnosticError(401, 'Sign in to continue.'); }
         const id = randomBytes(24).toString('hex');
-        const session: Connection = { client, owner, hostId: host.id, touched: Date.now(), created: Date.now(),
-          closed: false, output: '', offset: 0, inputSequence: 0 };
-        client.on('close', () => { session.closed = true; });
+        const session: Connection = { client, owner, hostId: host.id, created: Date.now(),
+          closed: false, output: '', offset: 0, inputSequence: 0, outputEvents: new EventEmitter() };
+        client.on('close', () => close(id));
         sessions.set(id, session);
         return { id, name: host.name };
       }
-      const match = /^\/api\/admin\/diagnostics\/ssh\/([a-f0-9]{48})(?:\/(stats|files|file|shell|output|input|resize))?$/.exec(path);
+      const match = /^\/api\/admin\/diagnostics\/ssh\/([a-f0-9]{48})(?:\/(stats|files|file|file-operation|shell|output|input|resize))?$/.exec(path);
       if (!match) throw new DiagnosticError(404, 'SSH endpoint not found.');
       const [, id, resource] = match;
       const session = owned(id, owner);
       if (!resource && method === 'DELETE') { close(id); return {}; }
+      if (resource === 'file-operation' && method === 'POST') {
+        if (session.fileOperation) throw new DiagnosticError(409, 'Wait for the current file operation to finish.');
+        const controller = new AbortController();
+        session.fileOperation = controller;
+        const timeout = setTimeout(() => {
+          controller.abort();
+          session.sftp?.end();
+          session.sftp = undefined;
+        }, 45_000);
+        try {
+          return await fileOperation(await sftp(session), input, controller.signal);
+        } catch (error) {
+          if (error instanceof DiagnosticError || error instanceof z.ZodError) throw error;
+          throw new DiagnosticError(502, controller.signal.aborted
+            ? 'The operation was interrupted. Refresh to check the remote files.'
+            : 'The remote machine could not complete the operation. Check permissions and refresh the folder.');
+        } finally {
+          clearTimeout(timeout);
+          session.fileOperation = undefined;
+        }
+      }
       if (resource === 'stats' && method === 'GET') return stats(session);
       if (resource === 'files' && method === 'POST') {
         const path = z.object({ path: remotePath }).parse(input).path;
@@ -263,7 +294,9 @@ export function configureSsh(db: DatabaseSync, enabled: boolean, secureTransport
                 const trim = session.output.length - 262144;
                 session.output = session.output.slice(trim); session.offset += trim;
               }
+              session.outputEvents.emit('change');
             });
+            stream.on('close', () => session.outputEvents.emit('change'));
             stream.on('error', () => {});
             resolve();
           });
@@ -272,7 +305,26 @@ export function configureSsh(db: DatabaseSync, enabled: boolean, secureTransport
         return {};
       }
       if (resource === 'output' && method === 'POST') {
-        const cursor = z.object({ cursor: z.number().int().nonnegative() }).parse(input).cursor;
+        const { cursor, wait } = z.object({ cursor: z.number().int().nonnegative(), wait: z.boolean().optional() }).parse(input);
+        if (wait && session.shell && !session.shell.destroyed && !session.closed && cursor === session.offset + session.output.length) {
+          if (session.waitingForOutput) throw new DiagnosticError(409, 'A shell output request is already waiting.');
+          session.waitingForOutput = true;
+          try {
+            await new Promise<void>(resolve => {
+              const finish = () => {
+                clearTimeout(timeout);
+                session.outputEvents.off('change', finish);
+                requestSignal?.removeEventListener('abort', finish);
+                resolve();
+              };
+              const timeout = setTimeout(finish, 15_000);
+              session.outputEvents.once('change', finish);
+              if (requestSignal?.aborted) finish();
+              else requestSignal?.addEventListener('abort', finish, { once: true });
+            });
+          } finally { session.waitingForOutput = false; }
+        }
+        if (!validOwner(owner)) throw new DiagnosticError(401, 'Sign in to continue.');
         const start = Math.max(session.offset, Math.min(cursor, session.offset + session.output.length));
         return { output: session.output.slice(start - session.offset), cursor: session.offset + session.output.length,
           truncated: cursor < session.offset, closed: session.closed || session.shell?.destroyed === true };

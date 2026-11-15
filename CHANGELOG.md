@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Put SSH machines in the main navigation and keep concurrent sessions open while switching dashboard views. Close them on sign-out or after 15 minutes of inactivity.
+- Add an SFTP file manager with folder navigation, sorting and filtering, copy, cut, paste, rename, confirmed deletion, upload, and download.
+- Reduce terminal input and echo latency by batching input and fetching output as it arrives.
 - Make an SSH host fingerprint optional at registration. Review and trust the server's key on first connection when no fingerprint was entered.
 - Open and focus the password form after saving an SSH machine over HTTPS or a private tunnel.
 - Made SSH password authentication the default, added single-prompt PAM support, encrypted browser-local SSH password vaults, and direct-loopback access for private SSH tunnels.
