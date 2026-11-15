@@ -120,7 +120,7 @@ export function createApp(data: string, dist: string, origin: string, setupToken
   }
 
   const consoleAdmin = configureAdministration(db);
-  const diagnostics = configureDiagnostics(db);
+  const diagnostics = configureDiagnostics(db, Boolean(kasm));
   const configuredOrigin = new URL(origin);
   const ssh = configureSsh(db, process.env.NEXUS_SSH === 'on',
     configuredOrigin.protocol === 'https:' || ['localhost', '127.0.0.1', '[::1]'].includes(configuredOrigin.hostname));

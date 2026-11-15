@@ -54,6 +54,10 @@ The local browser suite exercised uptime checks, enabling and pausing monitoring
 
 The live Ubuntu deployment preserved the saved configuration and now collects observations for its configured services. A visible Chrome check verified host statistics, network test results, and the HTTP credential-entry restriction. Real operator SSH credentials and a public HTTPS tunnel remain deployment-specific checks.
 
+The diagnostic navigation regression passed against Ubuntu. It opened Diagnostics directly from the main header, verified embedded service opening and focus return, checked new-tab links for a global preference, and verified that a per-tile embedded override still opens the service view. The URL and title both use the tile launch behavior. Viewer navigation checks continue to hide Diagnostics.
+
+The installed Ubuntu service was checked in visible Chrome. Diagnostics opened from the main header, a saved service opened in the embedded view, and closing it returned focus to its diagnostic link.
+
 ## Ubuntu verification - 2026-11-13
 
 The discovery/import refinement was exercised in the visible in-app browser against a disposable Ubuntu-hosted instance, with a separate state directory from the saved dashboard. The same locally built release was then promoted to the existing port 3000 instance after a SQLite backup. The existing dashboard configuration was preserved.

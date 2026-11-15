@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Moved Diagnostics to the main header and made diagnostic service names and URLs follow tile opening preferences.
+
 - Added administrator diagnostics with sampled service uptime, host metrics, browser-to-server throughput testing, and optional SSH machines with Linux statistics, SFTP browsing, and an interactive shell.
 
 - Initialize saved tile tags before opening the editor to prevent an empty field during the first render.

@@ -9,7 +9,7 @@ export class DiagnosticError extends Error {
   constructor(status: number, message: string) { super(message); this.status = status; }
 }
 
-export function configureDiagnostics(db: DatabaseSync) {
+export function configureDiagnostics(db: DatabaseSync, remoteBrowser = false) {
   let running: Promise<void> | undefined;
   let stopped = false;
   let sampleVersion = 0;
@@ -85,10 +85,10 @@ export function configureDiagnostics(db: DatabaseSync) {
       host: { ...machineInfo(), load: loadavg(), cpuTimes: cpus().map(cpu => cpu.times),
         interfaces: Object.entries(networkInterfaces()).flatMap(([name, addresses]) =>
           (addresses ?? []).map(address => ({ name, address: address.address, family: address.family, internal: address.internal }))) },
-      services: db.prepare('SELECT id,title,url,category FROM tiles ORDER BY category,title').all().map(tile => {
+      services: db.prepare('SELECT id,title,url,category,open_mode FROM tiles ORDER BY category,title').all().map(({ open_mode, ...tile }) => {
         const state = histories.get(JSON.stringify([tile.id, tile.url]));
         const percentage = (up = 0, count = 0) => count ? Math.round(up / count * 10000) / 100 : null;
-        return { ...tile, last: state?.history.at(-1) ?? null, samples: state?.samples ?? 0, daySamples: state?.daySamples ?? 0,
+        return { ...tile, openMode: open_mode, remoteBrowser, last: state?.history.at(-1) ?? null, samples: state?.samples ?? 0, daySamples: state?.daySamples ?? 0,
           dayPercent: percentage(state?.dayUp, state?.daySamples), weekPercent: percentage(state?.up, state?.samples), history: state?.history ?? [] };
       }),
     };

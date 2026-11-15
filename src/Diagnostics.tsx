@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { MachineConsole } from './MachineConsole.js';
+import type { OpenMode } from './preferences.js';
 
 export type DiagnosticApi = <T>(path: string, method?: string, body?: object) => Promise<T>;
 export function formatBytes(value: number) {
@@ -12,17 +13,18 @@ export function formatUptime(seconds: number) {
   return Math.floor(seconds / 86400) + 'd ' + Math.floor(seconds / 3600 % 24) + 'h ' + Math.floor(seconds / 60 % 60) + 'm';
 }
 type Sample = { at: string; available: boolean; status: number | null; latency: number; error?: string };
+export type DiagnosticService = { id: number; title: string; url: string; category: string; openMode?: OpenMode | 'default'; remoteBrowser?: boolean };
 type Summary = {
   enabled: boolean; running: boolean; intervalSeconds: number;
   host: { hostname: string; os: string; kernel: string; architecture: string; cpu: string; logicalCpus: number;
     totalMemory: number; freeMemory: number; machineUptime: number; serviceUptime: number; serviceMemory: number;
     load: number[]; cpuTimes: { user: number; nice: number; sys: number; idle: number; irq: number }[];
     interfaces: { name: string; address: string; family: string; internal: boolean }[] };
-  services: { id: number; title: string; url: string; category: string; last: Sample | null; samples: number; daySamples: number;
-    dayPercent: number | null; weekPercent: number | null; history: Sample[] }[];
+  services: (DiagnosticService & { last: Sample | null; samples: number; daySamples: number;
+    dayPercent: number | null; weekPercent: number | null; history: Sample[] })[];
 };
 
-export function Diagnostics({ api }: { api: DiagnosticApi }) {
+export function Diagnostics({ api, serviceLink }: { api: DiagnosticApi; serviceLink: (service: DiagnosticService, label: string) => ReactNode }) {
   const [tab, setTab] = useState('services');
   const [summary, setSummary] = useState<Summary>();
   const [error, setError] = useState('');
@@ -80,9 +82,9 @@ export function Diagnostics({ api }: { api: DiagnosticApi }) {
         ? 'Monitoring every 60 seconds while StackJetty is running.' : 'Monitoring is paused. Run a check or enable automatic monitoring.'}</p>
       {summary && services.length === 0 && <p>No matching services.</p>}
       <div className="diagnostic-services">{services.map(service => <article key={service.id}>
-        <div className="diagnostic-service-head"><strong>{service.title}</strong><span className={service.last?.available ? 'state-up' : 'muted'}>
+        <div className="diagnostic-service-head">{serviceLink(service, service.title)}<span className={service.last?.available ? 'state-up' : 'muted'}>
           {service.last ? service.last.available ? 'Reachable' : 'Unavailable' : 'No checks yet'}</span></div>
-        <small className="muted diagnostic-url">{service.url}</small>
+        <div className="muted diagnostic-url">{serviceLink(service, service.url)}</div>
         <dl className="metric-grid">
           <div><dt>24-hour availability</dt><dd>{service.dayPercent === null ? '—' : service.dayPercent + '%'} <small>({service.daySamples} checks)</small></dd></div>
           <div><dt>7-day availability</dt><dd>{service.weekPercent === null ? '—' : service.weekPercent + '%'} <small>({service.samples} checks)</small></dd></div>

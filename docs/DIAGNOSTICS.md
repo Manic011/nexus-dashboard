@@ -1,6 +1,6 @@
 # Diagnostics and SSH machines
 
-Open **Administration → Diagnostics** as an administrator. The area has four sections. Editors and viewers cannot access these APIs.
+Open **Diagnostics** in the main header as an administrator. The area has four sections. Editors and viewers cannot access these APIs.
 
 ## Service uptime
 
@@ -9,6 +9,8 @@ Open **Administration → Diagnostics** as an administrator. The area has four s
 Each check sends an HTTP HEAD request to the saved URL. If the service rejects HEAD with HTTP 405, StackJetty makes a GET request and discards the response body. Redirects are recorded without following them. HTTP responses below 500 count as reachable, including sign-in responses such as 401 and 403. HTTP 5xx responses, connection failures, timeouts, and certificate verification failures count as unavailable. A reachable service may still have an application-level problem.
 
 Each card shows the latest result and response time, sampled availability for 24 hours and seven days, the number of observations, and the last 30 checks. Automatic checks continue without an open browser while the StackJetty service runs. History is retained in the SQLite database for seven days and is included in full-database backups. Tile JSON exports and configuration snapshots do not include monitoring history.
+
+Select a service name or URL to open it using the tile's saved mode, or your **Open tiles by default** preference when the tile uses your default. Embedded and Kasm views stay inside StackJetty. Closing the view returns focus to the service link.
 
 Availability percentages cover recorded observations. StackJetty cannot reconstruct outages before monitoring began or while its own service was stopped. Changing a tile's URL starts a separate history for that destination. Checks run with up to six concurrent requests and a five-second request timeout. A large inventory can take longer than the sampling interval. StackJetty completes the current batch before starting another.
 

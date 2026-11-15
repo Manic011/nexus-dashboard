@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
 import { ArrowUpRight, Boxes, Globe, LayoutGrid, LogOut, PanelTop, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import { createRoot } from 'react-dom/client';
 import './style.css';
@@ -11,6 +11,7 @@ import { TileGrid } from './CategoryDivider.js';
 import { categoryName, orderedCategories, orderGroupedTiles, type LayoutCategories } from './layoutCategories.js';
 import { arrangeTiles, comparePositions, gridPlacement, tileKey, type Position } from './tileLayout.js';
 import { parseTags } from './tags.js';
+const Diagnostics = lazy(() => import('./Diagnostics.js').then(module => ({ default: module.Diagnostics })));
 
 type Session = { setup: boolean; setupTokenRequired: boolean; username: string | null; role?: 'admin' | 'editor' | 'viewer' | null; shared?: boolean };
 type Jellyfin = { tiles: number[]; state?: 'available' | 'unavailable'; streams?: number };
@@ -34,7 +35,7 @@ function App() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [sharedLogin, setSharedLogin] = useState(false);
-  const [admin, setAdmin] = useState(false);
+  const [page, setPage] = useState<'dashboard' | 'administration' | 'diagnostics'>('dashboard');
   const [editingLayout, setEditingLayout] = useState(false);
   const [layoutMessage, setLayoutMessage] = useState('');
   const layoutTrigger = useRef<HTMLButtonElement>(null);
@@ -49,6 +50,13 @@ function App() {
   const launchRemote = useCallback(() => api<{ url: string }>('admin/remote-browser/' + browsingId), [browsingId]);
   function openingMode(tile: Tile) {
     return tile.openMode && tile.openMode !== 'default' ? tile.openMode : preferences.value.openMode;
+  }
+  function serviceLink(tile: Tile, label = tile.title, className = 'tile-launch') {
+    return openingMode(tile) === 'new-tab'
+      ? <a className={className} href={tile.url} target="_blank" rel="noopener noreferrer">{label}<ArrowUpRight size={16} aria-hidden="true" /></a>
+      : <button className={className} aria-haspopup="dialog" onClick={event => {
+        serviceTrigger.current = event.currentTarget; setBrowsing(tile);
+      }}>{label}<PanelTop size={16} aria-hidden="true" /></button>;
   }
   const [deleting, setDeleting] = useState<Tile | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -152,9 +160,7 @@ function App() {
           <button aria-label={'Edit ' + tile.title} onClick={() => openTileEditor(tile)}><Pencil size={16} /></button>
           <button aria-label={'Delete ' + tile.title} onClick={() => { setError(''); setDeleting(tile); }}><Trash2 size={16} /></button>
         </div>}</div>
-        {openingMode(tile) === 'new-tab'
-          ? <a className="tile-launch" href={tile.url} target="_blank" rel="noopener noreferrer">{tile.title}<ArrowUpRight size={16} aria-hidden="true" /></a>
-          : <button className="tile-launch" aria-haspopup="dialog" onClick={event => { serviceTrigger.current = event.currentTarget; setBrowsing(tile); }}>{tile.title}<PanelTop size={16} aria-hidden="true" /></button>}
+        {serviceLink(tile)}
         <p className="muted">{tile.description || new URL(tile.url).host}</p>
         {(showCategory || tile.tags.length > 0) && <div className="tags">
           {showCategory && <button className="tile-category" aria-label={`Category: ${label}`} aria-pressed={!preview && activeCategory === categoryKey} onClick={() => setCategoryFilter(activeCategory === categoryKey ? '' : categoryKey)}>{label}</button>}
@@ -202,7 +208,12 @@ function App() {
   </main>;
 
   return <>
-    <header><div className="shell top">{brand}<div className="account">{session.role === 'admin' && <button disabled={busy} onClick={() => { setEditingLayout(false); setAdmin(value => !value); }}>{admin ? 'Dashboard' : 'Administration'}</button>}<span>{session.username}</span><details className="preferences"><summary>Appearance</summary><div className="preferences-panel">
+    <header><div className="shell top">{brand}<div className="account">{session.role === 'admin' && <nav className="main-nav" aria-label="Main navigation">
+      {([['dashboard', 'Dashboard'], ['diagnostics', 'Diagnostics'], ['administration', 'Administration']] as const).map(([id, label]) =>
+        <button key={id} disabled={busy} aria-current={page === id ? 'page' : undefined} onClick={() => {
+          setEditingLayout(false); setPage(id);
+        }}>{label}</button>)}
+    </nav>}<span>{session.username}</span><details className="preferences"><summary>Appearance</summary><div className="preferences-panel">
       <label><span>Theme</span><select aria-label="Theme" value={preferences.value.theme} onChange={event => preferences.update({ theme: event.target.value === 'light' ? 'light' : event.target.value === 'dark' ? 'dark' : 'system' })}><option value="system">System</option><option value="dark">Dark</option><option value="light">Light</option></select></label>
       <label><span>Card density</span><select aria-label="Card density" value={preferences.value.density} onChange={event => preferences.update({ density: event.target.value === 'compact' ? 'compact' : 'comfortable' })}><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></label>
       <label><span>Open tiles by default</span><select aria-label="Open tiles by default" value={preferences.value.openMode} onChange={event => {
@@ -218,11 +229,14 @@ function App() {
       setEditingLayout(false);
       setLayoutMessage('');
       clearFilters();
-      setAdmin(false);
+      setPage('dashboard');
     })}><LogOut size={16} /> Sign out</button></div></div></header>
     <main className="shell dashboard">
       {!editing && !deleting && warning}
-      {admin ? <><h1>Administration</h1><Administration api={api} onImport={refresh} categories={[...categories.values()]} /></> : <><div className="intro"><div><h1>Applications</h1><p className="muted">Organize and open the services you use.</p></div>
+      {page === 'administration' ? <><h1>Administration</h1><Administration api={api} onImport={refresh} categories={[...categories.values()]} /></>
+      : page === 'diagnostics' ? <><h1>Diagnostics</h1><Suspense fallback={<p role="status">Loading diagnostics…</p>}>
+        <Diagnostics api={api} serviceLink={(service, label) => serviceLink({ ...service, description: '', tags: [] }, label, 'diagnostic-launch')} />
+      </Suspense></> : <><div className="intro"><div><h1>Applications</h1><p className="muted">Organize and open the services you use.</p></div>
         <div className="dashboard-actions">
           <button ref={layoutTrigger} disabled={busy} hidden={!tiles.length || tilesLoading} aria-expanded={editingLayout} onClick={() => {
             setLayoutMessage('');

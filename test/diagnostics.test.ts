@@ -34,11 +34,12 @@ test('diagnostic monitoring and SSH sessions enforce access, fingerprints and ow
     cookie = setup.headers.get('set-cookie')!.split(';')[0];
     const adminCookie = cookie;
     const serviceAddress = service.address(); assert.ok(serviceAddress && typeof serviceAddress !== 'string');
-    await request('tiles', 'POST', { title: 'Authenticated service', description: '', category: 'General', url: 'http://127.0.0.1:' + serviceAddress.port });
+    await request('tiles', 'POST', { title: 'Authenticated service', description: '', category: 'General', openMode: 'new-tab', url: 'http://127.0.0.1:' + serviceAddress.port });
     assert.equal((await request('admin/diagnostics/check', 'POST')).status, 200);
     const summary = await (await request('admin/diagnostics')).json();
     assert.equal(summary.services[0].last.status, 401);
     assert.equal(summary.services[0].dayPercent, 100);
+    assert.equal(summary.services[0].openMode, 'new-tab');
     assert.equal(summary.enabled, false);
     const sshAddress = sshServer.address(); assert.ok(sshAddress && typeof sshAddress !== 'string');
     const host = { name: 'Fixture machine', host: '127.0.0.1', port: sshAddress.port, username: 'fixture', fingerprint };

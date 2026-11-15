@@ -441,6 +441,7 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
       await button('Imported app').waitFor();
       assert.equal(await button('Add tile').count(), 0);
       assert.equal(await button('Administration').count(), 0);
+      assert.equal(await button('Diagnostics').count(), 0);
       await button('Customize layout').click();
       await field('Layout').selectOption('custom');
       assert.equal(await page.getByRole('button', { name: /^Local tools, row/ }).count(), 0);
@@ -511,9 +512,30 @@ test('diagnostic screens, network test, SSH statistics, files and shell', { time
     await field('URL').fill(origin);
     await button('Save tile').click();
     await button('Diagnostic target').waitFor();
-    await button('Administration').click();
     await button('Diagnostics').click();
+    assert.equal(await page.getByRole('navigation', { name: 'Administration sections' }).count(), 0);
     await page.getByRole('heading', { name: 'Service uptime', exact: true }).waitFor();
+    await button('Diagnostic target').click();
+    const serviceDialog = page.getByRole('dialog');
+    await serviceDialog.waitFor();
+    await serviceDialog.getByRole('heading', { name: 'Diagnostic target', exact: true }).waitFor();
+    assert.equal(page.url(), origin + '/');
+    await button('Close service view').click();
+    assert.ok(await button('Diagnostic target').evaluate(element => document.activeElement === element));
+    await page.getByText('Appearance', { exact: true }).click();
+    await field('Open tiles by default').selectOption('new-tab');
+    await page.getByText('Appearance', { exact: true }).click();
+    const diagnosticLink = page.getByRole('link', { name: 'Diagnostic target', exact: true });
+    assert.equal(await diagnosticLink.getAttribute('target'), '_blank');
+    assert.equal(await page.getByRole('link', { name: origin, exact: true }).getAttribute('target'), '_blank');
+    await button('Dashboard').click();
+    await button('Edit Diagnostic target').click();
+    await field('Open this tile').selectOption('embedded');
+    await button('Save tile').click();
+    await button('Diagnostics').click();
+    await button(origin).click();
+    await serviceDialog.waitFor();
+    await button('Close service view').click();
     await button('Check services now').click();
     await page.getByText('Reachable', { exact: true }).waitFor();
     await button('Enable monitoring').click();
@@ -557,6 +579,8 @@ test('diagnostic screens, network test, SSH statistics, files and shell', { time
     await button('Remove Fixture machine').click();
     await button('Confirm machine removal').click();
     await page.getByText('No saved machines.', { exact: true }).waitFor();
+    await button('Administration').click();
+    assert.equal(await page.getByRole('navigation', { name: 'Administration sections' }).getByRole('button', { name: 'Diagnostics', exact: true }).count(), 0);
   } finally {
     await browser?.close();
     if (app?.listening) {
