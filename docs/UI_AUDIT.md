@@ -36,6 +36,8 @@ The personal layout regression checks drag and keyboard placement, tile width, r
 
 The category and tag regression verified combined highlights, continued access to tiles outside the highlights, filtering from a custom tile’s category, and packing different categories onto separate rows. The browser suite passed on Ubuntu and the live service served the verified build.
 
+The layout preview regression compared the position, width, and height of a preview card to its saved dashboard card at desktop and 320-pixel widths. It also checked grouped previews and verified that tile launch controls cannot receive focus in the preview. The browser suite passed on Ubuntu, and the live service served the verified build.
+
 ## Ubuntu verification - 2026-11-13
 
 The discovery/import refinement was exercised in the visible in-app browser against a disposable Ubuntu-hosted instance, with a separate state directory from the saved dashboard. The same locally built release was then promoted to the existing port 3000 instance after a SQLite backup. The existing dashboard configuration was preserved.

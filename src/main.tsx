@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
 import { ArrowUpRight, Boxes, Globe, LayoutGrid, LogOut, PanelTop, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import { createRoot } from 'react-dom/client';
 import './style.css';
@@ -115,7 +115,6 @@ function App() {
     (!activeTag || tile.tags.some(tag => tag.toLowerCase() === activeTag)) &&
     [tile.title, tile.description, tile.category, tile.url, ...tile.tags]
       .some(value => value.toLowerCase().includes(query.trim().toLowerCase())));
-  const groups = Map.groupBy(visible, tile => tile.category.toLowerCase());
   const customLayout = preferences.value.tileLayout && arrangeTiles(tiles, preferences.value.tileLayout);
   const customTiles = customLayout && [...visible].sort((a, b) => comparePositions(customLayout.positions[tileKey(a)], customLayout.positions[tileKey(b)]));
   const filtered = Boolean(activeCategory || activeTag || query.trim());
@@ -130,28 +129,40 @@ function App() {
     layoutTrigger.current?.focus();
   }
 
-  function renderTile(tile: Tile, position?: Position) {
+  function renderTile(tile: Tile, { position, showCategory = Boolean(customLayout), preview = false, overlay }: {
+    position?: Position; showCategory?: boolean; preview?: boolean; overlay?: ReactNode;
+  } = {}) {
     const placement = position && gridPlacement(position);
     const categoryKey = tile.category.toLowerCase();
-    return <article key={tile.id} className="tile app-tile" style={placement && {
+    return <article key={tile.id} aria-label={preview && !overlay ? tile.title : undefined} className={overlay ? 'tile app-tile layout-card' : 'tile app-tile'} style={placement && {
       '--tile-row': placement.gridRow, '--tile-column': placement.gridColumn,
     } as CSSProperties}>
-      <div className="tile-top"><span className="tile-icon"><Globe size={19} /></span>{session?.role !== 'viewer' && <div className="actions">
-        <button aria-label={'Edit ' + tile.title} onClick={() => { setError(''); setEditing(tile); }}><Pencil size={16} /></button>
-        <button aria-label={'Delete ' + tile.title} onClick={() => { setError(''); setDeleting(tile); }}><Trash2 size={16} /></button>
-      </div>}</div>
-      {openingMode(tile) === 'new-tab'
-        ? <a className="tile-launch" href={tile.url} target="_blank" rel="noopener noreferrer">{tile.title}<ArrowUpRight size={16} aria-hidden="true" /></a>
-        : <button className="tile-launch" aria-haspopup="dialog" onClick={event => { serviceTrigger.current = event.currentTarget; setBrowsing(tile); }}>{tile.title}<PanelTop size={16} aria-hidden="true" /></button>}
-      <p className="muted">{tile.description || new URL(tile.url).host}</p>
-      {(customLayout || tile.tags.length > 0) && <div className="tags">
-        {customLayout && <button className="tile-category" aria-label={`Category: ${tile.category}`} aria-pressed={activeCategory === categoryKey} onClick={() => setCategoryFilter(activeCategory === categoryKey ? '' : categoryKey)}>{tile.category}</button>}
-        {tile.tags.map(tag => <button key={tag} aria-pressed={activeTag === tag.toLowerCase()} onClick={() => setTagFilter(activeTag === tag.toLowerCase() ? '' : tag.toLowerCase())}>{tag}</button>)}
-      </div>}
-      {jellyfin?.tiles.includes(tile.id) && <p className="muted">{jellyfin.state === 'available'
-        ? `${jellyfin.streams} active ${jellyfin.streams === 1 ? 'stream' : 'streams'}`
-        : 'Jellyfin activity unavailable'}</p>}
+      <div inert={preview}>
+        <div className="tile-top"><span className="tile-icon"><Globe size={19} /></span>{session?.role !== 'viewer' && <div className="actions">
+          <button aria-label={'Edit ' + tile.title} onClick={() => { setError(''); setEditing(tile); }}><Pencil size={16} /></button>
+          <button aria-label={'Delete ' + tile.title} onClick={() => { setError(''); setDeleting(tile); }}><Trash2 size={16} /></button>
+        </div>}</div>
+        {openingMode(tile) === 'new-tab'
+          ? <a className="tile-launch" href={tile.url} target="_blank" rel="noopener noreferrer">{tile.title}<ArrowUpRight size={16} aria-hidden="true" /></a>
+          : <button className="tile-launch" aria-haspopup="dialog" onClick={event => { serviceTrigger.current = event.currentTarget; setBrowsing(tile); }}>{tile.title}<PanelTop size={16} aria-hidden="true" /></button>}
+        <p className="muted">{tile.description || new URL(tile.url).host}</p>
+        {(showCategory || tile.tags.length > 0) && <div className="tags">
+          {showCategory && <button className="tile-category" aria-label={`Category: ${tile.category}`} aria-pressed={!preview && activeCategory === categoryKey} onClick={() => setCategoryFilter(activeCategory === categoryKey ? '' : categoryKey)}>{tile.category}</button>}
+          {tile.tags.map(tag => <button key={tag} aria-pressed={!preview && activeTag === tag.toLowerCase()} onClick={() => setTagFilter(activeTag === tag.toLowerCase() ? '' : tag.toLowerCase())}>{tag}</button>)}
+        </div>}
+        {jellyfin?.tiles.includes(tile.id) && <p className="muted">{jellyfin.state === 'available'
+          ? `${jellyfin.streams} active ${jellyfin.streams === 1 ? 'stream' : 'streams'}`
+          : 'Jellyfin activity unavailable'}</p>}
+      </div>
+      {overlay}
     </article>;
+  }
+
+  function renderGroups(items: Tile[], preview = false) {
+    return [...Map.groupBy(items, tile => tile.category.toLowerCase())].map(([category, group]) => <section className="group" key={category}>
+      <h2>{categories.get(category)} <span className="group-count">{group.length}</span></h2>
+      <div className="grid">{group.map(tile => renderTile(tile, { preview, showCategory: false }))}</div>
+    </section>);
   }
 
   if (!session?.username) return <main className="auth">
@@ -205,6 +216,8 @@ function App() {
         </div>
       </div>
       {editingLayout ? <LayoutEditor tiles={tiles} categories={categories} tags={tags} initialCategory={activeCategory} initialTag={activeTag}
+        renderTile={(tile, position, overlay) => renderTile(tile, { position, overlay, preview: true, showCategory: true })}
+        groupedPreview={renderGroups(tiles, true)}
         saved={customLayout} onCancel={closeLayout} onSave={tileLayout => {
         const persisted = preferences.update({ tileLayout });
         setLayoutMessage(persisted ? 'Layout saved.' : 'Layout applied for this session. Browser storage is unavailable.');
@@ -221,15 +234,12 @@ function App() {
         {(query || categoryFilter || tagFilter) && <button onClick={clearFilters}>Clear filters</button>}
       </div>
       {tilesLoading && <p role="status">Loading applications…</p>}
-      {!tilesLoading && !error && groups.size === 0 && <section className="empty"><Globe size={28} /><h2>{tiles.length ? 'No matching applications' : 'No applications yet'}</h2><p className="muted">{tiles.length ? 'Try a different search or clear your filters.' : session.role === 'viewer' ? 'Applications will appear here when an editor adds them.' : 'Add a tile to save a link to your first service.'}</p></section>}
+      {!tilesLoading && !error && visible.length === 0 && <section className="empty"><Globe size={28} /><h2>{tiles.length ? 'No matching applications' : 'No applications yet'}</h2><p className="muted">{tiles.length ? 'Try a different search or clear your filters.' : session.role === 'viewer' ? 'Applications will appear here when an editor adds them.' : 'Add a tile to save a link to your first service.'}</p></section>}
       {customTiles && customLayout ? <div className="custom-layout">
         <div className={filtered ? 'grid' : 'grid custom-grid'} data-columns={customLayout.columns}>
-          {customTiles.map(tile => renderTile(tile, filtered ? undefined : customLayout.positions[tileKey(tile)]))}
+          {customTiles.map(tile => renderTile(tile, { position: filtered ? undefined : customLayout.positions[tileKey(tile)] }))}
         </div>
-      </div> : [...groups].map(([category, items]) => <section className="group" key={category}>
-        <h2>{categories.get(category)} <span className="group-count">{items.length}</span></h2>
-        <div className="grid">{items.map(tile => renderTile(tile))}</div>
-      </section>)}
+      </div> : renderGroups(visible)}
       </>}
     </>}
     </main>

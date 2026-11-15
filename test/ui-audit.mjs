@@ -98,11 +98,24 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
       await board.getByText(/There is not enough room/).waitFor();
       await button('Empty cell, row 2, column 1').press('Enter');
       await button('Other app, row 2, column 1').waitFor();
+      await button('Preview layout').click();
+      const previewCard = board.getByRole('article', { name: 'Other app' });
+      assert.ok(await previewCard.locator('.tile-launch').evaluate(launch => {
+        launch.focus();
+        return launch.closest('[inert]') && document.activeElement !== launch;
+      }));
+      const cardGeometry = card => {
+        const grid = card.parentElement.getBoundingClientRect();
+        const box = card.getBoundingClientRect();
+        return { x: box.x - grid.x, y: box.y - grid.y, width: box.width, height: box.height };
+      };
+      const desktopPreview = await previewCard.evaluate(cardGeometry);
       await button('Save layout').click();
       await page.getByText('Layout saved.', { exact: true }).waitFor();
       await page.reload();
       const customCard = page.locator('.app-tile').filter({ has: button('Other app') });
       await customCard.waitFor();
+      assert.deepEqual(await customCard.evaluate(cardGeometry), desktopPreview);
       assert.equal(await customCard.evaluate(card => getComputedStyle(card).gridRowStart), '2');
       assert.equal(await customCard.evaluate(card => getComputedStyle(card).gridColumnEnd), 'span 2');
       await customCard.getByRole('button', { name: 'Category: Utilities' }).click();
@@ -114,9 +127,14 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
       await button('Clear filters').click();
       await fits(320, 568);
       assert.equal(await customCard.evaluate(card => getComputedStyle(card).gridRowStart), 'auto');
+      const mobileCard = await customCard.evaluate(cardGeometry);
       await button('Customize layout').click();
       await fits(320, 568);
+      await button('Preview layout').click();
+      assert.deepEqual(await previewCard.evaluate(cardGeometry), mobileCard);
+      await button('Back to editing').click();
       await field('Layout').selectOption('categories');
+      await board.getByRole('heading', { name: /^Utilities/ }).waitFor();
       await board.getByRole('button', { name: 'Cancel' }).click();
       await page.locator('.custom-grid').waitFor();
       await button('Customize layout').click();
