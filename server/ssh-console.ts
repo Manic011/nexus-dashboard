@@ -1,11 +1,13 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { EventEmitter } from 'node:events';
+import { EventEmitter, setMaxListeners } from 'node:events';
 import { StringDecoder } from 'node:string_decoder';
 import type { DatabaseSync } from 'node:sqlite';
 import ssh2, { type Client, type ClientChannel, type SFTPWrapper } from 'ssh2';
 import { z } from 'zod';
 import { DiagnosticError } from './diagnostics.ts';
 import { fileOperation } from './ssh-files.ts';
+import { discoveryInterfaces } from './discovery.ts';
+import { planWebScan, webScope } from './web-discovery.ts';
 
 const hostFingerprint = z.string().trim().regex(/^SHA256:[A-Za-z0-9+/]{43}$/);
 const hostInput = z.object({
@@ -41,9 +43,35 @@ function deadline<T>(work: Promise<T>, milliseconds = 10_000): Promise<T> {
   });
 }
 
-export function configureSsh(db: DatabaseSync, enabled: boolean) {
+function detectSsh(host: string, port: number, signal: AbortSignal) {
+  return new Promise<boolean>(resolve => {
+    const client = new ssh2.Client();
+    let finished = false;
+    const abort = () => finish(false);
+    function finish(found: boolean) {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timeout);
+      signal.removeEventListener('abort', abort);
+      resolve(found);
+      queueMicrotask(() => client.destroy());
+    }
+    const timeout = setTimeout(() => finish(false), 1200);
+    if (signal.aborted) return abort();
+    signal.addEventListener('abort', abort, { once: true });
+    client.on('error', () => finish(false));
+    client.once('close', () => finish(false));
+    client.connect({ host, port, username: 'discovery', readyTimeout: 1200, hostVerifier() {
+      finish(true);
+      return false; // End key negotiation before exchanging authentication messages.
+    } });
+  });
+}
+
+export function configureSsh(db: DatabaseSync, enabled: boolean, discoveryEnabled: boolean) {
   const sessions = new Map<string, Connection>();
   const connecting = new Set<string>();
+  let scanning = false;
   const ownerQuery = db.prepare("SELECT 1 FROM sessions JOIN accounts ON accounts.id=sessions.account_id WHERE token=? AND expires>? AND idle_until>? AND role='admin'");
   function validOwner(owner: string) {
     const now = Date.now();
@@ -159,8 +187,47 @@ export function configureSsh(db: DatabaseSync, enabled: boolean) {
     close() { clearInterval(timer); for (const id of sessions.keys()) close(id); },
     async handle(method: string, path: string, input: unknown, owner: string, secureTransport: boolean, requestSignal?: AbortSignal) {
       if (!path.startsWith('/api/admin/diagnostics/ssh')) return undefined;
-      if (method === 'GET' && path === '/api/admin/diagnostics/ssh') return { enabled, secureTransport, hosts: list() };
+      if (method === 'GET' && path === '/api/admin/diagnostics/ssh') {
+        return { enabled, secureTransport, discoveryEnabled, hosts: list() };
+      }
       if (!enabled) throw new DiagnosticError(403, 'Enable NEXUS_SSH=on in the server environment to use SSH.');
+      if (path === '/api/admin/diagnostics/ssh/discover') {
+        if (!discoveryEnabled || !secureTransport) {
+          throw new DiagnosticError(403, 'SSH discovery requires server enablement and HTTPS or a private localhost connection.');
+        }
+        if (method === 'GET') return discoveryInterfaces()
+          .filter(item => /^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.)/.test(item.address))
+          .map(item => ({ name: item.name, range: webScope(item.address, Number(item.cidr.split('/')[1])).cidr }));
+        if (method === 'POST') {
+          if (scanning) throw new DiagnosticError(429, 'Another SSH discovery scan is running.');
+          const { range, ports } = z.object({ range: z.string().trim().min(1).max(1024), ports: z.string().trim().min(1).max(100) }).parse(input);
+          let plan: ReturnType<typeof planWebScan>;
+          try { plan = planWebScan('127.0.0.1', 32, { range, ports }); }
+          catch (error) { throw new DiagnosticError(400, error instanceof Error ? error.message : 'Check the scan range and ports.'); }
+          if (plan.hosts.length > 254 || plan.ports.length > 8 || plan.checks > 512) {
+            throw new DiagnosticError(400, 'Use up to 254 addresses, 8 ports, and 512 address and port combinations per scan.');
+          }
+          scanning = true;
+          let next = 0;
+          const results: { host: string; port: number; saved: boolean }[] = [];
+          const saved = new Set(list().map(host => host.host + ':' + host.port));
+          try {
+            const signal = AbortSignal.any([requestSignal ?? new AbortController().signal, AbortSignal.timeout(30_000)]);
+            setMaxListeners(32, signal);
+            const aborted = () => signal.aborted || !validOwner(owner);
+            await Promise.all(Array.from({ length: Math.min(plan.checks, 32) }, async () => {
+              while (!aborted() && next < plan.checks) {
+                const index = next++;
+                const host = plan.hosts[Math.floor(index / plan.ports.length)];
+                const port = plan.ports[index % plan.ports.length];
+                if (await detectSsh(host, port, signal)) results.push({ host, port, saved: saved.has(host + ':' + port) });
+              }
+            }));
+            if (aborted()) throw new DiagnosticError(408, 'The SSH discovery scan was interrupted. Try fewer addresses or ports.');
+            return { results: results.sort((a, b) => a.host.localeCompare(b.host, 'en', { numeric: true }) || a.port - b.port), checked: next };
+          } finally { scanning = false; }
+        }
+      }
       if (method === 'GET' && path === '/api/admin/diagnostics/ssh/sessions') {
         return { ids: [...sessions].filter(([, session]) => session.owner === owner).map(([id]) => id) };
       }

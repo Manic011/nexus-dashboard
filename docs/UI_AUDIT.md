@@ -52,6 +52,8 @@ The grouped layout regression drags an entire category by its header handle, che
 
 ## Diagnostics verification
 
+The local and Ubuntu browser tests found a fixture SSH server on a custom port, used its result to fill in the machine form, and continued through host key review. API tests verified that a web listener was excluded, public targets and oversized ranges were rejected, and a viewer could not scan.
+
 The SSH bulk actions bar is visible without a toggle, including when the inventory is empty. The updated browser flow passed locally and against a disposable Ubuntu instance. The live frontend was verified on both HTTP and trusted LAN HTTPS.
 
 The SSH inventory browser regression passed locally and against a disposable Ubuntu instance at mobile width. It covered renaming a machine, assigning both records to a group, filtering by name, connecting both with the shared vault, disconnecting one machine, disconnecting the remaining selection, and removing both records. The API regression also checks atomic batch updates, viewer denial, session ownership, and clearing the trusted fingerprint after a port change.

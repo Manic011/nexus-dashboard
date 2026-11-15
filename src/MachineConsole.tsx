@@ -6,10 +6,11 @@ import { formatBytes, formatUptime, type DiagnosticApi } from './Diagnostics.js'
 import { sshCredentialAddress, useCredentialVault } from './CredentialVault.js';
 import { VaultEditor } from './VaultControls.js';
 import { RemoteFiles } from './RemoteFiles.js';
+import { SshDiscovery } from './SshDiscovery.js';
 
 type Host = { id: number; name: string; host: string; port: number; username: string; fingerprint?: string; group?: string };
 type BatchChanges = Partial<Pick<Host, 'group' | 'username' | 'port'>>;
-type Catalog = { enabled: boolean; secureTransport: boolean; hosts: Host[] };
+type Catalog = { enabled: boolean; secureTransport: boolean; discoveryEnabled?: boolean; hosts: Host[] };
 const sshPath = 'admin/diagnostics/ssh';
 const hostPath = sshPath + '/hosts';
 const destination = (host: Host) => sshCredentialAddress({ ...host, fingerprint: host.fingerprint || '' }).slice(4);
@@ -187,6 +188,7 @@ export function MachineConsole({ api, visible }: { api: DiagnosticApi; visible: 
   const [authentication, setAuthentication] = useState('password');
   const [observedKey, setObservedKey] = useState<{ hostId: number; fingerprint: string; expected: string }>();
   const addMachineDetails = useRef<HTMLDetailsElement>(null);
+  const addForm = useRef<HTMLFormElement>(null);
   const connectionHeading = useRef<HTMLHeadingElement>(null);
   async function load() {
     const next = await api<Catalog>(sshPath);
@@ -307,8 +309,18 @@ export function MachineConsole({ api, visible }: { api: DiagnosticApi; visible: 
     {!catalog ? <p>Loading saved machines…</p> : !catalog.enabled ? <p>Enable NEXUS_SSH=on in the server environment to connect machines.</p> : <>
       {!secure && <p className="error">Open StackJetty over HTTPS or through an SSH-encrypted localhost connection to enter SSH credentials.</p>}
         <details ref={addMachineDetails}><summary>Add SSH machine</summary>
+          {catalog.discoveryEnabled && secure && <SshDiscovery api={api} select={endpoint => {
+            const fields = addForm.current?.elements;
+            if (!fields) return;
+            for (const [name, value] of Object.entries({ name: 'SSH ' + endpoint.host, host: endpoint.host, port: String(endpoint.port), fingerprint: '' })) {
+              const field = fields.namedItem(name);
+              if (field instanceof HTMLInputElement) field.value = value;
+            }
+            const username = fields.namedItem('username');
+            if (username instanceof HTMLInputElement) username.focus();
+          }} />}
           <p className="muted">Leave the fingerprint blank to review the server’s key on your first connection.</p>
-          <form className="machine-form" onSubmit={event => {
+          <form ref={addForm} className="machine-form" onSubmit={event => {
             event.preventDefault();
             const form = event.currentTarget;
             const data = Object.fromEntries(new FormData(form));

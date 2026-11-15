@@ -21,7 +21,7 @@ A self-hosted dashboard for your homelab. Discover services, organize them into 
 | Ubuntu deployment | Stage a built release and install it as a systemd service under a dedicated account. |
 | LAN access | Serve HTTP and HTTPS on separate ports from the same instance. [LAN setup](docs/INSTALL.md#http-and-https-together-on-the-lan) |
 | Diagnostics | Monitor saved URLs, inspect uptime history and host metrics, measure browser-to-server throughput, and open service links using the tile's launch preference. The monitor identifies certificate verification failures separately. |
-| SSH machines | Edit, group, and search saved machines. Batch edit their group, username, or port, connect selected machines using vault passwords, and disconnect selected sessions. View Linux metrics, open a responsive terminal, and use the SFTP file manager. |
+| SSH machines | Discover SSH servers, then edit, group, and search saved machines. Batch edit their group, username, or port, connect selected machines using vault passwords, and disconnect selected sessions. View Linux metrics, open a responsive terminal, and use the SFTP file manager. |
 
 StackJetty stores its state locally in SQLite and has no application telemetry. See the [release readiness audit](docs/RELEASE_READINESS.md) for deployment and recovery checks, and [Privacy](PRIVACY.md) for data handling.
 

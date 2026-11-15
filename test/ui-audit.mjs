@@ -577,9 +577,16 @@ test('diagnostic screens, network test, SSH statistics, files and shell', { time
     await page.getByText(/Mbps/).first().waitFor();
     await button('SSH machines').click();
     await page.getByText('Add SSH machine', { exact: true }).click();
+    await page.getByText('Discover SSH machines', { exact: true }).click();
+    const discoveryPort = String(fixture?.server.address().port ?? process.env.NEXUS_UI_SSH_PORT);
+    await field('IP addresses or ranges').fill('127.0.0.1');
+    await field('Ports to check').fill(discoveryPort);
+    await button('Scan for SSH').click();
+    await button('Use 127.0.0.1:' + discoveryPort).click();
+    assert.equal(await field('SSH host').inputValue(), '127.0.0.1');
+    assert.equal(await field('SSH port').inputValue(), discoveryPort);
+    assert.equal(await field('Trusted host fingerprint (optional)').inputValue(), '');
     await field('Machine name').fill('Fixture machine');
-    await field('SSH host').fill('127.0.0.1');
-    await field('SSH port').fill(String(fixture?.server.address().port ?? process.env.NEXUS_UI_SSH_PORT));
     await field('SSH username').fill('fixture');
     await button('Save machine and continue').click();
     await button('Read server key').click();

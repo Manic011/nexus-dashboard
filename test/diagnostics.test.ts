@@ -63,6 +63,14 @@ test('diagnostic monitoring and SSH sessions enforce access, fingerprints and ow
     assert.equal(summary.enabled, false);
     const sshAddress = sshServer.address(); assert.ok(sshAddress && typeof sshAddress !== 'string');
     const host = { name: 'Fixture machine', host: '127.0.0.1', port: sshAddress.port, username: 'fixture', fingerprint };
+    const scanPath = 'admin/diagnostics/ssh/discover';
+    const scan = { range: host.host, ports: String(host.port) + ',' + serviceAddress.port };
+    const report = await request(scanPath, 'POST', scan);
+    assert.equal(report.status, 200);
+    assert.deepEqual(await report.json(), { results: [{ host: host.host, port: host.port, saved: false }], checked: 2 });
+    assert.equal((await request(scanPath, 'POST', { ...scan, range: '203.0.113.1' })).status, 400);
+    assert.equal((await request(scanPath, 'POST', { ...scan, range: '192.168.0.0/23' })).status, 400);
+    assert.deepEqual((await (await request('admin/diagnostics/ssh')).json()).hosts, []);
     const saved = await (await request('admin/diagnostics/ssh/hosts', 'POST', host)).json();
     const unpinned = await (await request('admin/diagnostics/ssh/hosts', 'POST', { ...host, fingerprint: '' })).json();
     const signIn = { hostId: unpinned.id, authentication: 'password', password: 'fixture-password' };
@@ -134,6 +142,7 @@ test('diagnostic monitoring and SSH sessions enforce access, fingerprints and ow
     assert.equal((await request('admin/diagnostics')).status, 403);
     assert.equal((await request('admin/diagnostics/speed')).status, 403);
     assert.equal((await request(hostsPath, 'PATCH', { ids: [saved.id], changes: { group: 'Forbidden' } })).status, 403);
+    assert.equal((await request(scanPath, 'POST', scan)).status, 403);
     assert.equal((await request('admin/diagnostics/ssh/connect', 'POST', { hostId: saved.id, password: 'fixture-password' })).status, 403);
     cookie = adminCookie;
     const shellClosed = once(input, 'shell-close');

@@ -122,6 +122,7 @@ StackJetty was previously called Nexus Dashboard. Existing deployments continue 
 | `NEXUS_DIST` | Directory containing the built frontend. Defaults to `dist` relative to the working directory. |
 | `NEXUS_KASM_URL` | Optional HTTPS base URL for a separate Kasm Workspaces server. Enables the remote browser action for administrators. |
 | `NEXUS_DISCOVERY` | `on` by default. Set to `off` to disable active web and mDNS discovery, interface enumeration, and scan profile endpoints. |
+| `NEXUS_SSH_DISCOVERY` | Follows `NEXUS_DISCOVERY` when unset. With `NEXUS_SSH=on`, set to `on` or `off` to control SSH discovery independently. |
 | `NEXUS_SETUP_TOKEN` | Secret used when creating the first administrator. |
 | `NEXUS_JELLYFIN_URL` | Jellyfin base URL, including a proxy subpath when required. |
 | `NEXUS_JELLYFIN_API_KEY` | Jellyfin API key used only on the server. |

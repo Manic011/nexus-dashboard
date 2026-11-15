@@ -132,7 +132,8 @@ export function createApp(data: string, dist: string, origin: string, setupToken
 
   const consoleAdmin = configureAdministration(db);
   const diagnostics = configureDiagnostics(db, Boolean(kasm));
-  const ssh = configureSsh(db, process.env.NEXUS_SSH === 'on');
+  const ssh = configureSsh(db, process.env.NEXUS_SSH === 'on',
+    process.env.NEXUS_SSH_DISCOVERY === 'on' || (process.env.NEXUS_SSH_DISCOVERY !== 'off' && discoveryEnabled));
   const speedTests = new Map<string, number>();
   let scanProgress: { checked: number; total: number } | undefined;
   let discoveryRunning = false;
@@ -542,6 +543,10 @@ if (import.meta.main) {
   const discovery = process.env.NEXUS_DISCOVERY;
   if (discovery !== undefined && discovery !== 'on' && discovery !== 'off') {
     throw new Error('NEXUS_DISCOVERY must be on or off.');
+  }
+  const sshDiscovery = process.env.NEXUS_SSH_DISCOVERY;
+  if (sshDiscovery !== undefined && sshDiscovery !== 'on' && sshDiscovery !== 'off') {
+    throw new Error('NEXUS_SSH_DISCOVERY must be on or off.');
   }
   const server = createApp(process.env.NEXUS_DATA ?? 'data', process.env.NEXUS_DIST ?? 'dist', origin, process.env.NEXUS_SETUP_TOKEN,
     jellyfin, discovery !== 'off', process.env.NEXUS_KASM_URL, NEXUS_HTTPS_ORIGIN);
