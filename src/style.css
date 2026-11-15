@@ -79,6 +79,14 @@ dialog::backdrop { background: #03080bba; }
 .admin-inset label { display: grid; gap: 6px; min-width: 0; }
 .admin-inset input { width: 100%; }
 .admin-inset input[type="checkbox"] { width: auto; }
+.account-settings { max-width: 620px; margin-block: 20px; }
+.account-settings .account-editor { border: 0; padding: 0; }
+.account-editor label { display: grid; gap: 6px; min-width: 0; }
+.account-editor input, .account-editor select { width: 100%; }
+.account-editor select { font: inherit; color: inherit; background: var(--field); border: 1px solid var(--border); border-radius: 7px; padding: 10px; }
+.account-editor .consent, .account-settings .consent { display: flex; align-items: center; gap: 8px; }
+.account-editor .consent input { width: auto; }
+.password-change-title { margin-block: 24px 12px; }
 .admin-user-layout > section { min-width: 0; }
 .admin .admin-records { max-height: 380px; overflow: auto; scrollbar-gutter: stable; overscroll-behavior: contain; margin-block: 16px 0; }
 .admin-user-layout .admin-records { margin-top: 0; }

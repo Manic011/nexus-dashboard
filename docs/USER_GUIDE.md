@@ -62,11 +62,20 @@ Discovery checks mDNS advertisements and common HTTP and HTTPS ports. It can use
 
 | Role | Access |
 | --- | --- |
+| Primary administrator | The first setup account. It retains administrator access and can edit every account. Only this account can change its own details. |
 | Administrator | Dashboard editing, discovery, backup import and export, account management, and system information. |
 | Editor | Dashboard viewing and tile creation, editing, and deletion. |
 | Viewer | Dashboard viewing and personal layout preferences. |
 
 In **Administration → Users**, use **Add access** to enter a username, initial password, and role, then select **Create user**. The account list appears alongside the form on larger screens. To revoke an editor or viewer's access, select **Remove access** and confirm. Removal also ends that user's current sessions.
+
+The account created during first-run setup is marked **Primary administrator**. It is protected from deletion and demotion. Existing installations retain their original setup account as the primary administrator.
+
+Choose **Edit** beside an account to change its username or role, set a new or temporary password, or require a password change at the next sign-in. Administrators can manage other administrators, editors, and viewers. The primary administrator's edit action is available to that account alone. Administrators can remove other accounts, including administrators, while their own removal requires another administrator.
+
+Every individual user can open **My account** in the header to edit their own username and password. Confirm your current password when editing your own account. Saving account changes ends that account's dashboard and SSH sessions. Sign in again with the updated details. Renaming keeps the account's ID, tile grants, group memberships, preferences, and encrypted browser vault.
+
+When **Require password change at next sign-in** is enabled, the user signs in with their current or temporary password and must choose a different new password before accessing the dashboard. The password change screen requires the current password and matching confirmation. Shared dashboard passwords remain managed by administrators.
 
 Enable a **shared dashboard password** in the same section to offer read-only access without distributing individual usernames. Guests select **Use shared dashboard password** on the sign-in screen. Removing the shared account revokes that access. Each linked service continues to enforce its own sign-in and permissions.
 

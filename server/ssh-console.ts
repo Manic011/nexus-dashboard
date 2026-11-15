@@ -84,7 +84,7 @@ export function configureSsh(db: DatabaseSync, enabled: boolean, discoveryEnable
   const sessions = new Map<string, Connection>();
   const connecting = new Set<string>();
   let scanning = false;
-  const ownerQuery = db.prepare("SELECT 1 FROM sessions JOIN accounts ON accounts.id=sessions.account_id WHERE token=? AND expires>? AND idle_until>? AND role='admin'");
+  const ownerQuery = db.prepare("SELECT 1 FROM sessions JOIN accounts ON accounts.id=sessions.account_id WHERE token=? AND expires>? AND idle_until>? AND role='admin' AND must_reset_password=0");
   function validOwner(owner: string) {
     const now = Date.now();
     return ownerQuery.get(owner, now, now);

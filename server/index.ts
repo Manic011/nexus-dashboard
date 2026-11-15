@@ -16,9 +16,25 @@ import { configureSsh } from './ssh-console.ts';
 
 const derive = promisify(scrypt);
 const credentials = z.object({ username: z.string().trim().min(1).max(64), password: z.string().min(12).max(256) });
-const member = credentials.extend({ role: z.enum(['editor', 'viewer']) });
+const member = credentials.extend({ role: z.enum(['admin', 'editor', 'viewer']), mustResetPassword: z.boolean().default(false) });
+const selfEdit = credentials.pick({ username: true }).extend({
+  revision: z.number().int().nonnegative(), currentPassword: z.string().min(1).max(256),
+  password: credentials.shape.password.optional(),
+}).strict();
+const adminEdit = selfEdit.omit({ currentPassword: true }).extend({
+  role: z.enum(['admin', 'editor', 'viewer']), mustResetPassword: z.boolean(),
+  currentPassword: z.string().min(1).max(256).optional(),
+}).strict();
 type Role = 'admin' | 'editor' | 'viewer';
-type Account = { id: number; username: string; salt: string; hash: string; role: Role };
+type Account = {
+  id: number; username: string; salt: string; hash: string; role: Role;
+  revision: number; must_reset_password: number; vault_username: string | null;
+};
+const publicAccount = (account: Account) => ({
+  id: account.id, username: account.username, role: account.role,
+  primaryAdmin: account.id === 1, revision: account.revision,
+  mustResetPassword: Boolean(account.must_reset_password), vaultUsername: account.vault_username,
+});
 const tile = z.object({
   title: z.string().trim().min(1).max(80),
   description: z.string().trim().max(180),
@@ -122,7 +138,23 @@ export function createApp(data: string, dist: string, origin: string, setupToken
       db.exec('ALTER TABLE sessions ADD COLUMN idle_until INTEGER NOT NULL DEFAULT 0; PRAGMA user_version=6;');
       db.prepare('UPDATE sessions SET idle_until=?').run(Date.now() + 15 * 60_000);
     }
-    if (Number(user_version) > 6) throw new Error('Database requires a newer release.');
+    if (Number(user_version) < 7) db.exec(`
+      ALTER TABLE accounts ADD COLUMN revision INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE accounts ADD COLUMN must_reset_password INTEGER NOT NULL DEFAULT 0 CHECK(must_reset_password IN (0,1));
+      ALTER TABLE accounts ADD COLUMN vault_username TEXT;
+      UPDATE accounts SET vault_username=username;
+      CREATE TRIGGER protect_primary_admin_delete BEFORE DELETE ON accounts WHEN OLD.id=1
+        BEGIN SELECT RAISE(ABORT, 'The primary administrator cannot be deleted.'); END;
+      CREATE TRIGGER protect_primary_admin_role BEFORE UPDATE OF id,role ON accounts
+        WHEN OLD.id=1 AND (NEW.id<>1 OR NEW.role<>'admin')
+        BEGIN SELECT RAISE(ABORT, 'The primary administrator must retain administrator access.'); END;
+      PRAGMA user_version=7;
+    `);
+    if (Number(user_version) > 7) throw new Error('Database requires a newer release.');
+    if (db.prepare('SELECT 1 FROM accounts LIMIT 1').get() &&
+        !db.prepare("SELECT 1 FROM accounts WHERE id=1 AND role='admin'").get()) {
+      throw new Error('The primary administrator is missing. Restore a verified state backup.');
+    }
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');
@@ -142,6 +174,25 @@ export function createApp(data: string, dist: string, origin: string, setupToken
   let resetAt = 0;
   const admin = db.prepare("SELECT 1 FROM accounts WHERE role='admin'");
   const lookup = db.prepare('SELECT * FROM accounts WHERE username=?');
+  function activeAccount(owner: string) {
+    const now = Date.now();
+    return db.prepare(`SELECT accounts.* FROM sessions JOIN accounts ON accounts.id=sessions.account_id
+      WHERE token=? AND expires>? AND idle_until>?`).get(owner, now, now) as Account | undefined;
+  }
+  function changeAccount(id: number, change: () => void) {
+    let tokens: Record<string, unknown>[] = [];
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      change();
+      tokens = db.prepare('SELECT token FROM sessions WHERE account_id=?').all(id);
+      db.prepare('DELETE FROM sessions WHERE account_id=?').run(id);
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
+    }
+    for (const row of tokens) ssh.closeOwner(String(row.token));
+  }
 
   const server = createServer({ requestTimeout: 15000, headersTimeout: 10000 }, async (req, res) => {
     const accessOrigin = nativeHttps && req.socket instanceof TLSSocket ? nativeHttps : primaryOrigin;
@@ -201,13 +252,11 @@ export function createApp(data: string, dist: string, origin: string, setupToken
       const owner = token && /^[a-f0-9]{64}$/.test(token) ? sessionDigest(token) : undefined;
       const configured = !!admin.get();
       const now = Date.now();
-      const authenticated = owner ? db.prepare(`
-        SELECT accounts.id, accounts.username, accounts.role
-        FROM sessions JOIN accounts ON accounts.id=sessions.account_id
-        WHERE sessions.token=? AND sessions.expires>? AND sessions.idle_until>?
-      `).get(owner, now, now) : undefined;
+      const authenticated = owner ? activeAccount(owner) : undefined;
       if (method === 'GET' && path === '/api/session') {
-        return send(200, { setup: !configured, setupTokenRequired: !configured && !!setupToken, username: authenticated?.username ?? null, role: authenticated?.role ?? null, shared: lookup.get('shared')?.role === 'viewer' });
+        return send(200, { setup: !configured, setupTokenRequired: !configured && !!setupToken,
+          ...(authenticated ? publicAccount(authenticated) : { username: null, role: null }),
+          shared: lookup.get('shared')?.role === 'viewer' });
       }
       if (method === 'POST' && (path === '/api/setup' || path === '/api/login')) {
         const setup = path === '/api/setup';
@@ -229,7 +278,7 @@ export function createApp(data: string, dist: string, origin: string, setupToken
         const salt = setup ? randomBytes(16).toString('hex') : account?.salt ?? 'nexus-login';
         const hash = await derive(password, salt, 64) as Buffer;
         if (setup) {
-          const inserted = db.prepare("INSERT OR IGNORE INTO accounts VALUES (1, ?, ?, ?, 'admin')").run(username, salt, hash.toString('hex'));
+          const inserted = db.prepare("INSERT OR IGNORE INTO accounts(id,username,salt,hash,role) VALUES (1, ?, ?, ?, 'admin')").run(username, salt, hash.toString('hex'));
           if (!inserted.changes) throw new RequestError(409, 'Setup is complete.');
         } else if (!account || !timingSafeEqual(hash, Buffer.from(account.hash, 'hex')) || username !== account.username) {
           throw new RequestError(401, 'Invalid credentials.');
@@ -242,7 +291,7 @@ export function createApp(data: string, dist: string, origin: string, setupToken
         db.prepare('DELETE FROM sessions WHERE expires <= ? OR idle_until <= ? OR token = ?').run(now, now, owner ?? '');
         db.prepare('INSERT INTO sessions (token, expires, account_id, idle_until) VALUES (?, ?, ?, ?)').run(sessionDigest(session), now + lifetime * 1000, setup ? 1 : account!.id, now + 15 * 60_000);
         res.setHeader('Set-Cookie', cookie(session, lifetime));
-        return send(200, { setup: false, setupTokenRequired: false, username, role: setup ? 'admin' : account!.role });
+        return send(200, { setup: false, setupTokenRequired: false, ...publicAccount(lookup.get(username) as Account) });
       }
       if (!authenticated || !owner) throw new RequestError(401, 'Sign in to continue.');
       if (method === 'POST' && path === '/api/session/activity') {
@@ -258,6 +307,57 @@ export function createApp(data: string, dist: string, origin: string, setupToken
         db.prepare('DELETE FROM sessions WHERE token=?').run(owner);
         res.setHeader('Set-Cookie', cookie('', 0));
         return send(200, {});
+      }
+      if (authenticated.must_reset_password && path !== '/api/account') {
+        throw new RequestError(403, 'Change your password before continuing.');
+      }
+      const accountRoute = /^\/api\/admin\/users\/([1-9]\d{0,14})$/.exec(path);
+      const selfRoute = path === '/api/account';
+      if ((selfRoute && method === 'GET') || ((selfRoute || accountRoute) && method === 'PATCH')) {
+        if (authenticated.username === 'shared') throw new RequestError(403, 'Shared dashboard access is managed by an administrator.');
+        const id = selfRoute ? authenticated.id : Number(accountRoute![1]);
+        if (!selfRoute && authenticated.role !== 'admin') throw new RequestError(403, 'Administrator access is required.');
+        const target = db.prepare('SELECT * FROM accounts WHERE id=?').get(id) as Account | undefined;
+        if (!target) throw new RequestError(404, 'Account not found.');
+        if (id === 1 && authenticated.id !== 1) throw new RequestError(403, 'Only the primary administrator can edit this account.');
+        if (method === 'GET') return send(200, publicAccount(target));
+        const parsed = (selfRoute ? selfEdit : adminEdit).safeParse(await body(req));
+        if (!parsed.success) throw new RequestError(400, 'Check the account settings. New passwords need 12 to 256 characters.');
+        const changes = parsed.data;
+        if (changes.revision !== target.revision) throw new RequestError(409, 'This account changed. Reload its settings before saving.');
+        if ((target.username === 'shared') !== (changes.username === 'shared')) throw new RequestError(400, 'The shared account username is reserved.');
+        const ownsTarget = authenticated.id === id;
+        if (ownsTarget) {
+          if (!changes.currentPassword) throw new RequestError(400, 'Confirm your current password.');
+          if (Date.now() >= resetAt) { resetAt = Date.now() + 60_000; loginAttempts = 0; }
+          if (++loginAttempts > 12) throw new RequestError(429, 'Try again in a minute.');
+          const check = await derive(changes.currentPassword, target.salt, 64) as Buffer;
+          if (!timingSafeEqual(check, Buffer.from(target.hash, 'hex'))) throw new RequestError(403, 'The current password is incorrect.');
+          if (target.must_reset_password && (!changes.password || changes.password === changes.currentPassword)) {
+            throw new RequestError(400, 'Choose a new password different from your current password.');
+          }
+        }
+        const role = 'role' in changes ? changes.role : target.role;
+        const mustReset = ownsTarget ? (changes.password ? false : Boolean(target.must_reset_password))
+          : 'mustResetPassword' in changes && changes.mustResetPassword;
+        if (id === 1 && role !== 'admin') throw new RequestError(403, 'The primary administrator must retain administrator access.');
+        if (target.username === 'shared' && (role !== 'viewer' || mustReset)) throw new RequestError(400, 'Shared access requires the viewer role and an administrator-managed password.');
+        const salt = changes.password ? randomBytes(16).toString('hex') : target.salt;
+        const hash = changes.password ? (await derive(changes.password, salt, 64) as Buffer).toString('hex') : target.hash;
+        const actor = activeAccount(owner);
+        if (!actor) throw new RequestError(401, 'Sign in again before saving.');
+        if (actor.revision !== authenticated.revision || (!selfRoute && (actor.role !== 'admin' || actor.must_reset_password))) {
+          throw new RequestError(403, 'Your account access changed. Sign in again.');
+        }
+        const duplicate = lookup.get(changes.username) as Account | undefined;
+        if (duplicate && duplicate.id !== id) throw new RequestError(409, 'This username is already in use.');
+        changeAccount(id, () => {
+          const updated = db.prepare(`UPDATE accounts SET username=?,salt=?,hash=?,role=?,must_reset_password=?,revision=revision+1
+            WHERE id=? AND revision=?`).run(changes.username, salt, hash, role, mustReset ? 1 : 0, id, target.revision);
+          if (!updated.changes) throw new RequestError(409, 'This account changed. Reload its settings before saving.');
+        });
+        if (ownsTarget) res.setHeader('Set-Cookie', cookie('', 0));
+        return send(200, { signedOut: ownsTarget });
       }
       if (path.startsWith('/api/admin/') && authenticated.role !== 'admin') {
         throw new RequestError(403, 'Administrator access is required.');
@@ -379,25 +479,31 @@ export function createApp(data: string, dist: string, origin: string, setupToken
       }
       const canSee = (id: unknown) => consoleAdmin.visible(Number(id), Number(authenticated.id), String(authenticated.role));
       if (method === 'GET' && path === '/api/admin/users') {
-        return send(200, db.prepare('SELECT id, username, role FROM accounts ORDER BY id').all());
+        return send(200, (db.prepare('SELECT * FROM accounts ORDER BY id').all() as Account[]).map(publicAccount));
       }
       if (method === 'POST' && path === '/api/admin/users') {
         const parsed = member.safeParse(await body(req));
-        if (!parsed.success) throw new RequestError(400, 'Enter a username, a password of 12 to 256 characters, and an editor or viewer role.');
-        const { username, password, role } = parsed.data;
+        if (!parsed.success) throw new RequestError(400, 'Enter a username, a password of 12 to 256 characters, and a valid role.');
+        const { username, password, role, mustResetPassword } = parsed.data;
         if (username === 'shared' && role !== 'viewer') throw new RequestError(400, 'Shared access requires the viewer role.');
         const salt = randomBytes(16).toString('hex');
         const hash = await derive(password, salt, 64) as Buffer;
-        const result = db.prepare('INSERT OR IGNORE INTO accounts(username, salt, hash, role) VALUES (?, ?, ?, ?)').run(username, salt, hash.toString('hex'), role);
+        const actor = activeAccount(owner);
+        if (!actor || actor.role !== 'admin' || actor.must_reset_password) throw new RequestError(403, 'Administrator access changed. Sign in again.');
+        if (username === 'shared' && mustResetPassword) throw new RequestError(400, 'Shared passwords are managed by an administrator.');
+        const result = db.prepare('INSERT OR IGNORE INTO accounts(username, salt, hash, role, must_reset_password) VALUES (?, ?, ?, ?, ?)').run(username, salt, hash.toString('hex'), role, mustResetPassword ? 1 : 0);
         if (!result.changes) throw new RequestError(409, 'This username is already in use.');
         return send(201, { id: Number(result.lastInsertRowid) });
       }
       const user = /^\/api\/admin\/users\/([1-9]\d{0,14})$/.exec(path);
       if (method === 'DELETE' && user) {
         const id = Number(user[1]);
-        const result = db.prepare("DELETE FROM accounts WHERE id=? AND role<>'admin'").run(id);
-        if (!result.changes) throw new RequestError(404, 'Editor or viewer account not found.');
-        db.prepare('DELETE FROM sessions WHERE account_id=?').run(id);
+        if (id === 1) throw new RequestError(403, 'The primary administrator cannot be deleted.');
+        if (id === authenticated.id) throw new RequestError(403, 'Use another administrator to remove your account.');
+        changeAccount(id, () => {
+          const result = db.prepare('DELETE FROM accounts WHERE id=?').run(id);
+          if (!result.changes) throw new RequestError(404, 'Account not found.');
+        });
         return send(200, {});
       }
       if (method === 'GET' && path === '/api/integrations/jellyfin') {

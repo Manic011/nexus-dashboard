@@ -13,6 +13,10 @@ Review every new or changed screen before merging. Apply the same review to dial
 
 ## Current coverage
 
+The account-management browser flow passed locally and against an isolated Ubuntu instance. It renamed the primary administrator and reopened the same encrypted vault, created another administrator, rejected that administrator's attempt to edit the primary account, edited a viewer's username and temporary password, required a password change, and used My account for a viewer's own rename at phone width. Eleven API tests passed locally and on Ubuntu across the verification runs. The account tests cover primary-account database guards, self-service privilege injection, stale revisions, immediate session revocation, SSH shell closure, forced-password API restrictions, and schema 6 migration.
+
+The live schema 7 migration verified the primary-administrator guards and compared the existing account credentials, tiles, groups, and permission grants with the private pre-upgrade backup. HTTP and trusted LAN HTTPS health and frontend checks passed.
+
 The administration layout refresh passed the desktop/mobile browser flow locally and against a disposable Ubuntu instance. It covered discovery presets, scope review, import updates, account creation and removal, group membership, tile permissions, backup download, and snapshot restore. Screenshots of all four tabs and restore review were checked at desktop width in dark mode and at 375 pixels in light mode. The local discovery-disabled flow also passed. All eight API tests passed, and the live frontend was verified on HTTP and trusted LAN HTTPS.
 
 The remote browser regression uses a fixture provider to verify that the workspace renders in the same StackJetty tab and that switching back restores the direct view. Check real Kasm authentication and browser delivery on a configured provider.

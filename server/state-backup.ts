@@ -6,11 +6,14 @@ function validate(db: DatabaseSync) {
   const result = db.prepare('PRAGMA quick_check').get();
   if (result?.quick_check !== 'ok') throw new Error('Database integrity check failed.');
   const version = Number(db.prepare('PRAGMA user_version').get()?.user_version);
-  if (![4, 5, 6].includes(version)) throw new Error('This recovery tool requires a schema 4, 5, or 6 database.');
+  if (![4, 5, 6, 7].includes(version)) throw new Error('This recovery tool requires a schema 4, 5, 6, or 7 database.');
   for (const table of ['accounts', 'sessions', 'tiles', 'access_groups', 'tile_access', 'admin_records']) {
     if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(table)) throw new Error('Backup is missing required tables.');
   }
   if (!db.prepare("SELECT 1 FROM accounts WHERE role='admin'").get()) throw new Error('Backup has no administrator account.');
+  if (version === 7 && !db.prepare("SELECT 1 FROM accounts WHERE id=1 AND role='admin'").get()) {
+    throw new Error('Backup is missing its primary administrator.');
+  }
 }
 
 export async function backupState(source: string, destination: string) {

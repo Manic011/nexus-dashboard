@@ -40,6 +40,100 @@ test('HTTPS dashboard offers a new tab for an HTTP tile', async () => {
   } finally { await browser.close(); }
 });
 
+test('account editing, primary administrator protection, and required password changes', { timeout: 90_000 }, async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'stackjetty-account-ui-'));
+  const remote = process.env.NEXUS_UI_ACCOUNT_URL;
+  const origin = remote ?? 'http://127.0.0.1:3438';
+  const app = remote ? undefined : createApp(directory, 'dist', origin, 'fixture-token');
+  const password = 'fixture-account-password';
+  const temporary = 'fixture-temporary-password';
+  const replacement = 'fixture-new-account-password';
+  let browser;
+  try {
+    if (app) { app.listen(3438, '127.0.0.1'); await once(app, 'listening'); }
+    browser = await chromium.launch({ executablePath: process.env.NEXUS_UI_CHROMIUM_PATH });
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    const button = name => page.getByRole('button', { name, exact: true });
+    const field = name => page.getByLabel(name, { exact: true });
+    async function login(username, secret) {
+      await field('Username').fill(username); await field('Password').fill(secret); await button('Sign in').click();
+    }
+    await page.goto(origin);
+    await field('Username').fill('primary');
+    await field('Password').fill(password); await field('Setup token').fill(process.env.NEXUS_UI_ACCOUNT_TOKEN ?? 'fixture-token');
+    await button('Create account').click();
+    await button('Add tile').click(); await field('Name').fill('Fixture service');
+    await field('URL').fill('https://service.example.invalid/'); await button('Save tile').click();
+    await button('Fixture service').click(); await page.getByText('Saved login', { exact: true }).click();
+    await field('Master password').fill('fixture-vault-master-password'); await field('Confirm master password').fill('fixture-vault-master-password');
+    await button('Create vault').click(); await field('Service username').fill('fixture');
+    await field('Service password').fill('fixture-service-secret'); await button('Save login').click();
+    await page.getByText('Login saved.', { exact: true }).waitFor(); await button('Close service view').click();
+    await button('My account').click();
+    await field('Username').fill('primary-renamed'); await field('Current password').fill(password);
+    await button('Save account').click();
+    await page.getByRole('heading', { name: 'Sign in', exact: true }).waitFor();
+    await login('primary-renamed', password); await button('Fixture service').click();
+    await page.getByText('Saved login', { exact: true }).click();
+    await field('Master password').fill('fixture-vault-master-password'); await button('Unlock vault').click();
+    assert.equal(await field('Service password').inputValue(), 'fixture-service-secret');
+    await button('Close service view').click();
+    await button('Administration').click(); await button('Users').click();
+    assert.equal(await button('Remove access for primary-renamed').count(), 0);
+    for (const [username, role] of [['administrator', 'admin'], ['reader', 'viewer']]) {
+      const create = page.getByRole('form', { name: 'Add dashboard access' });
+      await create.getByLabel('Username', { exact: true }).fill(username);
+      await create.getByLabel('Initial password', { exact: true }).fill(password);
+      await create.getByRole('combobox').selectOption(role); await button('Create user').click();
+      await button('Edit account ' + username).waitFor();
+    }
+    await button('Sign out').click(); await page.getByRole('heading', { name: 'Sign in', exact: true }).waitFor();
+    await login('administrator', password);
+    await button('Administration').click(); await button('Users').click();
+    await page.getByText('Primary administrator', { exact: true }).waitFor();
+    assert.equal(await button('Edit account primary-renamed').count(), 0);
+    const accounts = await (await page.request.get(origin + '/api/admin/users')).json();
+    const primary = accounts.find(account => account.id === 1);
+    const forbidden = await page.request.patch(origin + '/api/admin/users/1', { headers: { Origin: origin },
+      data: { username: primary.username, revision: primary.revision, role: 'admin', mustResetPassword: true } });
+    assert.equal(forbidden.status(), 403);
+    await button('Edit account reader').click();
+    const editor = page.getByRole('form', { name: 'Edit account reader' });
+    await editor.getByLabel('Username', { exact: true }).fill('reader-renamed');
+    await editor.getByLabel('New or temporary password').fill(temporary);
+    await editor.getByLabel('Confirm new password').fill(temporary);
+    await editor.getByLabel('Require password change at next sign-in').check();
+    await editor.getByRole('button', { name: 'Save account', exact: true }).click();
+    await page.getByText('Account updated. Active sessions ended.', { exact: true }).waitFor();
+    await button('Sign out').click(); await page.getByRole('heading', { name: 'Sign in', exact: true }).waitFor();
+    await login('reader-renamed', temporary);
+    await page.getByRole('heading', { name: 'Change your password', exact: true }).waitFor();
+    assert.equal((await page.request.get(origin + '/api/tiles')).status(), 403);
+    await field('Current password').fill(temporary); await field('New password').fill(replacement);
+    await field('Confirm new password').fill(replacement); await button('Change password').click();
+    await page.getByRole('heading', { name: 'Sign in', exact: true }).waitFor();
+    await login('reader-renamed', replacement);
+    await page.getByRole('heading', { name: 'Applications', exact: true }).waitFor();
+    assert.equal(await button('Administration').count(), 0);
+    await button('My account').click(); await field('Username').fill('reader-final');
+    assert.equal(await page.getByRole('combobox', { name: 'Account role' }).count(), 0);
+    await field('Current password').fill(replacement);
+    await page.setViewportSize({ width: 375, height: 812 });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await button('Save account').click();
+    await page.getByRole('heading', { name: 'Sign in', exact: true }).waitFor();
+    await login('reader-final', replacement);
+    await page.getByRole('heading', { name: 'Applications', exact: true }).waitFor();
+    assert.equal((await page.request.get(origin + '/api/admin/users')).status(), 403);
+  } finally {
+    await browser?.close();
+    if (app) {
+      const closed = once(app, 'close'); app.close(); app.closeAllConnections(); await closed;
+    }
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
   const directory = await mkdtemp(join(tmpdir(), 'nexus-ui-'));
   const token = 'fixture-setup-token';
@@ -237,7 +331,7 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
         await field('Service password').fill(savedPassword);
         await button('Save login').click();
         await dialog.getByText('Login saved.', { exact: true }).waitFor();
-        const stored = await page.evaluate(() => localStorage.getItem('nexus.vault.v1:admin'));
+        const stored = await page.evaluate(() => localStorage.getItem('nexus.vault.account.v1:1'));
         assert.ok(stored && !stored.includes(savedPassword) && !stored.includes(master) && !stored.includes('fixture-user'));
         assert.ok(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth + 1));
         await page.keyboard.press('Escape');
@@ -700,7 +794,7 @@ test('diagnostic screens, network test, SSH statistics, files and shell', { time
     const oldMaster = 'fixture-previous-machine-master';
     const oldVault = await unlockVault(oldMaster, null);
     const address = 'ssh:' + JSON.stringify([machine.host, machine.port, machine.username, machine.fingerprint]);
-    const assignedEnvelope = await page.evaluate(() => localStorage.getItem('nexus.vault.v1:admin'));
+    const assignedEnvelope = await page.evaluate(() => localStorage.getItem('nexus.vault.account.v1:1'));
     const assigned = await unlockVault(vaultMaster, assignedEnvelope);
     assert.deepEqual(assigned.entries[address], { username: 'fixture', password: servicePassword });
     assert.ok(!assignedEnvelope.includes(servicePassword));
@@ -720,7 +814,7 @@ test('diagnostic screens, network test, SSH statistics, files and shell', { time
     await button('Import previous password').click();
     await page.getByText('SSH password imported.', { exact: true }).waitFor();
     assert.equal(await page.evaluate(key => localStorage.getItem(key), legacyKey), null);
-    const encrypted = await page.evaluate(() => localStorage.getItem('nexus.vault.v1:admin'));
+    const encrypted = await page.evaluate(() => localStorage.getItem('nexus.vault.account.v1:1'));
     assert.ok(encrypted && !encrypted.includes('fixture-password') && !encrypted.includes(servicePassword) && !encrypted.includes(vaultMaster));
     await button('Vault').click();
     const vaultDialog = page.getByRole('dialog', { name: 'Credential vault' });

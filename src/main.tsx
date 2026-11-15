@@ -8,6 +8,7 @@ import { CategoryPicker } from './CategoryPicker.js';
 import { ServiceDialog } from './ServiceDialog.js';
 import { CredentialVaultProvider } from './CredentialVault.js';
 import { VaultMenu } from './VaultControls.js';
+import { AccountSettings } from './AccountEditor.js';
 import { LayoutEditor, type CategoryDropProps } from './LayoutEditor.js';
 import { TileGrid } from './CategoryDivider.js';
 import { categoryName, orderedCategories, orderGroupedTiles, type LayoutCategories } from './layoutCategories.js';
@@ -16,7 +17,11 @@ import { parseTags } from './tags.js';
 const Diagnostics = lazy(() => import('./Diagnostics.js').then(module => ({ default: module.Diagnostics })));
 const MachineConsole = lazy(() => import('./MachineConsole.js').then(module => ({ default: module.MachineConsole })));
 
-type Session = { setup: boolean; setupTokenRequired: boolean; username: string | null; role?: 'admin' | 'editor' | 'viewer' | null; shared?: boolean };
+type Session = {
+  setup: boolean; setupTokenRequired: boolean; username: string | null; id?: number;
+  role?: 'admin' | 'editor' | 'viewer' | null; shared?: boolean;
+  primaryAdmin?: boolean; mustResetPassword?: boolean; vaultUsername?: string | null;
+};
 type Jellyfin = { tiles: number[]; state?: 'available' | 'unavailable'; streams?: number };
 type Tile = { id: number; title: string; description: string; url: string; category: string; tags: string[]; openMode?: OpenMode | 'default'; remoteBrowser?: boolean };
 
@@ -31,14 +36,14 @@ async function api<T>(path: string, method = 'GET', body?: object, signal?: Abor
 
 function App() {
   const [session, setSession] = useState<Session>();
-  const preferences = usePreferences(session?.username);
+  const preferences = usePreferences(session?.vaultUsername ?? (session?.id ? 'account:' + session.id : session?.username));
   const [jellyfin, setJellyfin] = useState<Jellyfin>();
   const [tilesLoading, setTilesLoading] = useState(true);
   const [tiles, setTiles] = useState<Tile[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [sharedLogin, setSharedLogin] = useState(false);
-  const [page, setPage] = useState<'dashboard' | 'administration' | 'diagnostics' | 'ssh'>('dashboard');
+  const [page, setPage] = useState<'dashboard' | 'administration' | 'diagnostics' | 'ssh' | 'account'>('dashboard');
   const [sshVisited, setSshVisited] = useState(false);
   const [editingLayout, setEditingLayout] = useState(false);
   const [layoutMessage, setLayoutMessage] = useState('');
@@ -49,6 +54,11 @@ function App() {
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<Tile | 'new' | null>(null);
   const [browsing, setBrowsing] = useState<Tile | null>(null);
+  async function accountSignedOut() {
+    setSession(await api<Session>('session'));
+    setSshVisited(false); setPage('dashboard'); setTiles([]);
+    setBrowsing(null); setEditing(null); setDeleting(null); setEditingLayout(false);
+  }
   const serviceTrigger = useRef<HTMLButtonElement>(null);
   const browsingId = browsing?.id;
   const launchRemote = useCallback(() => api<{ url: string }>('admin/remote-browser/' + browsingId), [browsingId]);
@@ -66,7 +76,7 @@ function App() {
   const dialog = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
-    if (!session?.username) return;
+    if (!session?.username || session.mustResetPassword) return;
     let active = true;
     const load = () => {
       void api<Jellyfin>('integrations/jellyfin').then(result => {
@@ -78,7 +88,7 @@ function App() {
     load();
     const timer = setInterval(load, 30_000);
     return () => { active = false; clearInterval(timer); setJellyfin(undefined); };
-  }, [session?.username, tiles]);
+  }, [session?.username, session?.mustResetPassword, tiles]);
   useEffect(() => { api<Session>('session').then(setSession).catch(report); }, []);
   useEffect(() => {
     if (!session?.username) return;
@@ -99,7 +109,7 @@ function App() {
       try {
         const current = await api<Session>('session');
         if (!mounted) return;
-        if (current.username !== session?.username || current.role !== session?.role) {
+        if (current.username !== session?.username || current.role !== session?.role || current.mustResetPassword !== session?.mustResetPassword) {
           setSession(current);
           setSshVisited(false);
           setPage('dashboard');
@@ -128,8 +138,9 @@ function App() {
   useEffect(() => {
     if (!session?.username) return;
     setTilesLoading(true);
+    if (session.mustResetPassword) { setTilesLoading(false); return; }
     void refresh().catch(report).finally(() => setTilesLoading(false));
-  }, [session?.username]);
+  }, [session?.username, session?.mustResetPassword]);
   useEffect(() => {
     const element = dialog.current;
     if (!element) return;
@@ -256,14 +267,21 @@ function App() {
     </section>
   </main>;
 
-  return <CredentialVaultProvider username={session.username} key={session.username}>
+  if (session.mustResetPassword) return <main className="shell dashboard">
+    {brand}<h1 className="password-change-title">Change your password</h1>
+    <p className="muted">Your administrator requires a new password before you continue.</p>
+    <AccountSettings api={api} onSaved={accountSignedOut} />
+    <button onClick={() => void action(async () => { await api('logout', 'POST'); await accountSignedOut(); })}>Sign out</button>
+  </main>;
+
+  return <CredentialVaultProvider username={session.username} accountId={session.id} vaultUsername={session.vaultUsername} key={session.id ?? session.username}>
     <header><div className="shell top">{brand}<div className="account">{session.role === 'admin' && <nav className="main-nav" aria-label="Main navigation">
       {([['dashboard', 'Dashboard'], ['diagnostics', 'Diagnostics'], ['ssh', 'SSH machines'], ['administration', 'Administration']] as const).map(([id, label]) =>
         <button key={id} disabled={busy} aria-current={page === id ? 'page' : undefined} onClick={() => {
           if (id === 'ssh') setSshVisited(true);
           setEditingLayout(false); setPage(id);
         }}>{label}</button>)}
-    </nav>}<span>{session.username}</span><details className="preferences"><summary>Appearance</summary><div className="preferences-panel">
+    </nav>}<span>{session.username}</span>{session.username !== 'shared' && <button aria-current={page === 'account' ? 'page' : undefined} onClick={() => setPage('account')}>My account</button>}<details className="preferences"><summary>Appearance</summary><div className="preferences-panel">
       <label><span>Theme</span><select aria-label="Theme" value={preferences.value.theme} onChange={event => preferences.update({ theme: event.target.value === 'light' ? 'light' : event.target.value === 'dark' ? 'dark' : 'system' })}><option value="system">System</option><option value="dark">Dark</option><option value="light">Light</option></select></label>
       <label><span>Card density</span><select aria-label="Card density" value={preferences.value.density} onChange={event => preferences.update({ density: event.target.value === 'compact' ? 'compact' : 'comfortable' })}><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></label>
       <label><span>Open tiles by default</span><select aria-label="Open tiles by default" value={preferences.value.openMode} onChange={event => {
@@ -287,7 +305,8 @@ function App() {
       {session.role === 'admin' && sshVisited && <div hidden={page !== 'ssh'}><Suspense fallback={<p role="status">Loading SSH machines…</p>}>
         <MachineConsole api={api} visible={page === 'ssh'} />
       </Suspense></div>}
-      {page === 'ssh' ? null : page === 'administration' ? <><h1>Administration</h1><Administration api={api} onImport={refresh} categories={[...categories.values()]} /></>
+      {page === 'ssh' ? null : page === 'account' ? <><h1>My account</h1><AccountSettings api={api} onSaved={accountSignedOut} /></>
+      : page === 'administration' ? <><h1>Administration</h1><Administration api={api} onImport={refresh} categories={[...categories.values()]} currentAccountId={session.id} onAccountSignedOut={accountSignedOut} /></>
       : page === 'diagnostics' ? <><h1>Diagnostics</h1><Suspense fallback={<p role="status">Loading diagnostics…</p>}>
         <Diagnostics api={api} serviceLink={(service, label) => serviceLink({ ...service, description: '', tags: [] }, label, 'diagnostic-launch')} />
       </Suspense></> : <><div className="intro"><div><h1>Applications</h1><p className="muted">Organize and open the services you use.</p></div>

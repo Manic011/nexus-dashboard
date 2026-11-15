@@ -15,7 +15,7 @@ A self-hosted dashboard for your homelab. Discover services, organize them into 
 | Appearance | Choose a light, dark, or system theme and comfortable or compact cards. |
 | Service view and vault | Open compatible services inside StackJetty. Use one master password for service logins and SSH passwords in your encrypted account vault. Choose a default or per-tile opening mode for a new browser tab, direct embedding, or Kasm. |
 | Service discovery | Scan reachable private IPv4 subnets with CIDRs, address ranges, exclusions, custom ports, reusable profiles, progress, and cancellation. Compare scans and review live identification evidence before importing or updating tiles. |
-| Accounts and access | Create editor and viewer accounts, organize user groups, and restrict individual tiles by account or group. Shared read-only access is also available. |
+| Accounts and access | Keep a protected primary administrator, manage administrator/editor/viewer accounts, edit usernames and passwords, require password changes, and let users manage their own accounts. Organize groups and restrict tiles by account or group. Shared read-only access is also available. |
 | Tile backups | Export tiles as JSON; review new entries and explicitly update matching URLs. Save named server-side configuration snapshots and preview restore changes. Operators can also create and recover consistent full-database backups. |
 | Jellyfin activity | Show the active stream count on a matching tile after configuring a Jellyfin URL and API key on the server. |
 | Ubuntu deployment | Stage a built release and install it as a systemd service under a dedicated account. |

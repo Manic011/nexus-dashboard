@@ -30,9 +30,13 @@ export function sshCredentialAddress({ host, port, username, fingerprint }: {
   return 'ssh:' + JSON.stringify([host.toLowerCase(), port, username, fingerprint]);
 }
 
-export function CredentialVaultProvider({ username, children }: { username: string; children: ReactNode }) {
-  // Keep the existing service vault so saved logins and its master password carry over.
-  const key = 'nexus.vault.v1:' + username;
+export function CredentialVaultProvider({ username, accountId, vaultUsername, children }: {
+  username: string; accountId?: number; vaultUsername?: string | null; children: ReactNode;
+}) {
+  // Existing accounts retain their original vault namespace across username changes.
+  // New accounts use their immutable ID so reusing a username cannot share a vault.
+  const identity = vaultUsername ?? username;
+  const key = vaultUsername === null && accountId ? 'nexus.vault.account.v1:' + accountId : 'nexus.vault.v1:' + identity;
   const [storage] = useState(() => {
     if (username === 'shared' || !window.isSecureContext || !window.crypto?.subtle || !navigator.locks) return { available: false, sealed: null };
     try { return { available: true, sealed: localStorage.getItem(key) }; }
@@ -43,7 +47,7 @@ export function CredentialVaultProvider({ username, children }: { username: stri
   const current = useRef<{ sealed: string | null; vault?: OpenVault }>({ sealed: storage.sealed });
   const epoch = useRef(0);
   const timer = useRef<number>(undefined);
-  const legacyKey = (hostId: number) => 'nexus.ssh.vault.v1:' + username + ':' + hostId;
+  const legacyKey = (hostId: number) => 'nexus.ssh.vault.v1:' + identity + ':' + hostId;
 
   function lock() {
     window.clearTimeout(timer.current);

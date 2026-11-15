@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Protect the first-run primary administrator from deletion, demotion, and edits by other users. Add account editing, additional administrators, required password changes, and My account settings with session revocation.
 - Refresh every administration tab with consistent panels, compact scan controls, grouped account and permission forms, clearer backup actions, and readable host and application information.
 - Simplify SSH setup with Discover and Enter manually tabs, a compact scan bar, editable scrolling results, and grouped batch settings.
 - Assign a saved vault password to newly discovered SSH machines during batch import, bound to each destination and observed host key.

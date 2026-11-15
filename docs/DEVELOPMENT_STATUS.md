@@ -4,6 +4,7 @@ StackJetty is a development preview. The [requirements audit](REQUIREMENTS_AUDIT
 
 ## Available in the preview
 
+- Protected first-run primary administrator, editable administrator/editor/viewer accounts, forced password changes, My account settings, and session revocation when accounts change.
 - Consistent administration layouts for discovery, accounts and permissions, backups and restore, and system information, with responsive forms and scrolling record lists.
 - Administrator diagnostics for sampled availability, host information, and network throughput. The separate SSH workspace supports concurrent Linux statistics, SFTP file management, and interactive shells. SSH supports first-connection host key review, password and private-key authentication, browser-local encrypted saved passwords, and private localhost access through a workstation SSH tunnel. Dashboard sessions time out after 15 minutes of inactivity and close their SSH connections.
 
@@ -32,7 +33,7 @@ The Ubuntu integration preview has exercised sign-in, tile edits and imports, di
 | Dashboard experience | Personal layouts support custom placement, tile widths, responsive previews, category labels, order and dividers, and category and tag highlights. Themes and card density are available. Further tile types remain planned. |
 | Discovery | Add more discovery sources and optional schedules. |
 | Live integrations | Add supported integrations beyond Jellyfin. |
-| Access | Add multiple dashboards, dashboard-specific permissions and passwords, and richer account management. |
+| Access | Add multiple dashboards, dashboard-specific permissions and passwords, and account recovery. |
 | Operations | Diagnostics and operator database backup/recovery are available. Add scheduled/encrypted backups, broader recovery compatibility, and update management. |
 
 ## Latest validation

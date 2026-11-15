@@ -16,7 +16,7 @@ The tile service view loads a sandboxed frame directly in the browser. The sandb
 
 The React interface is built with Vite and served by the Node.js process alongside the TypeScript API. Browser requests share one origin. The backend validates input with Zod and uses prepared statements with Node's built-in SQLite bindings.
 
-SQLite uses WAL mode and transactional migrations tracked with `PRAGMA user_version`. The database stores accounts, session token digests, and application tiles. Tiles have a single category and a JSON array of tags. Schema 3 adds tags, schema 5 adds the tile opening mode, and schema 6 adds an idle deadline for dashboard sessions. Version 1 JSON exports include the mode and accept older entries without a mode or tags. Older configuration snapshots restore missing modes as **Use my default**.
+SQLite uses WAL mode and transactional migrations tracked with `PRAGMA user_version`. The database stores accounts, session token digests, and application tiles. Tiles have a single category and a JSON array of tags. Schema 3 adds tags, schema 5 adds the tile opening mode, and schema 6 adds an idle deadline for dashboard sessions. Schema 7 adds account revisions, a password-change requirement, a stable legacy vault identity, and database triggers protecting account 1 from deletion and demotion. Version 1 JSON exports include the mode and accept older entries without a mode or tags. Older configuration snapshots restore missing modes as **Use my default**.
 
 | Directory | Responsibility |
 | --- | --- |
@@ -30,6 +30,8 @@ SQLite uses WAL mode and transactional migrations tracked with `PRAGMA user_vers
 First-run setup requires a deployment token and creates the administrator. Passwords are salted and hashed using scrypt. Session cookies use HttpOnly and SameSite=Strict, with Secure enabled for HTTPS origins. Session tokens expire after seven days and are stored as SHA-256 digests. Write requests require the configured Origin and the JSON content type. Setup and login share a process-wide throttle of 12 attempts per minute.
 
 Administrators manage accounts and discovery. Editors manage tiles. Viewers and shared-password guests can arrange their personal view of the tiles they can access. Personal tile positions and widths are stored in browser appearance preferences keyed by account. The grid is rendered using the tiles returned by the permissions-filtered API. Removing an account revokes its sessions. Tile permissions apply to access within StackJetty. Linked services enforce their own authentication.
+
+Account 1 is the protected primary administrator. Other administrators can edit or remove other accounts, and each individual account can edit its own username and password after current-password verification. Account mutations and dashboard session revocation share one transaction. SSH sessions are closed after that transaction commits. A password-change requirement allows only account settings, activity renewal, and sign-out until the user saves a different password. Existing accounts retain their original browser vault namespace. New accounts use an immutable ID namespace.
 
 ## Discovery and integration
 
@@ -48,7 +50,7 @@ Mutation requests use JSON and require the configured `Origin` header. Authentic
 | Method and route | Access | Purpose |
 | --- | --- | --- |
 | `GET /healthz` | Public | Check database availability. |
-| `GET /api/session` | Public | Report setup, session role, and shared access availability. |
+| `GET /api/session` | Public | Report setup and shared access availability. Signed-in responses include the account ID, role, primary-administrator flag, revision, password-change requirement, and stable vault identity. |
 | `POST /api/setup` | Setup token | Create the first administrator using `username`, `password`, and `token`. |
 | `POST /api/login` | Public | Start a session using `username` and `password`. |
 | `POST /api/logout` | Signed in | End the current session. Send an empty JSON object. |
@@ -59,8 +61,10 @@ Mutation requests use JSON and require the configured `Origin` header. Authentic
 | `DELETE /api/tiles/{id}` | Editor or administrator | Remove a tile. |
 | `GET /api/integrations/jellyfin` | Signed in | Return matching tile IDs and the playback summary if configured. |
 | `GET /api/admin/users` | Administrator | List user IDs, usernames, and roles. |
-| `POST /api/admin/users` | Administrator | Create an editor or viewer using `username`, `password`, and `role`. The `shared` username is reserved for shared viewer access. |
-| `DELETE /api/admin/users/{id}` | Administrator | Remove an editor or viewer and revoke their sessions. |
+| `POST /api/admin/users` | Administrator | Create an administrator, editor, or viewer using `username`, `password`, `role`, and optional `mustResetPassword`. The `shared` username is reserved for shared viewer access. |
+| `PATCH /api/admin/users/{id}` | Administrator | Edit account details using `username`, `role`, `mustResetPassword`, `revision`, and optional new `password`. Own-account edits require `currentPassword`. Only the primary administrator can edit account 1. |
+| `DELETE /api/admin/users/{id}` | Administrator | Remove another account and revoke its sessions. Account 1 is protected. |
+| `GET /api/account`, `PATCH /api/account` | Individual account | Read or edit the caller's own account. Changes accept `username`, `revision`, `currentPassword`, and optional new `password`. Role and reset-flag fields are rejected. |
 | `GET /api/admin/system` | Administrator | Return runtime, platform, schema version, and tile count. |
 | `GET /api/admin/discovery/interfaces` | Administrator | List available server IPv4 interfaces and scan ranges. |
 | `POST /api/admin/discovery/web` | Administrator | Combine mDNS and web discovery. Send an interface `address` and `authorized: true`. |
@@ -134,6 +138,6 @@ SSH discovery returns the observed fingerprint for each result. The browser can 
 
 ## Operator recovery boundary
 
-`server/state-backup.ts` is a command-line tool, not a web route. It uses the Node SQLite backup API, validates integrity and schema 4, 5, or 6, and refuses existing backup files or populated restore directories. A recovered database includes accounts, tiles, groups, access rules, profiles, history, and configuration snapshots. All restored sessions are deleted so backup recovery cannot reactivate old browser sessions. Configuration snapshots in the administration UI still restore tiles/groups/rules only. Environment secrets and installed application files are backed up separately.
+`server/state-backup.ts` is a command-line tool, not a web route. It uses the Node SQLite backup API, validates integrity and schema 4, 5, 6, or 7, and refuses existing backup files or populated restore directories. A recovered database includes accounts, tiles, groups, access rules, profiles, history, and configuration snapshots. All restored sessions are deleted so backup recovery cannot reactivate old browser sessions. Configuration snapshots in the administration UI still restore tiles/groups/rules only. Environment secrets and installed application files are backed up separately.
 
 The native installer can adopt a pre-existing state directory into a new installation. It preserves the original directory, requires a supported runtime, rejects symlinks that escape the staged bundle, and verifies startup health. The systemd account writes only state; it cannot modify root-owned application files.

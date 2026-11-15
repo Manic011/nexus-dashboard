@@ -21,7 +21,9 @@ const sections = [
   { id: 'system', title: 'System', icon: Server },
 ] as const;
 
-export function Administration({ api, onImport, categories }: { api: Api; onImport: () => Promise<void>; categories: string[] }) {
+export function Administration({ api, onImport, categories, currentAccountId, onAccountSignedOut }: {
+  api: Api; onImport: () => Promise<void>; categories: string[]; currentAccountId?: number; onAccountSignedOut: () => Promise<void>;
+}) {
   const [section, setSection] = useState<(typeof sections)[number]['id']>('discovery');
   const [interfaces, setInterfaces] = useState<Network[]>([]);
   const [address, setAddress] = useState('');
@@ -115,7 +117,7 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
       }}><Icon size={17} />{title}</button>)}
     </nav>
     {status && <p role="status" className="admin-status">{status}</p>}
-    {section === 'users' && <Users api={api} onChange={() => setWorkspaceRevision(value => value + 1)} />}
+    {section === 'users' && <Users api={api} currentId={currentAccountId} onSignedOut={onAccountSignedOut} onChange={() => setWorkspaceRevision(value => value + 1)} />}
     {section === 'system' && <section className="tile admin-panel"><h2>System information</h2>
       <p className="muted">Application details and the machine running StackJetty.</p>
       {system ? <div className="admin-detail-grid">
