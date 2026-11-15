@@ -309,10 +309,10 @@ export function MachineConsole({ api, visible }: { api: DiagnosticApi; visible: 
     {!catalog ? <p>Loading saved machines…</p> : !catalog.enabled ? <p>Enable NEXUS_SSH=on in the server environment to connect machines.</p> : <>
       {!secure && <p className="error">Open StackJetty over HTTPS or through an SSH-encrypted localhost connection to enter SSH credentials.</p>}
         <details ref={addMachineDetails}><summary>Add SSH machine</summary>
-          {catalog.discoveryEnabled && secure && <SshDiscovery api={api} select={endpoint => {
+          {catalog.discoveryEnabled && secure && <SshDiscovery api={api} onAdded={async () => { await load(); }} select={endpoint => {
             const fields = addForm.current?.elements;
             if (!fields) return;
-            for (const [name, value] of Object.entries({ name: 'SSH ' + endpoint.host, host: endpoint.host, port: String(endpoint.port), fingerprint: '' })) {
+            for (const [name, value] of Object.entries({ name: endpoint.name, host: endpoint.host, port: String(endpoint.port), fingerprint: '' })) {
               const field = fields.namedItem(name);
               if (field instanceof HTMLInputElement) field.value = value;
             }

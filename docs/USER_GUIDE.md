@@ -82,6 +82,8 @@ Administrators can open **Diagnostics** from the main header for service availab
 
 Open **SSH machines** directly from the main header to connect and switch between sessions. Each has its own shell, statistics, and SFTP file manager. The dashboard signs out after 15 minutes of inactivity and closes all SSH sessions tied to that login. SSH requires operator enablement and HTTPS or a private localhost tunnel. [Diagnostics and SSH guide](DIAGNOSTICS.md)
 
+Under **Add SSH machine → Discover SSH machines**, scan your network and review the results. Edit the suggested names, choose machines, supply their shared SSH username and optional group, and select **Add selected machines**. You can save further selections from the same results with different usernames or groups. Hostname suggestions use network reverse DNS when available.
+
 ## Jellyfin and system information
 
 When the operator configures Jellyfin, a tile with the matching base URL displays the aggregate active stream count. **Jellyfin activity unavailable** means StackJetty could not fetch a usable response. Administrators can view the Node.js version, platform, database schema version, and tile count under **Administration → System**. [Jellyfin setup](INSTALL.md#jellyfin-activity)

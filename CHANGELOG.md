@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Review and name discovered SSH machines, use reverse DNS hostname suggestions, and save selected machines in batches with a shared SSH username and optional group.
 - Offer a new-tab link when the HTTPS dashboard cannot embed an HTTP service.
 - Discover SSH servers on selected private IPv4 ranges from Add SSH machine and use a result to fill in the address and port.
 - Edit and group saved SSH machines. Search the inventory and use the always-visible bar to batch edit, connect, or disconnect selected machines.

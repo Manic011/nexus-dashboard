@@ -67,10 +67,27 @@ test('diagnostic monitoring and SSH sessions enforce access, fingerprints and ow
     const scan = { range: host.host, ports: String(host.port) + ',' + serviceAddress.port };
     const report = await request(scanPath, 'POST', scan);
     assert.equal(report.status, 200);
-    assert.deepEqual(await report.json(), { results: [{ host: host.host, port: host.port, saved: false }], checked: 2 });
+    const discovered = await report.json();
+    assert.equal(discovered.checked, 2);
+    assert.equal(discovered.results.length, 1);
+    assert.equal(discovered.results[0].host, host.host);
+    assert.equal(discovered.results[0].port, host.port);
+    assert.equal(discovered.results[0].saved, false);
     assert.equal((await request(scanPath, 'POST', { ...scan, range: '203.0.113.1' })).status, 400);
     assert.equal((await request(scanPath, 'POST', { ...scan, range: '192.168.0.0/23' })).status, 400);
     assert.deepEqual((await (await request('admin/diagnostics/ssh')).json()).hosts, []);
+    const importPath = 'admin/diagnostics/ssh/hosts/import';
+    const imports = [{ ...host, name: 'First import', username: 'batch-one' }, { ...host, name: 'Second import', username: 'batch-two' }];
+    assert.equal((await request(importPath, 'POST', { hosts: [imports[0], { ...imports[1], name: '' }] })).status, 400);
+    assert.deepEqual((await (await request('admin/diagnostics/ssh')).json()).hosts, []);
+    assert.deepEqual(await (await request(importPath, 'POST', { hosts: imports })).json(), { added: 2, skipped: 0 });
+    assert.deepEqual(await (await request(importPath, 'POST', { hosts: imports })).json(), { added: 0, skipped: 2 });
+    const imported = (await (await request('admin/diagnostics/ssh')).json()).hosts;
+    assert.deepEqual(imported.map((entry: { name: string }) => entry.name), ['First import', 'Second import']);
+    for (const entry of imported) {
+      assert.equal(entry.fingerprint, '');
+      await request('admin/diagnostics/ssh/hosts/' + entry.id, 'DELETE');
+    }
     const saved = await (await request('admin/diagnostics/ssh/hosts', 'POST', host)).json();
     const unpinned = await (await request('admin/diagnostics/ssh/hosts', 'POST', { ...host, fingerprint: '' })).json();
     const signIn = { hostId: unpinned.id, authentication: 'password', password: 'fixture-password' };

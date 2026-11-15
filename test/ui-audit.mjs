@@ -616,9 +616,14 @@ test('diagnostic screens, network test, SSH statistics, files and shell', { time
     assert.equal(await field('SSH host').inputValue(), '127.0.0.1');
     assert.equal(await field('SSH port').inputValue(), discoveryPort);
     assert.equal(await field('Trusted host fingerprint (optional)').inputValue(), '');
-    await field('Machine name').fill('Fixture machine');
-    await field('SSH username').fill('fixture');
-    await button('Save machine and continue').click();
+    await field('Name for 127.0.0.1:' + discoveryPort).fill('Fixture machine');
+    await field('SSH username for selected machines').fill('fixture');
+    await button('Clear discovered selection').click();
+    assert.ok(await button('Add selected machines (0)').isDisabled());
+    await button('Select discovered machines').click();
+    await button('Add selected machines (1)').click();
+    await page.getByText('Added 1 machine. Skipped 0 already saved entries.', { exact: true }).waitFor();
+    await button('Connect to Fixture machine').click();
     await button('Read server key').click();
     await page.getByText(fixture?.fingerprint ?? process.env.NEXUS_UI_SSH_FINGERPRINT, { exact: true }).waitFor();
     await button('Trust key and continue').click();

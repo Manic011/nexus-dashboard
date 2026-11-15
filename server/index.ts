@@ -282,7 +282,9 @@ export function createApp(data: string, dist: string, origin: string, setupToken
           }
           const fileUpload = /^\/api\/admin\/diagnostics\/ssh\/[a-f0-9]{48}\/file-operation$/.test(path);
           if (fileUpload && !localTransport && !secure) throw new RequestError(403, 'SSH file operations require HTTPS or the private SSH tunnel.');
-          const input = method === 'GET' || method === 'DELETE' ? undefined : await body(req, fileUpload ? 6 * 1024 * 1024 : 65536);
+          const machineImport = path === '/api/admin/diagnostics/ssh/hosts/import';
+          const input = method === 'GET' || method === 'DELETE' ? undefined
+            : await body(req, fileUpload ? 6 * 1024 * 1024 : machineImport ? 512 * 1024 : 65536);
           const controller = new AbortController();
           res.once('close', () => controller.abort());
           const result = path.startsWith('/api/admin/diagnostics/ssh')

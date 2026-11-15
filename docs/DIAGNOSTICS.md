@@ -52,7 +52,11 @@ StackJetty accepts this alternate origin only for a direct loopback connection w
 
 ### Register a machine
 
-To fill in an address automatically, open **Add SSH machine → Discover SSH machines**. Enter a private IPv4 address, CIDR, or start–end range and the ports to check. Separate multiple entries with commas. The range field suggests private subnets attached to the StackJetty server. **Use address** fills in the machine name, address, and port. Enter your SSH username, save the machine, and verify its host key before connecting. Already saved addresses are marked in the results.
+Open **Add SSH machine → Discover SSH machines**. Enter a private IPv4 address, CIDR, or start–end range and the ports to check. Separate multiple entries with commas. The range field suggests private subnets attached to the StackJetty server.
+
+Discovery tries reverse DNS for each responding SSH address. When the network supplies a hostname, it becomes the suggested machine name. Otherwise, the suggestion uses the IP address. Edit **Machine name** on each result, select the machines you want, and enter **SSH username for selected machines** and an optional **Group for selected machines**. Choose **Add selected machines** to save the selection together. You can add another selection with a different username or group from the same results.
+
+Saved results are marked **Already saved**. The save operation skips existing records with the same address, port, and SSH username, including when a batch is retried. It validates the whole batch before saving. Hostname suggestions depend on the DNS available to the StackJetty server and serve as editable display names. Connections retain the scanned IP address, and each machine requires host-key verification before authentication. **Use address** remains available to fill in the individual machine form.
 
 Discovery checks for an SSH handshake without signing in. It runs from the StackJetty server, scans one range selection at a time, and can be canceled. Each scan supports up to 254 addresses, 8 ports, and 512 address and port combinations. Port 22 is the default. Scans require administrator access over HTTPS or the private localhost connection. Operators can enable or disable SSH discovery separately with `NEXUS_SSH_DISCOVERY`.
 

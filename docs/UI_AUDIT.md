@@ -52,6 +52,8 @@ The grouped layout regression drags an entire category by its header handle, che
 
 ## Diagnostics verification
 
+The SSH discovery review passed locally and against an isolated Ubuntu instance. The browser edited a discovered machine's name, cleared and restored its selection, saved it through batch import, and continued with host-key verification and SSH login. API tests saved two named machines together, retried the batch without duplication, verified an invalid entry prevented all writes, and confirmed imported machines have an empty trusted fingerprint. The live release was verified on HTTP and trusted LAN HTTPS. Hostname suggestions depend on network reverse DNS records.
+
 Chromium verified the HTTP tile fallback at an HTTPS dashboard address locally and using the deployed Ubuntu frontend. A fixture tile showed the new-tab link and opened the HTTP service in that tab.
 
 The local and Ubuntu browser tests found a fixture SSH server on a custom port, used its result to fill in the machine form, and continued through host key review. API tests verified that a web listener was excluded, public targets and oversized ranges were rejected, and a viewer could not scan.

@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { EventEmitter, setMaxListeners } from 'node:events';
 import { StringDecoder } from 'node:string_decoder';
+import { Resolver } from 'node:dns/promises';
 import type { DatabaseSync } from 'node:sqlite';
 import ssh2, { type Client, type ClientChannel, type SFTPWrapper } from 'ssh2';
 import { z } from 'zod';
@@ -66,6 +67,17 @@ function detectSsh(host: string, port: number, signal: AbortSignal) {
       return false; // End key negotiation before exchanging authentication messages.
     } });
   });
+}
+
+async function discoverHostname(host: string) {
+  const resolver = new Resolver({ timeout: 800, tries: 1 });
+  const timer = setTimeout(() => resolver.cancel(), 1000);
+  try {
+    const names = await resolver.reverse(host);
+    return names.map(name => name.replace(/\.$/, '')).find(name =>
+      name.length <= 253 && /^[a-zA-Z0-9](?:[a-zA-Z0-9.-]*[a-zA-Z0-9])?$/.test(name));
+  } catch { return undefined; }
+  finally { clearTimeout(timer); }
 }
 
 export function configureSsh(db: DatabaseSync, enabled: boolean, discoveryEnabled: boolean) {
@@ -209,7 +221,8 @@ export function configureSsh(db: DatabaseSync, enabled: boolean, discoveryEnable
           }
           scanning = true;
           let next = 0;
-          const results: { host: string; port: number; saved: boolean }[] = [];
+          const results: { host: string; port: number; saved: boolean; hostname?: string }[] = [];
+          const names = new Map<string, Promise<string | undefined>>();
           const saved = new Set(list().map(host => host.host + ':' + host.port));
           try {
             const signal = AbortSignal.any([requestSignal ?? new AbortController().signal, AbortSignal.timeout(30_000)]);
@@ -220,7 +233,11 @@ export function configureSsh(db: DatabaseSync, enabled: boolean, discoveryEnable
                 const index = next++;
                 const host = plan.hosts[Math.floor(index / plan.ports.length)];
                 const port = plan.ports[index % plan.ports.length];
-                if (await detectSsh(host, port, signal)) results.push({ host, port, saved: saved.has(host + ':' + port) });
+                if (await detectSsh(host, port, signal)) {
+                  if (!names.has(host)) names.set(host, discoverHostname(host));
+                  const hostname = await names.get(host);
+                  results.push({ host, port, saved: saved.has(host + ':' + port), ...(hostname ? { hostname } : {}) });
+                }
               }
             }));
             if (aborted()) throw new DiagnosticError(408, 'The SSH discovery scan was interrupted. Try fewer addresses or ports.');
@@ -230,6 +247,25 @@ export function configureSsh(db: DatabaseSync, enabled: boolean, discoveryEnable
       }
       if (method === 'GET' && path === '/api/admin/diagnostics/ssh/sessions') {
         return { ids: [...sessions].filter(([, session]) => session.owner === owner).map(([id]) => id) };
+      }
+      if (method === 'POST' && path === '/api/admin/diagnostics/ssh/hosts/import') {
+        const { hosts } = z.object({ hosts: z.array(hostInput.omit({ fingerprint: true })).min(1).max(512) }).parse(input);
+        let added = 0;
+        let skipped = 0;
+        db.exec('BEGIN');
+        try {
+          const saved = new Set(list().map(host => JSON.stringify([host.host.toLowerCase(), host.port, host.username])));
+          const insert = db.prepare("INSERT INTO admin_records(kind,label,created,payload) VALUES ('ssh-host',?,?,?)");
+          for (const host of hosts) {
+            const key = JSON.stringify([host.host.toLowerCase(), host.port, host.username]);
+            if (saved.has(key)) { skipped++; continue; }
+            insert.run(host.name, new Date().toISOString(), JSON.stringify({ ...host, fingerprint: '' }));
+            saved.add(key);
+            added++;
+          }
+          db.exec('COMMIT');
+        } catch (error) { db.exec('ROLLBACK'); throw error; }
+        return { added, skipped };
       }
       if (method === 'POST' && path === '/api/admin/diagnostics/ssh/hosts') {
         const host = hostInput.parse(input);

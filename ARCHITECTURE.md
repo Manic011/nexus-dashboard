@@ -121,6 +121,8 @@ These routes are relative to `/api/admin/diagnostics`. The server checks that th
 | `PUT /monitor`, `POST /check` | Set `enabled` or run a check immediately. |
 | `GET /speed`, `POST /speed` | Measure download and upload throughput using bounded transfers. |
 | `GET /ssh`, `POST /ssh/hosts`, `DELETE /ssh/hosts/{hostId}` | List, register, or remove saved machines. Removing a machine closes its sessions. |
+| `GET /ssh/discover`, `POST /ssh/discover` | Suggest attached private subnets or scan selected addresses and ports for SSH, including optional reverse DNS hostname suggestions. Requires secure transport and discovery enablement. |
+| `POST /ssh/hosts/import` | Validate and save up to 512 named machine records atomically. Skip duplicate address, port, and username combinations. Imported records require host-key review. |
 | `POST /ssh/hosts/{hostId}/probe`, `POST /ssh/hosts/{hostId}/trust` | Read the key before sending credentials and approve its fingerprint on first use. |
 | `POST /ssh/connect`, `DELETE /ssh/{sessionId}` | Authenticate with a password or private key and close a connection. |
 | `GET /ssh/{sessionId}/stats` | Return Linux system and process data. |

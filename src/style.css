@@ -311,6 +311,12 @@ button.diagnostic-launch { border: 0; background: transparent; padding: 0; min-h
 .machine-console > details > summary { margin-top: 16px; }
 .machine-console summary { cursor: pointer; }
 .ssh-discovery { margin-block: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; }
+.ssh-discovery-review > .actions { flex-wrap: wrap; }
+.ssh-discovery-result { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 240px; }
+.ssh-discovery-result > input { width: auto; }
+.ssh-discovery-result > div { min-width: 0; flex: 1; }
+.ssh-discovery-result label { display: grid; gap: 5px; margin-top: 8px; }
+.ssh-discovery-result label input { width: 100%; }
 .ssh-machine-toolbar { display: grid; gap: 12px; margin-block: 20px; }
 .ssh-machine-toolbar > label { display: grid; gap: 6px; min-width: 0; }
 .ssh-batch-actions { padding: 12px; background: var(--control); border: 1px solid var(--border); border-radius: 8px; }
