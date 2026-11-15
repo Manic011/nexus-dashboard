@@ -52,6 +52,8 @@ The grouped layout regression drags an entire category by its header handle, che
 
 ## Diagnostics verification
 
+The unified vault browser regression passed locally and against an isolated Ubuntu instance. It created a service login, opened an SSH machine without another unlock, tried a wrong previous password, imported the old machine entry, and reconnected after reload with the account master password. It checked that the stored envelope contained neither credential in plaintext, that locking from the header locked the SSH panel, and that removing an SSH entry left the service login intact.
+
 The November 15, 2026 documentation smoke test ran the full local Chromium suite and all eight API tests locally and on Ubuntu. The Ubuntu-hosted browser scenario exercised tile opening preferences, uptime sampling, host metrics, network transfers, first-use SSH key approval, saved password locking and reuse, concurrent workspaces, shell input, file actions, and independent disconnect. Screenshots were captured separately in a disposable local browser with fictional tiles, a fixture SSH server, and sample files. The download exercise verified the browser event and payload. It did not verify a file saved to disk.
 
 The service monitor regression verified that a 501 response to HEAD can recover via GET, that a persistent HTTP 503 still counts as unavailable, and that certificate verification errors are distinct from timeouts and refused connections. The diagnostic browser test passed locally, and the API regressions passed on Ubuntu.

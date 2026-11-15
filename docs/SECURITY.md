@@ -15,7 +15,7 @@ The Node.js November 2026 release includes fixes in bundled HTTP parsing, SQLite
 
 ## Application review
 
-- Saved SSH passwords use browser-side authenticated encryption with a master password, per-machine storage keys, destination binding, automatic locking, and concurrency checks. SSH password and single-prompt PAM authentication retain trusted host-key verification. A localhost alias is permitted only for direct loopback peers with a matching Host and write Origin, and with forwarding headers absent. Missing or foreign write origins remain rejected.
+- The unified account vault uses browser-side authenticated encryption with a master password, destination binding, automatic locking, and concurrency checks. SSH password and single-prompt PAM authentication retain trusted host-key verification. A localhost alias is permitted only for direct loopback peers with a matching Host and write Origin, and with forwarding headers absent. Missing or foreign write origins remain rejected.
 
 - Diagnostics and SSH APIs are administrator-only and retain the session, Origin, and JSON checks. SSH is disabled by default. Credentials require HTTPS or the private loopback connection and an approved host key. A first-use probe reads the key before authentication. Each connection belongs to its initiating login and closes on sign-out or expiry. Dashboard inactivity expiry is enforced on the server after 15 minutes. Background diagnostics and terminal requests do not renew it. File management uses SFTP with the remote account's permissions. Shell input uses sequence numbers and runs with the remote account's authority. Monitoring contacts saved tile URLs with bounded concurrency, verifies TLS, and does not follow redirects.
 

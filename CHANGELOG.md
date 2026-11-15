@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Use one account vault for service logins and SSH passwords across StackJetty, with one-time import from older SSH machine vaults.
 - Drag whole sections by their category handle, or reorder them with the arrow keys, in the grouped layout editor.
 - Support simultaneous LAN HTTP and native HTTPS with separate sessions and a shared dashboard database.
 - Add sample-data screenshots and link the diagnostics and SSH guide from the README. Refresh the API reference, privacy notes, and smoke-test records.

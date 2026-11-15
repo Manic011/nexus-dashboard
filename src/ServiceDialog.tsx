@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
-import { unlockVault } from './vault.js';
+import { VaultEditor } from './VaultControls.js';
 
 type ServiceDialogProps = {
   title: string;
@@ -56,7 +56,7 @@ export function ServiceDialog({ title, url, username, startRemote, launchRemote,
       <button aria-label="Close service view" onClick={close} autoFocus><X size={19} /></button>
     </div>
     <p className="muted service-address">{address.origin}</p>
-    {username && <CredentialPanel username={username} address={address.href} />}
+    {username && <CredentialPanel address={address.href} />}
     {(launchRemote || remoteSelected) && <div className="service-actions">
       {remoteSelected ? <button type="button" onClick={() => selectView(false)}>Return to direct view</button>
         : <button type="button" onClick={() => selectView(true)}>Open in remote browser</button>}
@@ -79,127 +79,10 @@ export function ServiceDialog({ title, url, username, startRemote, launchRemote,
   </dialog>;
 }
 
-function CredentialPanel({ username, address }: { username: string; address: string }) {
+function CredentialPanel({ address }: { address: string }) {
   const [open, setOpen] = useState(false);
   return <details className="credential-panel" onToggle={event => setOpen(event.currentTarget.open)}>
     <summary>Saved login</summary>
-    {open && (!window.isSecureContext
-      ? <p className="muted">Open StackJetty over HTTPS to use the credential vault.</p>
-      : window.crypto?.subtle && navigator.locks
-        ? <VaultForm username={username} address={address} />
-        : <p className="muted">Use a current browser with Web Crypto and Web Locks to open the vault.</p>)}
+    {open && <VaultEditor address={address} />}
   </details>;
-}
-
-export function VaultForm({ username, address, storageKey, fixedUsername, onUse }: {
-  username: string; address: string; storageKey?: string; fixedUsername?: string;
-  onUse?: (credential: { username: string; password: string }) => Promise<void>;
-}) {
-  const key = storageKey ?? 'nexus.vault.v1:' + username;
-  const [storage] = useState(() => {
-    try { return { available: true, sealed: localStorage.getItem(key) }; }
-    catch { return { available: false, sealed: null }; }
-  });
-  const [sealed, setSealed] = useState(storage.sealed);
-  const [vault, setVault] = useState<Awaited<ReturnType<typeof unlockVault>>>();
-  const [status, setStatus] = useState('');
-  const [busy, setBusy] = useState(false);
-  const saved = vault?.entries[address];
-  useEffect(() => {
-    if (!vault) return;
-    const lock = () => { setVault(undefined); setStatus('Vault locked.'); };
-    const timer = window.setTimeout(lock, 120_000);
-    const onStorage = (event: StorageEvent) => {
-      if (event.key === key || event.key === null) {
-        setSealed(localStorage.getItem(key));
-        lock();
-      }
-    };
-    window.addEventListener('storage', onStorage);
-    return () => { window.clearTimeout(timer); window.removeEventListener('storage', onStorage); };
-  }, [key, vault]);
-
-  async function run(work: () => Promise<void>) {
-    setBusy(true);
-    setStatus('');
-    try { await work(); }
-    catch (error) { setStatus(error instanceof Error ? error.message : 'The vault operation failed.'); }
-    finally { setBusy(false); }
-  }
-
-  function unlock(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const fields = event.currentTarget;
-    const values = new FormData(fields);
-    const master = String(values.get('master'));
-    if (!sealed && master !== values.get('confirm')) {
-      setStatus('The master passwords must match.');
-      return;
-    }
-    fields.reset();
-    void run(async () => {
-      let opened;
-      try { opened = await unlockVault(master, sealed); }
-      catch { throw new Error('Unable to unlock the vault. Check your master password.'); }
-      if (!sealed) await write(await opened.seal({}));
-      setVault(opened);
-    });
-  }
-
-  async function write(value: string) {
-    await navigator.locks.request(key, () => {
-      const current = localStorage.getItem(key);
-      if (current !== sealed) {
-        setVault(undefined);
-        setSealed(current);
-        throw new Error('The vault changed in another tab. Unlock it again.');
-      }
-      localStorage.setItem(key, value);
-      setSealed(value);
-    });
-  }
-
-  async function save(next?: { username: string; password: string }) {
-    if (!vault) return;
-    const entries = { ...vault.entries };
-    if (next) entries[address] = next;
-    else delete entries[address];
-    const envelope = await vault.seal(entries);
-    await write(envelope);
-    setVault(current => current && { ...current, entries });
-    setStatus(fixedUsername ? next ? 'SSH password saved.' : 'SSH password removed.' : next ? 'Login saved.' : 'Login removed.');
-  }
-
-  if (!storage.available) return <p className="muted">Browser storage is unavailable. Enable site storage to use the encrypted vault.</p>;
-
-  return <>
-    {vault ? <form className="vault-form" key={address + String(!!saved)} onSubmit={event => {
-      event.preventDefault();
-      const data = new FormData(event.currentTarget);
-      void run(() => save({ username: fixedUsername ?? String(data.get('username')), password: String(data.get('password')) }));
-    }} autoComplete="off">
-      <label>{fixedUsername ? 'Saved SSH username' : 'Service username'}<input name="username" defaultValue={fixedUsername ?? saved?.username} readOnly={!!fixedUsername} maxLength={512} disabled={busy} /></label>
-      <label>{fixedUsername ? 'SSH password to save' : 'Service password'}<input name="password" type="password" defaultValue={saved?.password} maxLength={fixedUsername ? 4096 : 2048} required disabled={busy} /></label>
-      <div className="service-actions">
-        <button type="submit" disabled={busy}>{fixedUsername ? 'Save SSH password' : 'Save login'}</button>
-        {saved && onUse && <button type="button" disabled={busy} onClick={() => void run(() => onUse(saved))}>Connect with saved password</button>}
-        {saved && <>
-          {!fixedUsername && <><button type="button" disabled={busy} onClick={() => void run(async () => {
-            await navigator.clipboard.writeText(saved.username); setStatus('Username copied.');
-          })}>Copy username</button>
-          <button type="button" disabled={busy} onClick={() => void run(async () => {
-            await navigator.clipboard.writeText(saved.password); setStatus('Password copied.');
-          })}>Copy password</button></>}
-          <button type="button" disabled={busy} onClick={() => void run(() => save())}>{fixedUsername ? 'Remove saved password' : 'Remove login'}</button>
-        </>}
-        <button type="button" disabled={busy} onClick={() => { setVault(undefined); setStatus('Vault locked.'); }}>Lock vault</button>
-      </div>
-    </form> : <form className="vault-form" onSubmit={unlock} autoComplete="off">
-      {!sealed && <p className="muted">Use a unique master password. This vault lives in this browser. Clearing site data removes it.</p>}
-      <label>Master password<input name="master" type="password" autoComplete={sealed ? 'current-password' : 'new-password'} required minLength={sealed ? undefined : 16} maxLength={256} /></label>
-      {!sealed && <label>Confirm master password<input name="confirm" type="password" autoComplete="new-password" required minLength={16} maxLength={256} /></label>}
-      <div className="service-actions"><button disabled={busy}>{sealed ? 'Unlock vault' : 'Create vault'}</button></div>
-    </form>}
-    {status && <p role="status">{status}</p>}
-  </>;
 }

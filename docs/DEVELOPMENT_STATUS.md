@@ -10,7 +10,7 @@ StackJetty is a development preview. The [requirements audit](REQUIREMENTS_AUDIT
 
 - Optional Kasm browser launch inside the service view for administrators. Real provider validation requires a configured Kasm deployment.
 
-- Sandboxed service view and browser-local encrypted login storage for individual accounts. Cross-device vault sync and recovery are outside the current implementation.
+- Sandboxed service view and a unified browser-local vault for each account's service logins and SSH passwords. Cross-device vault sync and recovery are outside the current implementation.
 
 - Setup token, administrator account, editor and viewer accounts, and shared read-only access.
 - Tile editing with searchable categories and tags, plus a review step for imports.

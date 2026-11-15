@@ -6,6 +6,8 @@ import { Administration } from './Administration.js';
 import { openModes, usePreferences, type OpenMode } from './preferences.js';
 import { CategoryPicker } from './CategoryPicker.js';
 import { ServiceDialog } from './ServiceDialog.js';
+import { CredentialVaultProvider } from './CredentialVault.js';
+import { VaultMenu } from './VaultControls.js';
 import { LayoutEditor, type CategoryDropProps } from './LayoutEditor.js';
 import { TileGrid } from './CategoryDivider.js';
 import { categoryName, orderedCategories, orderGroupedTiles, type LayoutCategories } from './layoutCategories.js';
@@ -254,7 +256,7 @@ function App() {
     </section>
   </main>;
 
-  return <>
+  return <CredentialVaultProvider username={session.username} key={session.username}>
     <header><div className="shell top">{brand}<div className="account">{session.role === 'admin' && <nav className="main-nav" aria-label="Main navigation">
       {([['dashboard', 'Dashboard'], ['diagnostics', 'Diagnostics'], ['ssh', 'SSH machines'], ['administration', 'Administration']] as const).map(([id, label]) =>
         <button key={id} disabled={busy} aria-current={page === id ? 'page' : undefined} onClick={() => {
@@ -268,7 +270,7 @@ function App() {
         const mode = openModes.find(item => item.value === event.target.value);
         if (mode) preferences.update({ openMode: mode.value });
       }}>{openModes.map(mode => <option key={mode.value} value={mode.value}>{mode.label}</option>)}</select></label>
-    </div></details><button disabled={busy} onClick={() => void action(async () => {
+    </div></details>{session.username !== 'shared' && <VaultMenu />}<button disabled={busy} onClick={() => void action(async () => {
       await api('logout', 'POST');
       setSession(await api<Session>('session'));
       setSshVisited(false);
@@ -283,7 +285,7 @@ function App() {
     <main className="shell dashboard">
       {!editing && !deleting && warning}
       {session.role === 'admin' && sshVisited && <div hidden={page !== 'ssh'}><Suspense fallback={<p role="status">Loading SSH machines…</p>}>
-        <MachineConsole api={api} username={session.username} visible={page === 'ssh'} />
+        <MachineConsole api={api} visible={page === 'ssh'} />
       </Suspense></div>}
       {page === 'ssh' ? null : page === 'administration' ? <><h1>Administration</h1><Administration api={api} onImport={refresh} categories={[...categories.values()]} /></>
       : page === 'diagnostics' ? <><h1>Diagnostics</h1><Suspense fallback={<p role="status">Loading diagnostics…</p>}>
@@ -356,7 +358,7 @@ function App() {
         </form>}
       </>}
     </dialog>
-  </>;
+  </CredentialVaultProvider>;
 }
 
 createRoot(document.getElementById('root')!).render(<App />);

@@ -13,7 +13,7 @@ A self-hosted dashboard for your homelab. Discover services, organize them into 
 | Application dashboard | Create, edit, and delete tiles. Group tiles by category, add multiple tags, and combine search with category and tag filters. |
 | Personal layouts | Rearrange cards or drag whole category sections. Adjust tile widths, category labels and dividers, or position tiles on a custom grid. Preview before saving. |
 | Appearance | Choose a light, dark, or system theme and comfortable or compact cards. |
-| Service view and vault | Open compatible services inside StackJetty and save logins in an encrypted browser vault. Choose a default or per-tile opening mode for a new browser tab, direct embedding, or Kasm. |
+| Service view and vault | Open compatible services inside StackJetty. Use one master password for service logins and SSH passwords in your encrypted account vault. Choose a default or per-tile opening mode for a new browser tab, direct embedding, or Kasm. |
 | Service discovery | Scan reachable private IPv4 subnets with CIDRs, address ranges, exclusions, custom ports, reusable profiles, progress, and cancellation. Compare scans and review live identification evidence before importing or updating tiles. |
 | Accounts and access | Create editor and viewer accounts, organize user groups, and restrict individual tiles by account or group. Shared read-only access is also available. |
 | Tile backups | Export tiles as JSON; review new entries and explicitly update matching URLs. Save named server-side configuration snapshots and preview restore changes. Operators can also create and recover consistent full-database backups. |

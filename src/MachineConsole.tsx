@@ -3,7 +3,8 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { formatBytes, formatUptime, type DiagnosticApi } from './Diagnostics.js';
-import { VaultForm } from './ServiceDialog.js';
+import { sshCredentialAddress } from './CredentialVault.js';
+import { VaultEditor } from './VaultControls.js';
 import { RemoteFiles } from './RemoteFiles.js';
 
 type Host = { id: number; name: string; host: string; port: number; username: string; fingerprint?: string };
@@ -116,26 +117,18 @@ function RemoteTerminal({ api, connection, visible }: { api: DiagnosticApi; conn
     {error && <p role="alert" className="error">{error}</p>}</>;
 }
 
-function sshVaultKey(username: string, id: number) {
-  return 'nexus.ssh.vault.v1:' + username + ':' + id;
-}
-
-function SavedSshPassword({ username, host, connect }: {
-  username: string; host: Host; connect: (password: string) => Promise<void>;
+function SavedSshPassword({ host, connect }: {
+  host: Host; connect: (password: string) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
-  const address = 'ssh:' + JSON.stringify([host.host.toLowerCase(), host.port, host.username, host.fingerprint]);
   return <details className="credential-panel" onToggle={event => setOpen(event.currentTarget.open)}>
     <summary>Saved SSH password</summary>
-    {open && (window.crypto?.subtle && navigator.locks ? <>
-      <p className="muted">Protect this machine’s password with a vault password. It is encrypted for your account in this browser.</p>
-      <VaultForm username={username} address={address} storageKey={sshVaultKey(username, host.id)} fixedUsername={host.username}
-        onUse={credential => connect(credential.password)} />
-    </> : <p className="muted">Use a current browser with Web Crypto and Web Locks to save SSH passwords.</p>)}
+    {open && <VaultEditor address={sshCredentialAddress(host)} machine={{ id: host.id, username: host.username }}
+      onUse={credential => connect(credential.password)} />}
   </details>;
 }
 
-export function MachineConsole({ api, username, visible }: { api: DiagnosticApi; username: string; visible: boolean }) {
+export function MachineConsole({ api, visible }: { api: DiagnosticApi; visible: boolean }) {
   const [catalog, setCatalog] = useState<Catalog>();
   const [hostId, setHostId] = useState('');
   const [connections, setConnections] = useState<Connection[]>([]);
@@ -240,11 +233,7 @@ export function MachineConsole({ api, username, visible }: { api: DiagnosticApi;
               await api('admin/diagnostics/ssh/hosts/' + host.id, 'DELETE');
               for (const session of connections) if (session.hostId === host.id) sessionIds.current.delete(session.id);
               setConnections(current => current.filter(session => session.hostId !== host.id));
-              const key = sshVaultKey(username, host.id);
-              try {
-                if (navigator.locks) await navigator.locks.request(key, () => localStorage.removeItem(key));
-                else localStorage.removeItem(key);
-              } finally { setPendingRemoval(undefined); setHostId(''); await load(); }
+              setPendingRemoval(undefined); setHostId(''); await load();
             })}>Confirm machine removal</button><button onClick={() => setPendingRemoval(undefined)}>Cancel removal</button></div>}
         </li>)}</ul>
         {!catalog.hosts.length && <p>No saved machines.</p>}
@@ -283,7 +272,7 @@ export function MachineConsole({ api, username, visible }: { api: DiagnosticApi;
               <label>Key passphrase<input name="passphrase" type="password" autoComplete="off" maxLength={4096} /></label></>}
           <button className="primary" disabled={busy}>{busy ? 'Connecting…' : 'Start SSH session'}</button>
         </form>
-          <SavedSshPassword username={username} host={selectedHost} connect={password =>
+          <SavedSshPassword host={selectedHost} connect={password =>
             run(() => connect({ authentication: 'password', password }))} />
         </div>}
       {connections.length > 0 && <>

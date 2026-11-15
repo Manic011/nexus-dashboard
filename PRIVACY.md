@@ -12,7 +12,7 @@ Opt-in monitoring contacts saved tile URLs and records sampled availability for 
 
 ## Backups and logs
 
-The service vault lives in browser site storage for an individual StackJetty account. It encrypts saved URLs and login values before storage. The vault is outside server backups and exports. Copying a login places it on the device clipboard.
+The credential vault lives in browser site storage for an individual StackJetty account. It encrypts service and SSH destinations and login values before storage. The unlocked key stays in browser tab memory until the vault locks. The vault is outside server backups and exports. Copying a service login places it on the device clipboard.
 
 Tile exports contain service URLs and metadata. Database backups contain account hashes and configuration; they can also contain session digests and discovery records. They are sensitive operational files, not release assets. Recovery revokes restored sessions. Protect backups with restrictive filesystem permissions, encrypted storage where appropriate, and a tested retention policy. Back up the protected environment file separately when recovering a complete instance.
 

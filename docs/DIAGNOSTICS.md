@@ -70,11 +70,11 @@ SSH password authentication supports the SSH password method and a single non-ec
 
 ### Save an encrypted SSH password
 
-Open **Saved SSH password** for a selected machine. Create a vault with a master password of at least 16 characters, enter **SSH password to save**, and select **Save SSH password**. Later, unlock that vault and choose **Connect with saved password**. **Remove saved password** clears the entry, and **Lock vault** closes it immediately. The vault also locks after two minutes or when its panel closes.
+Open **Saved SSH password** for a selected machine. Use the same account vault as your service logins. Once it is unlocked, enter **SSH password to save** and select **Save SSH password**. Use **Connect with saved password** to sign in while the vault is unlocked. You can lock it from the credential panel or **Vault** in the main header. It also locks after two minutes, when you reload, or when you sign out.
 
-Each saved machine has an encrypted vault scoped to your dashboard username in the current browser profile and origin. The vault uses AES-256-GCM with a random salt and fresh IV on every write. PBKDF2-SHA-256 derives the key from the master password using 600,000 iterations. Web Locks and a saved-ciphertext comparison protect concurrent writes. The master password stays in the browser. The encrypted entry is bound to the hostname, port, SSH username, and trusted host fingerprint.
+If you saved a password in an older machine vault, unlock your unified vault and choose **Import previous password** in that machine's **Saved SSH password** panel. Enter the master password you previously used for that machine. The old entry is removed after the import succeeds. If you no longer have the old master password, enter the machine's SSH password again and save it in the unified vault.
 
-Passwords and private keys are used in server memory during authentication and the active connection. Optional saved passwords live as ciphertext in browser storage. Saved machine records and full-database backups carry host metadata, including hostnames and usernames. Protect those backups. The password vault is browser-local, so use the same browser profile and dashboard address to unlock it. Clearing site data removes saved vaults. Keep the master password available because vault recovery is unavailable. Removing a saved machine clears its vault from the current browser.
+Each SSH entry is bound to the hostname, port, SSH username, and trusted host fingerprint. Passwords and private keys are used in server memory during authentication and the active connection. Optional saved passwords live as ciphertext in browser storage. Saved machine records and full-database backups carry host metadata, including hostnames and usernames. Use the same browser profile and dashboard address to unlock the vault. To remove a credential, choose **Remove saved password** or use **Vault** in the main header.
 
 ### Machine statistics
 
