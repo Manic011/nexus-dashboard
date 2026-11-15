@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from 'node:http';
@@ -607,15 +607,42 @@ test('diagnostic screens, network test, SSH statistics, files and shell', { time
     await page.getByText(/Mbps/).first().waitFor();
     await button('SSH machines').click();
     await page.getByText('Add SSH machine', { exact: true }).click();
-    await page.getByText('Discover SSH machines', { exact: true }).click();
+    await button('Discover SSH machines').click();
     const discoveryPort = String(fixture?.server.address().port ?? process.env.NEXUS_UI_SSH_PORT);
     await field('IP addresses or ranges').fill('127.0.0.1');
     await field('Ports to check').fill(discoveryPort);
+    const scanRoute = '**/api/admin/diagnostics/ssh/discover';
+    await page.route(scanRoute, route => {
+      if (route.request().method() !== 'POST') return route.continue();
+      return route.fulfill({ json: { checked: 16, results: Array.from({ length: 16 }, (_, index) => ({
+        host: '192.168.50.' + (index + 10), port: 22, saved: index === 15,
+        hostname: index === 0 ? 'storage-and-backup-server.lab.example' : ['media-server', 'backup-server', 'home-automation', 'build-server'][index % 4] + '-' + (index + 1),
+      })) } });
+    });
+    await button('Scan for SSH').click();
+    const review = page.getByRole('form', { name: 'Review discovered SSH machines' });
+    await review.getByRole('checkbox', { name: 'Select discovered 192.168.50.10:22', exact: true }).waitFor();
+    assert.equal(await review.getByRole('checkbox').count(), 16);
+    assert.ok(await review.locator('.ssh-discovery-results').evaluate(list => list.scrollHeight > list.clientHeight));
+    const screenshotDirectory = process.env.NEXUS_UI_SCREENSHOT_DIR;
+    if (screenshotDirectory) {
+      await mkdir(screenshotDirectory, { recursive: true });
+      await page.locator('.machine-console').screenshot({ path: join(screenshotDirectory, 'ssh-discovery-desktop.png') });
+    }
+    await page.setViewportSize({ width: 375, height: 812 });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.evaluate(() => document.documentElement.dataset.theme = 'light');
+    if (screenshotDirectory) await page.locator('.machine-console').screenshot({ path: join(screenshotDirectory, 'ssh-discovery-mobile.png') });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.evaluate(() => document.documentElement.dataset.theme = 'dark');
+    if (screenshotDirectory) await page.locator('.machine-console').screenshot({ path: join(screenshotDirectory, 'ssh-discovery-dark.png') });
+    await page.unroute(scanRoute);
     await button('Scan for SSH').click();
     await button('Use 127.0.0.1:' + discoveryPort).click();
     assert.equal(await field('SSH host').inputValue(), '127.0.0.1');
     assert.equal(await field('SSH port').inputValue(), discoveryPort);
     assert.equal(await field('Trusted host fingerprint (optional)').inputValue(), '');
+    await button('Discover SSH machines').click();
     await field('Name for 127.0.0.1:' + discoveryPort).fill('Fixture machine');
     await field('Vault credential for selected machines').selectOption(origin + '/');
     assert.equal(await field('SSH username for selected machines').inputValue(), 'fixture-web');
@@ -766,6 +793,7 @@ test('diagnostic screens, network test, SSH statistics, files and shell', { time
     await button('Save changes').click();
     await page.getByText('Machine updated.', { exact: true }).waitFor();
     await page.getByText('Add SSH machine', { exact: true }).click();
+    await button('Enter manually').click();
     await field('Machine name').fill('Fixture secondary');
     await field('SSH host').fill(machine.host);
     await field('SSH port').fill(String(machine.port));

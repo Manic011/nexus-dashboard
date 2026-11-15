@@ -310,13 +310,37 @@ button.diagnostic-launch { border: 0; background: transparent; padding: 0; min-h
 .check-unknown { border: 1px dashed currentColor; opacity: .55; }
 .machine-console > details > summary { margin-top: 16px; }
 .machine-console summary { cursor: pointer; }
-.ssh-discovery { margin-block: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; }
-.ssh-discovery-review > .actions { flex-wrap: wrap; }
-.ssh-discovery-result { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 240px; }
-.ssh-discovery-result > input { width: auto; }
-.ssh-discovery-result > div { min-width: 0; flex: 1; }
-.ssh-discovery-result label { display: grid; gap: 5px; margin-top: 8px; }
-.ssh-discovery-result label input { width: 100%; }
+.ssh-add-nav { margin-top: 16px; }
+.ssh-discovery { margin-block: 16px; }
+.ssh-scan-form { display: grid; grid-template-columns: minmax(0, 3fr) minmax(100px, 1fr) auto; gap: 12px; align-items: end; margin: 0; }
+.ssh-scan-form label { min-width: 0; }
+.ssh-scan-form input { width: 100%; }
+.ssh-scan-actions { flex-wrap: wrap; }
+.ssh-discovery-help { font-size: .85rem; line-height: 1.5; }
+.ssh-discovery-review { gap: 12px; margin-top: 16px; }
+.ssh-discovery-selection, .ssh-import-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.ssh-discovery-selection { font-size: .9rem; }
+.ssh-discovery-results { list-style: none; margin: 0; padding: 0; max-height: 340px; overflow: auto; scrollbar-gutter: stable; border-block: 1px solid var(--border); }
+.ssh-discovery-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 4px; }
+.ssh-discovery-row + .ssh-discovery-row { border-top: 1px solid var(--border); }
+.ssh-discovery-row > input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+.ssh-discovery-machine { display: grid; gap: 5px; min-width: 0; }
+.ssh-discovery-machine input { width: 100%; padding: 8px 10px; font-weight: 600; }
+.ssh-discovery-machine small { overflow-wrap: anywhere; font-size: .8rem; }
+.ssh-discovery-row button { font-size: .85rem; }
+.ssh-import-settings { min-width: 0; margin: 0; padding: 12px; border: 1px solid var(--border); border-radius: 8px; }
+.ssh-import-settings legend { padding-inline: 5px; font-size: .85rem; color: var(--muted); }
+.ssh-import-fields { display: grid; grid-template-columns: minmax(0, 1.5fr) repeat(2, minmax(0, 1fr)); gap: 12px; }
+.ssh-import-fields label { min-width: 0; font-size: .9rem; }
+.ssh-import-fields input, .ssh-import-fields select { width: 100%; }
+.ssh-import-fields select { font: inherit; color: inherit; background: var(--field); border: 1px solid var(--border); border-radius: 7px; padding: 10px; min-width: 0; }
+@media (max-width: 650px) {
+  .ssh-scan-form { grid-template-columns: minmax(0, 1fr) minmax(85px, .45fr); }
+  .ssh-scan-actions { grid-column: 1 / -1; }
+  .ssh-import-fields { grid-template-columns: minmax(0, 1fr); }
+  .ssh-discovery-row { gap: 8px; }
+  .ssh-import-footer .primary { width: 100%; }
+}
 .ssh-machine-toolbar { display: grid; gap: 12px; margin-block: 20px; }
 .ssh-machine-toolbar > label { display: grid; gap: 6px; min-width: 0; }
 .ssh-batch-actions { padding: 12px; background: var(--control); border: 1px solid var(--border); border-radius: 8px; }

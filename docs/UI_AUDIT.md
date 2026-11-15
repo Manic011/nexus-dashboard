@@ -52,6 +52,8 @@ The grouped layout regression drags an entire category by its header handle, che
 
 ## Diagnostics verification
 
+The SSH setup layout review passed locally and against Ubuntu. It exercised Discover and Enter manually navigation, individual setup from a result, batch naming and vault selection, and importing selected machines. A 16-row fixture list stayed within its scrolling region and the page fit a 375-pixel viewport. Desktop dark and mobile light screenshots were reviewed using sample records. The live frontend was verified on HTTP and trusted LAN HTTPS.
+
 The batch credential browser test passed locally and on an isolated Ubuntu instance. It chose a service vault credential, changed its username for SSH, checked that locking the vault disabled the batch save, unlocked it, and imported the machine. The test confirmed the import request omitted the password, the encrypted vault held a credential for the observed SSH key, and the saved password control was available after host-key approval. The live release passed HTTP and trusted LAN HTTPS checks.
 
 The SSH discovery review passed locally and against an isolated Ubuntu instance. The browser edited a discovered machine's name, cleared and restored its selection, saved it through batch import, and continued with host-key verification and SSH login. API tests saved two named machines together, retried the batch without duplication, verified an invalid entry prevented all writes, and confirmed imported machines have an empty trusted fingerprint. The live release was verified on HTTP and trusted LAN HTTPS. Hostname suggestions depend on network reverse DNS records.

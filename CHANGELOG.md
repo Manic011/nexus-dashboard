@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Simplify SSH setup with Discover and Enter manually tabs, a compact scan bar, editable scrolling results, and grouped batch settings.
 - Assign a saved vault password to newly discovered SSH machines during batch import, bound to each destination and observed host key.
 - Review and name discovered SSH machines, use reverse DNS hostname suggestions, and save selected machines in batches with a shared SSH username and optional group.
 - Offer a new-tab link when the HTTPS dashboard cannot embed an HTTP service.

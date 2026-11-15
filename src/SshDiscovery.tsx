@@ -24,6 +24,11 @@ export function SshDiscovery({ api, select, onAdded }: {
   const [error, setError] = useState('');
   const scan = useRef<AbortController>(null);
   useEffect(() => () => scan.current?.abort(), []);
+  useEffect(() => {
+    let active = true;
+    void api<Interface[]>(path).then(result => { if (active) setInterfaces(result); }).catch(() => { if (active) setInterfaces([]); });
+    return () => { active = false; };
+  }, [api]);
   const chosen = results.filter(endpoint => endpoint.selected && !endpoint.saved);
   const credentials = Object.entries(vault.entries ?? {}).filter(([, value]) => value.password);
   const selectedCredential = vault.entries?.[credential];
@@ -67,13 +72,8 @@ export function SshDiscovery({ api, select, onAdded }: {
     finally { setSaving(false); }
   }
 
-  return <details className="ssh-discovery" onToggle={event => {
-    if (event.currentTarget.open && !interfaces) {
-      void api<Interface[]>(path).then(setInterfaces).catch(() => setInterfaces([]));
-    }
-  }}>
-    <summary>Discover SSH machines</summary>
-    <form className="machine-form" onSubmit={async event => {
+  return <section className="ssh-discovery" aria-label="SSH discovery">
+    <form className="ssh-scan-form" onSubmit={async event => {
       event.preventDefault();
       if (scan.current) return;
       const data = Object.fromEntries(new FormData(event.currentTarget));
@@ -84,27 +84,48 @@ export function SshDiscovery({ api, select, onAdded }: {
         const result = await api<{ results: Endpoint[]; checked: number }>(path, 'POST', data, controller.signal);
         setResults(result.results.map(endpoint => ({ ...endpoint,
           name: (endpoint.hostname || 'SSH ' + endpoint.host).slice(0, 80), selected: !endpoint.saved })));
-        setNotice(`Found ${result.results.length} SSH ${result.results.length === 1 ? 'server' : 'servers'} after checking ${result.checked} address and port combinations.`);
+        setNotice(`${result.results.length} SSH ${result.results.length === 1 ? 'server' : 'servers'} found · ${result.checked} checks`);
       } catch (error) {
         if (controller.signal.aborted) setNotice('Scan canceled.');
         else { setNotice(''); setError(error instanceof Error ? error.message : 'SSH discovery failed.'); }
       } finally { scan.current = null; setBusy(false); }
     }}>
-      <label>IP addresses or ranges<input name="range" list="ssh-discovery-ranges" placeholder="192.168.1.0/24" required maxLength={1024} /></label>
+      <label>IP addresses or ranges<input name="range" list="ssh-discovery-ranges" placeholder="192.168.1.0/24" required maxLength={1024} aria-describedby="ssh-scan-help" /></label>
       <datalist id="ssh-discovery-ranges">{interfaces?.map(item => <option key={item.name + item.range} value={item.range}>{item.name}</option>)}</datalist>
-      <label>Ports to check<input name="ports" defaultValue="22" required maxLength={100} /></label>
-      <p className="muted">Use private IPv4 addresses, CIDR ranges, or start–end ranges. Separate entries with commas.</p>
-      <div className="actions"><button className="primary" disabled={busy || saving}>Scan for SSH</button>
+      <label>Ports<input aria-label="Ports to check" name="ports" defaultValue="22" required maxLength={100} /></label>
+      <div className="actions ssh-scan-actions"><button className={results.length ? undefined : 'primary'} disabled={busy || saving}>Scan for SSH</button>
         {busy && <button type="button" onClick={() => scan.current?.abort()}>Cancel scan</button>}</div>
     </form>
+    <p className="muted ssh-discovery-help" id="ssh-scan-help">IP, CIDR, or start–end range. Comma-separated entries.</p>
     {notice && <p role="status">{notice}</p>}
     {error && <p role="alert" className="error">{error}</p>}
     {results.length > 0 && <form className="ssh-discovery-review" aria-label="Review discovered SSH machines" onSubmit={event => {
       event.preventDefault();
       void addSelected();
     }}>
-      <div className="machine-form">
-        <label>Vault credential for selected machines<select aria-label="Vault credential for selected machines" value={credential} disabled={saving || !!pendingAssignment.length}
+      <div className="ssh-discovery-selection">
+        <strong>{chosen.length} selected</strong>
+        <div className="actions">
+          <button type="button" disabled={saving} aria-label="Select discovered machines" onClick={() => setResults(current => current.map(endpoint => ({ ...endpoint, selected: !endpoint.saved })))}>Select all</button>
+          <button type="button" disabled={saving || !chosen.length} aria-label="Clear discovered selection" onClick={() => setResults(current => current.map(endpoint => ({ ...endpoint, selected: false })))}>Clear</button>
+        </div>
+      </div>
+      <ul className="ssh-discovery-results" aria-label="Discovered SSH machines">{results.map((endpoint, index) => <li key={endpoint.host + ':' + endpoint.port} className="ssh-discovery-row">
+        <input type="checkbox" aria-label={`Select discovered ${endpoint.host}:${endpoint.port}`}
+          checked={endpoint.selected} disabled={saving || endpoint.saved} onChange={event => edit(index, { selected: event.target.checked })} />
+        <div className="ssh-discovery-machine">
+          <input aria-label={`Name for ${endpoint.host}:${endpoint.port}`} value={endpoint.name}
+            required={endpoint.selected} maxLength={80} disabled={saving || endpoint.saved}
+            onChange={event => edit(index, { name: event.target.value })} />
+          <small className="muted">{endpoint.host}:{endpoint.port}{endpoint.hostname && endpoint.hostname !== endpoint.name ? ' · ' + endpoint.hostname : ''}</small>
+        </div>
+        {endpoint.saved ? <small className="muted">Added</small> :
+          <button type="button" disabled={saving} title="Set up this machine individually" aria-label={`Use ${endpoint.host}:${endpoint.port}`} onClick={() => select(endpoint)}>Details</button>}
+      </li>)}</ul>
+      <fieldset className="ssh-import-settings" disabled={saving}>
+        <legend>For selected machines</legend>
+        <div className="ssh-import-fields">
+        <label>Saved credential<select aria-label="Vault credential for selected machines" value={credential} disabled={saving || !!pendingAssignment.length}
           onChange={event => {
             setCredential(event.target.value);
             const saved = vault.entries?.[event.target.value];
@@ -114,32 +135,16 @@ export function SshDiscovery({ api, select, onAdded }: {
           {credentials.map(([address, value]) => <option key={address} value={address}>{value.username} · {credentialLabel(address)}</option>)}
           {credential && !selectedCredential && <option value={credential}>Unlock vault to use the selected credential</option>}
         </select></label>
-        {!vault.entries && <p className="muted">Unlock your vault from the header to choose a saved credential.</p>}
-        {selectedCredential && <p className="muted">The selected password is saved to your encrypted vault for each added machine and its discovered SSH key. Review each key before connecting.</p>}
-        <label>SSH username for selected machines<input value={username} onChange={event => setUsername(event.target.value)}
+        <label>SSH username<input aria-label="SSH username for selected machines" value={username} onChange={event => setUsername(event.target.value)}
           autoComplete="off" maxLength={64} required disabled={saving} /></label>
-        <label>Group for selected machines<input value={group} onChange={event => setGroup(event.target.value)} maxLength={60} disabled={saving} /></label>
-      </div>
-      <div className="actions">
-        <button type="button" disabled={saving} onClick={() => setResults(current => current.map(endpoint => ({ ...endpoint, selected: !endpoint.saved })))}>Select discovered machines</button>
-        <button type="button" disabled={saving || !chosen.length} onClick={() => setResults(current => current.map(endpoint => ({ ...endpoint, selected: false })))}>Clear discovered selection</button>
-      </div>
-      <ul className="user-list">{results.map((endpoint, index) => <li key={endpoint.host + ':' + endpoint.port}>
-        <div className="ssh-discovery-result">
-          <input type="checkbox" aria-label={`Select discovered ${endpoint.host}:${endpoint.port}`}
-            checked={endpoint.selected} disabled={saving || endpoint.saved} onChange={event => edit(index, { selected: event.target.checked })} />
-          <div><strong>{endpoint.host}:{endpoint.port}</strong>
-            {endpoint.hostname && <small className="muted ssh-machine-status">Detected hostname · {endpoint.hostname}</small>}
-            <label>Machine name<input aria-label={`Name for ${endpoint.host}:${endpoint.port}`} value={endpoint.name}
-              required={endpoint.selected} maxLength={80} disabled={saving || endpoint.saved}
-              onChange={event => edit(index, { name: event.target.value })} /></label>
-          </div>
+        <label>Group<input aria-label="Group for selected machines" value={group} onChange={event => setGroup(event.target.value)} maxLength={60} placeholder="Ungrouped" disabled={saving} /></label>
         </div>
-        {endpoint.saved ? <small className="muted">Already saved</small> :
-          <button type="button" disabled={saving} aria-label={`Use ${endpoint.host}:${endpoint.port}`} onClick={() => select(endpoint)}>Use address</button>}
-      </li>)}</ul>
-      <button className="primary" disabled={saving || busy || !chosen.length || !!pendingAssignment.length || (!!credential && !selectedCredential)}>{saving ? 'Adding machines…' : `Add selected machines (${chosen.length})`}</button>
-      <p className="muted">Review each name before adding. Hostnames come from network DNS when available. Verify each machine’s host key before connecting.</p>
+        {!vault.entries && <p className="muted ssh-discovery-help">Unlock Vault in the header to use a saved credential.</p>}
+      </fieldset>
+      <div className="ssh-import-footer">
+        <small className="muted">Verify host keys before connecting.</small>
+        <button className="primary" disabled={saving || busy || !chosen.length || !!pendingAssignment.length || (!!credential && !selectedCredential)}>{saving ? 'Adding machines…' : `Add selected machines (${chosen.length})`}</button>
+      </div>
     </form>}
     {pendingAssignment.length > 0 && <div className="credential-panel">
       <p>The machines are saved. Their vault credentials still need to be assigned.</p>
@@ -151,5 +156,5 @@ export function SshDiscovery({ api, select, onAdded }: {
       }}>Retry credential assignment</button>
       <button type="button" disabled={saving} onClick={() => { setPendingAssignment([]); setCredential(''); setError(''); }}>Set credentials later</button>
     </div>}
-  </details>;
+  </section>;
 }

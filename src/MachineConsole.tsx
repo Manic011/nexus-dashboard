@@ -184,6 +184,7 @@ export function MachineConsole({ api, visible }: { api: DiagnosticApi; visible: 
   const [editing, setEditing] = useState<Host>();
   const [selected, setSelected] = useState<number[]>([]);
   const [batchEdit, setBatchEdit] = useState(false);
+  const [addMode, setAddMode] = useState<'discover' | 'manual'>('discover');
   const [pendingRemoval, setPendingRemoval] = useState<number>();
   const [authentication, setAuthentication] = useState('password');
   const [observedKey, setObservedKey] = useState<{ hostId: number; fingerprint: string; expected: string }>();
@@ -303,22 +304,30 @@ export function MachineConsole({ api, visible }: { api: DiagnosticApi; visible: 
   }, [selectedHost?.id, selectedHost?.fingerprint, secure, visible]);
   return <section className="tile machine-console">
     <h2>SSH machines</h2>
-    <p className="muted">Sign in with the remote machine’s username and password, or a private key. Saved passwords are encrypted in this browser. Sessions stay open while you switch views. Signing out closes all sessions.</p>
+    <p className="muted">Save machines, reuse vault logins, and switch between active SSH sessions.</p>
     {error && <p role="alert" className="error ssh-feedback">{error}</p>}
     {notice && <p role="status">{notice}</p>}
     {!catalog ? <p>Loading saved machines…</p> : !catalog.enabled ? <p>Enable NEXUS_SSH=on in the server environment to connect machines.</p> : <>
       {!secure && <p className="error">Open StackJetty over HTTPS or through an SSH-encrypted localhost connection to enter SSH credentials.</p>}
         <details ref={addMachineDetails}><summary>Add SSH machine</summary>
-          {catalog.discoveryEnabled && secure && <SshDiscovery api={api} onAdded={async () => { await load(); }} select={endpoint => {
+          {catalog.discoveryEnabled && secure && <nav className="admin-nav ssh-add-nav" aria-label="Add machine method">
+            <button type="button" aria-label="Discover SSH machines" aria-current={addMode === 'discover' ? 'page' : undefined} onClick={() => setAddMode('discover')}>Discover</button>
+            <button type="button" aria-current={addMode === 'manual' ? 'page' : undefined} onClick={() => setAddMode('manual')}>Enter manually</button>
+          </nav>}
+          {catalog.discoveryEnabled && secure && <div hidden={addMode !== 'discover'}><SshDiscovery api={api} onAdded={async () => { await load(); }} select={endpoint => {
             const fields = addForm.current?.elements;
             if (!fields) return;
             for (const [name, value] of Object.entries({ name: endpoint.name, host: endpoint.host, port: String(endpoint.port), fingerprint: '' })) {
               const field = fields.namedItem(name);
               if (field instanceof HTMLInputElement) field.value = value;
             }
-            const username = fields.namedItem('username');
-            if (username instanceof HTMLInputElement) username.focus();
-          }} />}
+            setAddMode('manual');
+            requestAnimationFrame(() => {
+              const username = fields.namedItem('username');
+              if (username instanceof HTMLInputElement) username.focus();
+            });
+          }} /></div>}
+          <div hidden={!!catalog.discoveryEnabled && !!secure && addMode !== 'manual'}>
           <p className="muted">Leave the fingerprint blank to review the server’s key on your first connection.</p>
           <form ref={addForm} className="machine-form" onSubmit={event => {
             event.preventDefault();
@@ -339,6 +348,7 @@ export function MachineConsole({ api, visible }: { api: DiagnosticApi; visible: 
             <p className="muted">{secure ? 'You’ll continue to the connection setup.' : 'Save the machine here, then use HTTPS or the SSH tunnel to connect.'}</p>
             <button disabled={busy}>{secure ? 'Save machine and continue' : 'Save machine'}</button>
           </form>
+          </div>
         </details>
         <div className="ssh-machine-toolbar">
           <label>Search machines<input type="search" value={query} disabled={!catalog.hosts.length} onChange={event => setQuery(event.target.value)} placeholder="Name, address, or group" /></label>
