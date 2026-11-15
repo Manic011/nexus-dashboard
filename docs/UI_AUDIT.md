@@ -13,6 +13,8 @@ Review every new or changed screen before merging. Apply the same review to dial
 
 ## Current coverage
 
+The administration layout refresh passed the desktop/mobile browser flow locally and against a disposable Ubuntu instance. It covered discovery presets, scope review, import updates, account creation and removal, group membership, tile permissions, backup download, and snapshot restore. Screenshots of all four tabs and restore review were checked at desktop width in dark mode and at 375 pixels in light mode. The local discovery-disabled flow also passed. All eight API tests passed, and the live frontend was verified on HTTP and trusted LAN HTTPS.
+
 The remote browser regression uses a fixture provider to verify that the workspace renders in the same StackJetty tab and that switching back restores the direct view. Check real Kasm authentication and browser delivery on a configured provider.
 
 The Chromium service-view check verifies immediate frame loading at mobile width with a service that requires cookie and storage access, dismissal and focus return, vault encryption and persistence, wrong-password handling, and credential removal.

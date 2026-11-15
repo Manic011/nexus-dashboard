@@ -66,7 +66,7 @@ Discovery checks mDNS advertisements and common HTTP and HTTPS ports. It can use
 | Editor | Dashboard viewing and tile creation, editing, and deletion. |
 | Viewer | Dashboard viewing and personal layout preferences. |
 
-In **Administration → Users**, enter a username, initial password, and role, then select **Create user**. To revoke an editor or viewer's access, select **Remove access** and confirm. Removal also ends that user's current sessions.
+In **Administration → Users**, use **Add access** to enter a username, initial password, and role, then select **Create user**. The account list appears alongside the form on larger screens. To revoke an editor or viewer's access, select **Remove access** and confirm. Removal also ends that user's current sessions.
 
 Enable a **shared dashboard password** in the same section to offer read-only access without distributing individual usernames. Guests select **Use shared dashboard password** on the sign-in screen. Removing the shared account revokes that access. Each linked service continues to enforce its own sign-in and permissions.
 
@@ -94,9 +94,11 @@ When the operator configures Jellyfin, a tile with the matching base URL display
 
 Open **Appearance** in the header. Choose **System**, **Dark**, or **Light** for the theme, and **Comfortable** or **Compact** for card density. System follows your device's color scheme. Preferences are saved for your account in the current browser.
 
-The tile editor lists existing categories and offers up to six reusable tags. Click a tag on a card to filter by it, or click it again to clear that filter. When an import preview opens, keyboard focus moves to **Review import**. On narrow screens, review entries scroll with the page.
+The tile editor lists existing categories and offers up to six reusable tags. Click a tag on a card to filter by it, or click it again to clear that filter. When an import preview opens, keyboard focus moves to **Review import**. Results scroll within the review panel, with the selection count and save action below.
 
 ## Administration history, permissions, and restore
+
+Administration uses four tabs. **Discovery** groups the server network, scan profile, address ranges, exclusions, and ports, then places import review before scan history. **Users** presents accounts, groups, and tile permissions in separate panels. **Backup** groups export and import controls above saved configurations. **System** groups application and host details above the tile inventory. Forms stack vertically on phones, and longer account, history, and inventory lists scroll within their panels.
 
 **Discovery history** keeps the 20 most recent network scans, including stopped scans. Select **Review results** to reopen a scan, edit entries in the import review, and import the URLs you select. Reviewing a scan does not start a new scan.
 

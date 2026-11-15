@@ -4,6 +4,7 @@ StackJetty is a development preview. The [requirements audit](REQUIREMENTS_AUDIT
 
 ## Available in the preview
 
+- Consistent administration layouts for discovery, accounts and permissions, backups and restore, and system information, with responsive forms and scrolling record lists.
 - Administrator diagnostics for sampled availability, host information, and network throughput. The separate SSH workspace supports concurrent Linux statistics, SFTP file management, and interactive shells. SSH supports first-connection host key review, password and private-key authentication, browser-local encrypted saved passwords, and private localhost access through a workstation SSH tunnel. Dashboard sessions time out after 15 minutes of inactivity and close their SSH connections.
 
 - Default tile opening preference and saved per-tile modes for a new browser tab, direct embedding, or Kasm.

@@ -72,6 +72,23 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
         await page.setViewportSize({ width, height });
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
       }
+      async function auditAdministration(name) {
+        await page.locator('.admin-workspace h2').first().waitFor();
+        const viewport = page.viewportSize();
+        const theme = await page.evaluate(() => document.documentElement.dataset.theme ?? '');
+        const directory = process.env.NEXUS_UI_ADMIN_SCREENSHOT_DIR;
+        if (directory) await mkdir(directory, { recursive: true });
+        for (const [layout, width, height, appearance] of [['desktop', 1280, 900, 'dark'], ['mobile', 375, 812, 'light']]) {
+          await fits(width, height);
+          await page.evaluate(value => document.documentElement.dataset.theme = value, appearance);
+          if (directory) await page.locator('.admin').screenshot({ path: join(directory, name + '-' + layout + '.png') });
+        }
+        await page.setViewportSize(viewport);
+        await page.evaluate(value => {
+          if (value) document.documentElement.dataset.theme = value;
+          else delete document.documentElement.dataset.theme;
+        }, theme);
+      }
       async function login(username, secret) {
         await page.getByRole('heading', { name: 'Sign in', exact: true }).waitFor();
         await field('Username').fill(username);
@@ -438,6 +455,7 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
         await page.getByLabel('Saved scan profile').selectOption({ label: 'UI test profile' });
         await button('Review scan scope').click();
         await page.getByText(/4 ports/).waitFor();
+        await auditAdministration('discovery');
         await page.getByRole('checkbox', { name: /I have permission/ }).check();
         await button('Discover services').click();
         try { await page.getByText('4 / 10 checks', { exact: true }).waitFor(); }
@@ -447,11 +465,13 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
       }
 
       await button('Backup').click();
+      await auditAdministration('backup');
       const download = page.waitForEvent('download');
       await page.getByRole('link', { name: 'Download JSON' }).click();
       assert.equal((await download).suggestedFilename(), 'stackjetty.json');
       await button('System').click();
       await page.getByText('Database schema', { exact: true }).waitFor();
+      await auditAdministration('system');
       await fits(320, 568);
       await button('Users').click();
       await field('Username').fill('reader');
@@ -468,6 +488,7 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
       await field('Restrict access').check();
       await button('Save permissions').click();
       await page.getByText('Tile permissions saved.', { exact: true }).waitFor();
+      await auditAdministration('users');
       await button('Backup').click();
       await field('Snapshot name').fill('Restricted config');
       await button('Save snapshot').click();
@@ -480,6 +501,7 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
       await button('Backup').click();
       await button('Review restore').click();
       await page.getByText('Added · Local tools', { exact: true }).waitFor();
+      await auditAdministration('restore');
       await button('Restore configuration').click();
       await page.getByText('Before restoring Restricted config', { exact: true }).waitFor();
       await page.getByText(/Configuration restored/).waitFor();

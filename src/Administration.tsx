@@ -105,8 +105,8 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
 
   }
 
-  return <div className="admin">
-    <nav className="admin-nav" aria-label="Administration sections">
+  return <div className="admin" data-section={section}>
+    <nav className="admin-nav admin-section-nav" aria-label="Administration sections">
       {sections.map(({ id, title, icon: Icon }) => <button key={id} aria-current={section === id ? 'page' : undefined} disabled={busy} onClick={() => {
         setSection(id);
         setPreview(undefined);
@@ -116,11 +116,32 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
     </nav>
     {status && <p role="status" className="admin-status">{status}</p>}
     {section === 'users' && <Users api={api} onChange={() => setWorkspaceRevision(value => value + 1)} />}
-    {section === 'system' && <section className="tile"><h2>System information</h2>
-      {system ? <dl><dt>Runtime</dt><dd>{system.runtime}</dd><dt>Platform</dt><dd>{system.platform}</dd><dt>Database schema</dt><dd>{system.schema}</dd><dt>Saved tiles</dt><dd>{system.tiles}</dd><dt>Host</dt><dd>{system.hostname}</dd><dt>Kernel and architecture</dt><dd>{system.kernel} · {system.architecture}</dd><dt>Processor</dt><dd>{system.cpu} · {system.logicalCpus} logical cores</dd><dt>Memory</dt><dd>{Math.round(system.freeMemory / 1048576)} MiB free of {Math.round(system.totalMemory / 1048576)} MiB</dd><dt>Service memory</dt><dd>{Math.round(system.serviceMemory / 1048576)} MiB</dd><dt>Uptime</dt><dd>Host {Math.floor(system.machineUptime / 60)} min · StackJetty {Math.floor(system.serviceUptime / 60)} min</dd></dl> : <p className="muted">Loading system information…</p>}
+    {section === 'system' && <section className="tile admin-panel"><h2>System information</h2>
+      <p className="muted">Application details and the machine running StackJetty.</p>
+      {system ? <div className="admin-detail-grid">
+        <section className="admin-inset"><h3>Application</h3><dl className="admin-facts">
+          <div><dt>Runtime</dt><dd>{system.runtime}</dd></div>
+          <div><dt>Platform</dt><dd>{system.platform}</dd></div>
+          <div><dt>Database schema</dt><dd>{system.schema}</dd></div>
+          <div><dt>Saved tiles</dt><dd>{system.tiles}</dd></div>
+          <div><dt>Service memory</dt><dd>{Math.round(system.serviceMemory / 1048576)} MiB</dd></div>
+          <div><dt>Service uptime</dt><dd>{Math.floor(system.serviceUptime / 60)} min</dd></div>
+        </dl></section>
+        <section className="admin-inset"><h3>Host</h3><dl className="admin-facts">
+          <div><dt>Hostname</dt><dd>{system.hostname}</dd></div>
+          <div><dt>Kernel and architecture</dt><dd>{system.kernel} · {system.architecture}</dd></div>
+          <div><dt>Processor</dt><dd>{system.cpu} · {system.logicalCpus} logical cores</dd></div>
+          <div><dt>Memory</dt><dd>{Math.round(system.freeMemory / 1048576)} MiB free of {Math.round(system.totalMemory / 1048576)} MiB</dd></div>
+          <div><dt>Host uptime</dt><dd>{Math.floor(system.machineUptime / 60)} min</dd></div>
+        </dl></section>
+      </div> : <p className="muted">Loading system information…</p>}
     </section>}
-    {section === 'backup' && <section className="tile"><h2>Dashboard backup</h2><p className="muted">Download your application tiles or merge tiles from a previous export.</p>
-      <div className="admin-controls"><a href="/api/admin/backup" download>Download JSON</a>
+    {section === 'backup' && <section className="tile admin-panel"><h2>Dashboard backup</h2><p className="muted">Export tiles or review a previous export before importing.</p>
+      <div className="admin-detail-grid">
+        <section className="admin-inset"><h3>Export tiles</h3><p className="muted">Save a JSON copy of your tile configuration.</p>
+          <a className="admin-action-link" href="/api/admin/backup" download>Download JSON</a>
+        </section>
+        <section className="admin-inset"><h3>Import tiles</h3>
         <label>Preview a backup<input type="file" accept=".json,application/json" disabled={busy} onChange={event => {
           const field = event.currentTarget;
           const file = field.files?.[0];
@@ -130,24 +151,19 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
             if (file.size > 2 * 1024 * 1024) throw new Error('Select a backup under 2 MB.');
             await inspect(JSON.parse(await file.text()));
           });
-        }} /></label></div>
+        }} /></label></section>
+      </div>
     </section>}
     {section === 'discovery' && <>
-      <section className="tile"><h2>Find services on your network</h2>
+      <section className="tile admin-panel"><h2>Find services on your network</h2>
         {discoveryEnabled === false && <p className="muted">Network discovery is disabled on this server. You can still review previous results and add known addresses.</p>}
         {discoveryEnabled && <>
-        <p className="muted">Scan private networks reachable from this server. Live page identification takes priority over port suggestions. Review every result before changing your dashboard.</p>
-        <div className="scan-profiles"><label>Saved scan profile<select disabled={busy} defaultValue="" onChange={event => {
-          const profile = profiles.find(item => item.id === Number(event.target.value));
-          if (!profile) return;
-          setAddress(profile.address); setProfileName(profile.name);
-          setScope({ range: profile.range.split(','), exclude: profile.exclude.split(','), ports: profile.ports.split(',') }); resetPlan();
-        }}><option value="">Choose a saved profile</option>{profiles.map(profile => <option key={profile.id} value={profile.id}>{profile.name}</option>)}</select></label></div>
+        <p className="muted">Choose your targets, review the scope, then scan and import services.</p>
         {scanning && <button type="button" disabled={cancelling} onClick={() => {
           setCancelling(true); void api('admin/discovery/cancel', 'POST').catch(error => { setStatus(error.message); setCancelling(false); });
         }}>{cancelling ? 'Stopping…' : 'Stop scan'}</button>}
         {scanning && <p><progress aria-label="Discovery checks" max={coverage?.total} value={coverage?.checked} /> {coverage ? `${coverage.checked} / ${coverage.total} checks` : 'Starting scan…'}</p>}
-        <form onSubmit={event => {
+        <form className="admin-discovery-form" onSubmit={event => {
           event.preventDefault();
           if (!network || !plan || !authorized) return;
           void run(async () => {
@@ -168,7 +184,8 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
             setStatus(completion + '. ' + (result.found ? `Found ${result.found} services.${limit}${coverage}` : `No web services responded in the reviewed scope.${coverage}`));
           });
         }}>
-          <label>Server network<select name="address" required disabled={busy} value={address} onChange={event => {
+          <div className="admin-field-row">
+          <label>Server network<select aria-label="Server network" name="address" required disabled={busy} value={address} onChange={event => {
             setAddress(event.target.value);
             setScope(previous => ({ ...previous, range: [''], exclude: [''] }));
             resetPlan();
@@ -176,7 +193,15 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
             <option value="">Select a network</option>
             {interfaces.map(item => <option key={item.address} value={item.address}>{item.webCidr} · {item.name}</option>)}
           </select></label>
+          <label>Saved scan profile<select aria-label="Saved scan profile" disabled={busy} defaultValue="" onChange={event => {
+            const profile = profiles.find(item => item.id === Number(event.target.value));
+            if (!profile) return;
+            setAddress(profile.address); setProfileName(profile.name);
+            setScope({ range: profile.range.split(','), exclude: profile.exclude.split(','), ports: profile.ports.split(',') }); resetPlan();
+          }}><option value="">Choose a saved profile</option>{profiles.map(profile => <option key={profile.id} value={profile.id}>{profile.name}</option>)}</select></label>
+          </div>
           {network && <>
+            <div className="admin-scan-fields">
             <ScanField label="IP addresses or ranges" value={scope.range} disabled={busy} placeholder="Entire displayed range"
               onChange={value => changeScope('range', value)} presets={[
                 { label: 'Entire subnet', value: '' },
@@ -196,10 +221,14 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
                 { label: 'Proxmox', value: '8006-8007' },
                 { label: 'Alternative web', value: '8080-8082, 8443' },
               ]} />
-            <p className="muted">Add a row for each entry. Use single IPv4 addresses, CIDRs (e.g. 192.168.1.0/24), or start–end ranges. Multiple private subnets are supported, up to 4096 addresses; routing and firewalls determine reachability.</p>
+            </div>
+            <p className="muted admin-help">Add entries as IP addresses, CIDRs, or start–end ranges. Up to 4096 private addresses per scan.</p>
+            <div className="admin-form-actions">
             <button type="button" disabled={busy} onClick={() => void run(async () => {
               setPlan(await api<typeof plan>('admin/discovery/plan', 'POST', { address, ...scanFields }));
             })}>Review scan scope</button>
+            {plan && <span role="status" className="muted">{plan.hosts} addresses · {plan.ports.length} ports · {plan.checks.toLocaleString()} checks</span>}
+            </div>
           </>}
           {network && <div className="profile-save"><label>Profile name<input value={profileName} maxLength={80} disabled={busy} onChange={event => setProfileName(event.target.value)} placeholder="e.g. Media and infrastructure" /></label>
             <button type="button" disabled={busy || !profileName.trim()} onClick={() => void run(async () => {
@@ -207,13 +236,12 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
               await api('admin/discovery/profiles', 'POST', { name: profileName, address, ...scanFields });
               setProfiles(await api<Profile[]>('admin/discovery/profiles')); setStatus('Scan profile saved. Saving the same name replaces its settings.');
             })}>Save profile</button></div>}
-          {plan && <p role="status">{plan.hosts} addresses · {plan.ports.length} ports · {plan.checks.toLocaleString()} checks</p>}
           {network && plan && <label className="consent"><input type="checkbox" checked={authorized} disabled={busy} onChange={event => setAuthorized(event.target.checked)} /> I have permission to scan all targets in this reviewed scope</label>}
-          <button className="primary" disabled={busy || !network || !plan || !authorized}>{busy ? 'Checking network…' : 'Discover services'}</button>
+          <div className="admin-form-actions"><button className="primary" disabled={busy || !network || !plan || !authorized}>{busy ? 'Checking network…' : 'Discover services'}</button></div>
         </form>
         </>}
       </section>
-      <details className="tile"><summary>Add known service addresses</summary>
+      <details className="tile admin-panel"><summary>Add known service addresses</summary>
         <p className="muted">Paste one HTTP or HTTPS URL per line.</p>
         <form onSubmit={event => {
           event.preventDefault();
@@ -232,11 +260,6 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
         </form>
       </details>
     </>}
-    <AdminWorkspace key={section + workspaceRevision} section={section} api={api} refresh={async () => { await onImport(); setSystem(await api<SystemInfo>('admin/system')); }} inspect={inspect} />
-    {section === 'discovery' && comparison && <details className="tile"><summary>Changes since the previous complete scan of the same targets</summary>
-      <p className="muted">Missing means no response during this scan; it does not prove a service is offline. Tiles are never removed automatically.</p>
-      {(['added', 'changed', 'missing'] as const).map(kind => <div key={kind}><h3>{kind[0].toUpperCase() + kind.slice(1)} ({comparison[kind].length})</h3><ul>{comparison[kind].map(url => <li key={url}>{url}</li>)}</ul></div>)}
-    </details>}
     {preview && <section className="tile" ref={review} tabIndex={-1} aria-labelledby="review-title"><h2 id="review-title">Review import</h2>
       {preview.tiles.length === 0 && <p>No new tiles to import.</p>}
       <p className="muted">{preview.tiles.length} unique services · {preview.existing?.length ?? 0} already on dashboard</p>
@@ -276,10 +299,20 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
             </div>
           </details>}
         </div>)}</div>
-        <p className="muted">{selection.length} selected across all results, including results hidden by the filter.</p>
-        <button className="primary" disabled={busy || !selection.length}>{busy ? 'Importing…' : `Apply selected (${selection.length})`}</button>
+        <div className="admin-form-actions">
+          <small className="muted">{selection.length} selected, including filtered results</small>
+          <button className="primary" disabled={busy || !selection.length}>{busy ? 'Importing…' : `Apply selected (${selection.length})`}</button>
+        </div>
         </form>
       </>}
     </section>}
+    <AdminWorkspace key={section + workspaceRevision} section={section} api={api} refresh={async () => { await onImport(); setSystem(await api<SystemInfo>('admin/system')); }} inspect={inspect} />
+    {section === 'discovery' && comparison && <details className="tile admin-panel"><summary>Changes since the previous complete scan of the same targets</summary>
+      <p className="muted">Missing means no response during this scan; it does not prove a service is offline. Tiles are never removed automatically.</p>
+      <div className="admin-comparison-grid">
+      {(['added', 'changed', 'missing'] as const).map(kind => <div key={kind}><h3>{kind[0].toUpperCase() + kind.slice(1)} ({comparison[kind].length})</h3><ul>{comparison[kind].map(url => <li key={url}>{url}</li>)}</ul></div>)}
+      </div>
+    </details>}
+
   </div>;
 }

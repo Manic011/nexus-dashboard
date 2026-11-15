@@ -23,6 +23,8 @@ A self-hosted dashboard for your homelab. Discover services, organize them into 
 | Diagnostics | Monitor saved URLs, inspect uptime history and host metrics, measure browser-to-server throughput, and open service links using the tile's launch preference. The monitor identifies certificate verification failures separately. |
 | SSH machines | Discover SSH servers with hostname suggestions, review names, and assign saved vault credentials while adding machines in batches. Edit, group, and search the inventory. Batch edit, connect, or disconnect machines, view Linux metrics, open a terminal, and use the SFTP file manager. |
 
+Administration groups discovery, access, backups, and system information into four tabs, with responsive forms and scrolling record lists.
+
 StackJetty stores its state locally in SQLite and has no application telemetry. See the [release readiness audit](docs/RELEASE_READINESS.md) for deployment and recovery checks, and [Privacy](PRIVACY.md) for data handling.
 
 ## Get started

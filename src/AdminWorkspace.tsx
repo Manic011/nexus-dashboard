@@ -59,31 +59,31 @@ export function AdminWorkspace({ section, api, refresh, inspect }: {
 
   const grantable = accounts.filter(account => account.role !== 'admin');
   const feedback = <>{error && <p role="alert" className="error">{error}</p>}{message && <p role="status">{message}</p>}</>;
-  if (!catalog) return feedback;
+  if (!catalog) return <div aria-busy={!error}>{feedback}{!error && <p role="status" className="muted">Loading administration…</p>}</div>;
   const date = (value: string) => new Date(value).toLocaleString();
-  return <section className="tile admin-workspace">
-    {section === 'discovery' && <>
+  return <div className="admin-workspace" data-section={section}>
+    {section === 'discovery' && <section className="tile admin-panel">
       <h2>Discovery history</h2><p className="muted">Reopen a scan to edit and import services.</p>
       {!catalog.scans.length && <p>No completed scans yet.</p>}
-      <ul className="user-list">{catalog.scans.map(scan => <li key={scan.id}>
+      <ul className="user-list admin-records">{catalog.scans.map(scan => <li key={scan.id}>
         <span><strong>{scan.label}</strong><br /><small className="muted">{date(scan.created)}</small></span>
         <button disabled={busy} onClick={() => void run(async () => inspect(await api<object>('admin/scans/' + scan.id)))}>Review results</button>
       </li>)}</ul>
-    </>}
-    {section === 'backup' && <>
+    </section>}
+    {section === 'backup' && <section className="tile admin-panel">
       <h2>Saved configurations</h2>
       <p className="muted">Snapshots save tiles, groups, and tile permissions. Accounts and server settings are managed separately.</p>
-      <form onSubmit={event => {
+      <form className="admin-inline-form" onSubmit={event => {
         event.preventDefault();
         const form = event.currentTarget;
         const name = new FormData(form).get('name');
         void run(async () => { await api('admin/snapshots', 'POST', { name }); await load(); form.reset(); setMessage('Snapshot saved.'); });
       }}>
         <label>Snapshot name<input name="name" required maxLength={80} placeholder="Before changing tile access" /></label>
-        <button disabled={busy}>Save snapshot</button>
+        <button className="primary" disabled={busy}>Save snapshot</button>
       </form>
       {!catalog.backups.length && <p>No saved configurations yet.</p>}
-      <ul className="user-list">{catalog.backups.map(record => <li key={record.id}>
+      <ul className="user-list admin-records">{catalog.backups.map(record => <li key={record.id}>
         <span><strong>{record.label}</strong><br /><small className="muted">{date(record.created)}</small></span>
         <button disabled={busy} onClick={() => void run(async () => {
           const info = await api<RestorePreview>('admin/snapshots/' + record.id);
@@ -105,9 +105,11 @@ export function AdminWorkspace({ section, api, refresh, inspect }: {
           setMessage('Configuration restored. The previous configuration is available in the list.');
         })}>Restore configuration</button>
       </div>}
-    </>}
+    </section>}
     {section === 'users' && <>
+      <section className="tile admin-panel">
       <h2>User groups</h2>
+      <p className="muted">Manage membership and reuse groups in tile permissions.</p>
       <form onSubmit={event => {
         event.preventDefault();
         void run(async () => {
@@ -117,14 +119,17 @@ export function AdminWorkspace({ section, api, refresh, inspect }: {
           setMessage('Group saved.');
         });
       }}>
-        <label>Group to edit<select aria-label="Group to edit" value={groupId} onChange={event => {
+        <div className="admin-field-row">
+        <label>Group to edit<select aria-label="Group to edit" disabled={busy} value={groupId} onChange={event => {
           const group = catalog.groups.find(item => item.id === Number(event.target.value));
           setConfirmGroupRemoval(false); setGroupId(group?.id ?? 0); setGroupName(group?.name ?? ''); setMembers(group?.users ?? []);
         }}><option value={0}>New group</option>{catalog.groups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
         <label>Group name<input required maxLength={64} value={groupName} onChange={event => setGroupName(event.target.value)} /></label>
-        <fieldset><legend>Members</legend><Choices items={grantable} selected={members} change={setMembers} /></fieldset>
-                <div className="result-actions">
-          <button disabled={busy}>Save group</button>
+        </div>
+        <fieldset disabled={busy}><legend>Members</legend>{grantable.length
+          ? <Choices items={grantable} selected={members} change={setMembers} /> : <p className="muted">Add an editor or viewer to assign group members.</p>}</fieldset>
+        <div className="admin-form-actions">
+          <button className="primary" disabled={busy}>Save group</button>
           {!!groupId && <button type="button" disabled={busy} onClick={() => setConfirmGroupRemoval(true)}>Remove group</button>}
         </div>
         {confirmGroupRemoval && <div className="account-confirmation">
@@ -138,14 +143,15 @@ export function AdminWorkspace({ section, api, refresh, inspect }: {
           })}>Confirm group removal</button>
         </div>}
       </form>
-      <hr />
+      </section>
+      <section className="tile admin-panel">
       <h2>Tile permissions</h2>
-      <p className="muted">Restricted tiles appear only for administrators, selected users, and members of selected groups.</p>
+      <p className="muted">Grant access to everyone or selected users and groups. Administrators retain access.</p>
       <form onSubmit={event => {
         event.preventDefault();
         void run(async () => { await api('admin/tile-access/' + tileId, 'PUT', policy); await load(); setMessage('Tile permissions saved.'); });
       }}>
-        <label>Tile<select aria-label="Tile" value={tileId} onChange={event => {
+        <label>Tile<select aria-label="Tile" disabled={busy} value={tileId} onChange={event => {
           const tile = catalog.tiles.find(item => item.id === Number(event.target.value));
           setTileId(tile?.id ?? 0);
           setPolicy(tile?.access ?? { restricted: false, users: [], groups: [] });
@@ -153,11 +159,11 @@ export function AdminWorkspace({ section, api, refresh, inspect }: {
         {!!tileId && <>
           <label className="consent"><input type="checkbox" checked={policy.restricted} onChange={event => setPolicy({ ...policy, restricted: event.target.checked })} /> Restrict access</label>
           {policy.restricted && <>
-            <fieldset><legend>Allowed users</legend><Choices items={grantable} selected={policy.users} change={users => setPolicy({ ...policy, users })} /></fieldset>
-            <fieldset><legend>Allowed groups</legend><Choices items={catalog.groups} selected={policy.groups} change={groups => setPolicy({ ...policy, groups })} /></fieldset>
+            <fieldset disabled={busy}><legend>Allowed users</legend>{grantable.length ? <Choices items={grantable} selected={policy.users} change={users => setPolicy({ ...policy, users })} /> : <p className="muted">Add an editor or viewer to grant individual access.</p>}</fieldset>
+            <fieldset disabled={busy}><legend>Allowed groups</legend>{catalog.groups.length ? <Choices items={catalog.groups} selected={policy.groups} change={groups => setPolicy({ ...policy, groups })} /> : <p className="muted">Create a group to grant access by membership.</p>}</fieldset>
           </>}
           <details><summary>Preview effective access</summary>
-            <ul className="user-list">{accounts.map(account => {
+            <ul className="user-list admin-records">{accounts.map(account => {
               const groups = catalog.groups.filter(group => policy.groups.includes(group.id) && group.users.includes(account.id));
               const reasons = account.role === 'admin' ? ['Administrator'] : !policy.restricted ? ['All dashboard users']
                 : [...(policy.users.includes(account.id) ? ['Individual grant'] : []), ...groups.map(group => 'Group: ' + group.name)];
@@ -165,19 +171,20 @@ export function AdminWorkspace({ section, api, refresh, inspect }: {
               return <li key={account.id}><strong>{account.name}</strong><span>{access}{reasons.length ? ' · ' + reasons.join(', ') : ''}</span></li>;
             })}</ul>
           </details>
-          <button disabled={busy}>Save permissions</button>
+          <div className="admin-form-actions"><button className="primary" disabled={busy}>Save permissions</button></div>
         </>}
       </form>
+      </section>
     </>}
-    {section === 'system' && <>
+    {section === 'system' && <section className="tile admin-panel">
       <h2>Tile inventory</h2>
       <p className="muted">Configured services and who can see them in StackJetty.</p>
-      <ul className="user-list">{catalog.tiles.map(tile => <li key={tile.id}>
+      <ul className="user-list admin-records admin-inventory">{catalog.tiles.map(tile => <li key={tile.id}>
         <span><strong>{tile.title}</strong><br /><small>{tile.url}</small></span>
         <small className="muted">{tile.category} · {tile.access.restricted ? 'Restricted' : 'All dashboard users'}</small>
       </li>)}</ul>
       {!catalog.tiles.length && <p>No services configured.</p>}
-    </>}
-    {feedback}
-  </section>;
+    </section>}
+    {(error || message) && <div className="admin-feedback">{feedback}</div>}
+  </div>;
 }

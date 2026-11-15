@@ -28,21 +28,24 @@ export function Users({ api, onChange }: { api: Api; onChange: () => void }) {
     }
   }
 
-  return <section className="tile">
+  return <section className="tile admin-panel">
     <h2>Users and dashboard access</h2>
-    <p className="muted">Editors can manage tiles. Viewers can open the dashboard and its links. Linked applications enforce their own access controls.</p>
-    <ul className="user-list">{users.map(user => <li key={user.id}>
+    <p className="muted">Editors manage tiles. Viewers open services.</p>
+    <div className="admin-detail-grid admin-user-layout">
+    <section aria-label="Dashboard accounts">
+    <ul className="user-list admin-records">{users.map(user => <li key={user.id}>
       <span><strong>{user.username === 'shared' ? 'Shared dashboard password' : user.username}</strong><br /><small className="muted">{user.role === 'admin' ? 'Administrator' : user.role === 'editor' ? 'Editor' : 'Viewer'}</small></span>
       {user.role !== 'admin' && <button aria-label={'Remove access for ' + user.username} disabled={busy} onClick={() => setRemove(user)}>Remove access</button>}
     </li>)}</ul>
     {remove && <div className="account-confirmation"><p>Remove access and end sessions for {remove.username}?</p>
-      <button disabled={busy} onClick={() => void change(async () => {
+      <button className="danger" disabled={busy} onClick={() => void change(async () => {
         await api('admin/users/' + remove.id, 'DELETE');
         setRemove(undefined);
       }, 'Access removed.')}>Confirm removal</button>{' '}
       <button disabled={busy} onClick={() => setRemove(undefined)}>Cancel</button>
     </div>}
-    <form onSubmit={event => {
+    </section>
+    <form className="admin-inset" aria-label="Add dashboard access" onSubmit={event => {
       event.preventDefault();
       const form = event.currentTarget;
       const values = Object.fromEntries(new FormData(form));
@@ -52,13 +55,15 @@ export function Users({ api, onChange }: { api: Api; onChange: () => void }) {
         setShared(false);
       }, shared ? 'Shared access enabled.' : 'User created.');
     }}>
+      <h3>Add access</h3>
       {!users.some(user => user.username === 'shared') &&
         <label className="import-row"><span><input type="checkbox" checked={shared} onChange={event => setShared(event.target.checked)} /> Enable access with a shared dashboard password</span></label>}
       {!shared && <label>Username<input name="username" autoComplete="off" maxLength={64} required /></label>}
       <label>{shared ? 'Shared dashboard password' : 'Initial password'}<input name="password" type="password" autoComplete="new-password" minLength={12} maxLength={256} required /></label>
       {!shared && <label>Role<select name="role"><option value="viewer">Viewer</option><option value="editor">Editor</option></select></label>}
-      <button disabled={busy}>{shared ? 'Enable shared access' : 'Create user'}</button>
+      <div className="admin-form-actions"><button className="primary" disabled={busy}>{shared ? 'Enable shared access' : 'Create user'}</button></div>
     </form>
+    </div>
     {message && <p role="status">{message}</p>}
     {status && <p role="alert">{status}</p>}
   </section>;
