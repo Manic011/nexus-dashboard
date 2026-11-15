@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Retry failed HEAD checks with GET and report unverified HTTPS certificates separately from outages.
 - Put SSH machines in the main navigation and keep concurrent sessions open while switching dashboard views. Close them on sign-out or after 15 minutes of inactivity.
 - Add an SFTP file manager with folder navigation, sorting and filtering, copy, cut, paste, rename, confirmed deletion, upload, and download.
 - Reduce terminal input and echo latency by batching input and fetching output as it arrives.

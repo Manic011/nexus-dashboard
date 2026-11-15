@@ -50,6 +50,8 @@ CI run 43683126684 exposed a first-render race in the tile editor’s Tags field
 
 ## Diagnostics verification
 
+The service monitor regression verified that a 501 response to HEAD can recover via GET, that a persistent HTTP 503 still counts as unavailable, and that certificate verification errors are distinct from timeouts and refused connections. The diagnostic browser test passed locally, and the API regressions passed on Ubuntu.
+
 The SSH workspace browser test passed locally and against a disposable Ubuntu backend. It opened two sessions to one host, returned to the first shell after visiting the dashboard, and verified independent disconnect. It also exercised folder creation, copy, paste, rename, cut, confirmed deletion, file upload, and the download event and payload. The headless environment did not verify the saved download on disk. API tests verified that sign-out and an expired idle deadline close the underlying SSH shell. The live Ubuntu service passed its health and asset checks after the schema 6 update.
 
 The first-connection host key flow passed locally and against a disposable Ubuntu backend. The browser added a machine with no pasted fingerprint, showed the key for approval, opened the password form, and connected. API checks rejected password sign-in before approval and rejected replacing an already trusted key. The installed Ubuntu service passed its health and asset checks after deployment.

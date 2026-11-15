@@ -11,7 +11,11 @@ export function formatBytes(value: number) {
 export function formatUptime(seconds: number) {
   return Math.floor(seconds / 86400) + 'd ' + Math.floor(seconds / 3600 % 24) + 'h ' + Math.floor(seconds / 60 % 60) + 'm';
 }
-type Sample = { at: string; available: boolean; status: number | null; latency: number; error?: string };
+const outcomeLabels = {
+  reachable: 'Reachable', 'http-error': 'HTTP error', 'tls-unverified': 'Certificate unverified',
+  timeout: 'Timed out', 'connection-failed': 'Connection failed', unclassified: 'Unconfirmed',
+};
+type Sample = { at: string; available: boolean | null; outcome: keyof typeof outcomeLabels; status: number | null; latency: number; error?: string };
 export type DiagnosticService = { id: number; title: string; url: string; category: string; openMode?: OpenMode | 'default'; remoteBrowser?: boolean };
 type Summary = {
   enabled: boolean; running: boolean; intervalSeconds: number;
@@ -20,7 +24,7 @@ type Summary = {
     load: number[]; cpuTimes: { user: number; nice: number; sys: number; idle: number; irq: number }[];
     interfaces: { name: string; address: string; family: string; internal: boolean }[] };
   services: (DiagnosticService & { last: Sample | null; samples: number; daySamples: number;
-    dayPercent: number | null; weekPercent: number | null; history: Sample[] })[];
+    dayPercent: number | null; weekPercent: number | null; dayExcluded: number; excluded: number; history: Sample[] })[];
 };
 
 export function Diagnostics({ api, serviceLink }: { api: DiagnosticApi; serviceLink: (service: DiagnosticService, label: string) => ReactNode }) {
@@ -67,7 +71,7 @@ export function Diagnostics({ api, serviceLink }: { api: DiagnosticApi; serviceL
     {error && <p role="alert" className="error">{error}</p>}
     {tab === 'services' && <section className="tile">
       <h2>Service uptime</h2>
-      <p className="muted">Availability is sampled from this server. HTTP authentication responses count as reachable. Certificate failures and HTTP 5xx responses count as unavailable. History is retained for seven days.</p>
+      <p className="muted">Checks run from the StackJetty server. Sign-in responses count as reachable. Checks with unverified certificates are shown separately and excluded from availability.</p>
       <div className="admin-controls">
         <button disabled={busy || !summary || summary.running} onClick={() => void run(async () => {
           await api('admin/diagnostics/monitor', 'PUT', { enabled: !summary!.enabled });
@@ -82,16 +86,17 @@ export function Diagnostics({ api, serviceLink }: { api: DiagnosticApi; serviceL
       {summary && services.length === 0 && <p>No matching services.</p>}
       <div className="diagnostic-services">{services.map(service => <article key={service.id}>
         <div className="diagnostic-service-head">{serviceLink(service, service.title)}<span className={service.last?.available ? 'state-up' : 'muted'}>
-          {service.last ? service.last.available ? 'Reachable' : 'Unavailable' : 'No checks yet'}</span></div>
+          {service.last ? outcomeLabels[service.last.outcome] : 'No checks yet'}</span></div>
         <div className="muted diagnostic-url">{serviceLink(service, service.url)}</div>
         <dl className="metric-grid">
-          <div><dt>24-hour availability</dt><dd>{service.dayPercent === null ? '—' : service.dayPercent + '%'} <small>({service.daySamples} checks)</small></dd></div>
-          <div><dt>7-day availability</dt><dd>{service.weekPercent === null ? '—' : service.weekPercent + '%'} <small>({service.samples} checks)</small></dd></div>
+          <div><dt>24-hour availability</dt><dd>{service.dayPercent === null ? '—' : service.dayPercent + '%'} <small>({service.daySamples} counted{service.dayExcluded ? ', ' + service.dayExcluded + ' unconfirmed' : ''})</small></dd></div>
+          <div><dt>7-day availability</dt><dd>{service.weekPercent === null ? '—' : service.weekPercent + '%'} <small>({service.samples} counted{service.excluded ? ', ' + service.excluded + ' unconfirmed' : ''})</small></dd></div>
           <div><dt>Response time</dt><dd>{service.last ? service.last.latency + ' ms' : '—'}</dd></div>
           <div><dt>Last check</dt><dd>{service.last ? new Date(service.last.at).toLocaleString() : '—'}</dd></div>
         </dl>
         <div className="uptime-history" aria-label={service.title + ' recent checks'}>{service.history.map((sample, index) =>
-          <span key={index} className={sample.available ? 'check-up' : 'check-down'} title={new Date(sample.at).toLocaleString() + ' · ' + (sample.status ?? 'No response') + ' · ' + sample.latency + ' ms'} />)}</div>
+          <span key={index} className={sample.available === null ? 'check-unknown' : sample.available ? 'check-up' : 'check-down'}
+            title={new Date(sample.at).toLocaleString() + ' · ' + outcomeLabels[sample.outcome] + (sample.status ? ' · HTTP ' + sample.status : '') + ' · ' + sample.latency + ' ms'} />)}</div>
         {service.last?.error && <small className="muted">{service.last.error}</small>}
       </article>)}</div>
     </section>}

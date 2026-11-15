@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { createApp } from '../server/index.ts';
+import { classifyProbeFailure } from '../server/diagnostics.ts';
 
 test('diagnostic monitoring and SSH sessions enforce access, fingerprints and owner isolation', { timeout: 30_000 }, async () => {
   const directory = mkdtempSync(join(tmpdir(), 'stackjetty-diagnostics-'));
@@ -15,7 +16,12 @@ test('diagnostic monitoring and SSH sessions enforce access, fingerprints and ow
   process.env.NEXUS_SSH = 'on';
   const { server: sshServer, fingerprint, received, input } = createSshFixture();
   const keyboard = createSshFixture(false, 'keyboard-interactive');
-  const service = createServer((_req, res) => { res.writeHead(401); res.end(); });
+  const service = createServer((req, res) => {
+    const status = req.url === '/method' ? req.method === 'HEAD' ? 501 : 301
+      : req.url === '/error' ? 503 : 401;
+    res.writeHead(status);
+    res.end();
+  });
   const origin = 'http://127.0.0.1';
   const app = createApp(directory, 'dist', origin, 'fixture-token');
   let cookie = '';
@@ -38,11 +44,22 @@ test('diagnostic monitoring and SSH sessions enforce access, fingerprints and ow
     const adminCookie = cookie;
     const serviceAddress = service.address(); assert.ok(serviceAddress && typeof serviceAddress !== 'string');
     await request('tiles', 'POST', { title: 'Authenticated service', description: '', category: 'General', openMode: 'new-tab', url: 'http://127.0.0.1:' + serviceAddress.port });
+    for (const [title, path] of [['GET fallback', '/method'], ['HTTP failure', '/error']]) {
+      await request('tiles', 'POST', { title, description: '', category: 'General', url: 'http://127.0.0.1:' + serviceAddress.port + path });
+    }
     assert.equal((await request('admin/diagnostics/check', 'POST')).status, 200);
     const summary = await (await request('admin/diagnostics')).json();
     assert.equal(summary.services[0].last.status, 401);
     assert.equal(summary.services[0].dayPercent, 100);
     assert.equal(summary.services[0].openMode, 'new-tab');
+    const fallback = summary.services.find((service: { title: string }) => service.title === 'GET fallback');
+    assert.equal(fallback.last.status, 301);
+    assert.equal(fallback.last.outcome, 'reachable');
+    assert.equal(fallback.dayPercent, 100);
+    const unavailable = summary.services.find((service: { title: string }) => service.title === 'HTTP failure');
+    assert.equal(unavailable.last.status, 503);
+    assert.equal(unavailable.last.outcome, 'http-error');
+    assert.equal(unavailable.dayPercent, 0);
     assert.equal(summary.enabled, false);
     const sshAddress = sshServer.address(); assert.ok(sshAddress && typeof sshAddress !== 'string');
     const host = { name: 'Fixture machine', host: '127.0.0.1', port: sshAddress.port, username: 'fixture', fingerprint };
@@ -125,6 +142,16 @@ test('diagnostic monitoring and SSH sessions enforce access, fingerprints and ow
     sshServer.close(); keyboard.server.close(); service.close(); service.closeAllConnections();
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test('monitoring distinguishes certificate rejection from connection failures', () => {
+  for (const code of ['DEPTH_ZERO_SELF_SIGNED_CERT', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'ERR_TLS_CERT_ALTNAME_INVALID', 'CERT_HAS_EXPIRED']) {
+    const failure = classifyProbeFailure(new Error('fetch failed', { cause: { code } }));
+    assert.equal(failure.outcome, 'tls-unverified');
+    assert.equal(failure.available, null);
+  }
+  assert.equal(classifyProbeFailure(new DOMException('', 'TimeoutError')).outcome, 'timeout');
+  assert.equal(classifyProbeFailure(new Error('', { cause: { code: 'ECONNREFUSED' } })).available, false);
 });
 
 test('SSH credential entry is rejected for plain HTTP LAN origins', async () => {
