@@ -24,6 +24,8 @@ The layout editor shows full cards, including categories, tags, descriptions and
 
 The custom grid can mix tiles from different categories. Select a category or tag on a tile to filter the dashboard. Search and filters show matching tiles in a compact grid in the saved order. Narrow screens also follow the saved order. New tiles are placed after the last saved tile. A change to a tile's destination URL gives it a fresh position.
 
+Open **Category settings** to add labeled dividers to the custom grid, set personal display names, and move categories up or down. A row with tiles from multiple categories shows each category name in its divider. Category order applies to **Grouped by category** and to the next **Arrange by category** action. Display names appear in headings, category filters, and tile labels. Clear a display name to use the original category name.
+
 Layout preferences are personal, including for viewers. They are saved for the signed-in account in the current browser profile and are cleared with other site data. Server backups do not carry them.
 
 ## Open a service and save its login

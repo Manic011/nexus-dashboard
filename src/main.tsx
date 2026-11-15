@@ -7,6 +7,8 @@ import { openModes, usePreferences, type OpenMode } from './preferences.js';
 import { CategoryPicker } from './CategoryPicker.js';
 import { ServiceDialog } from './ServiceDialog.js';
 import { LayoutEditor } from './LayoutEditor.js';
+import { TileGrid } from './CategoryDivider.js';
+import { categoryName, orderedCategories, type LayoutCategories } from './layoutCategories.js';
 import { arrangeTiles, comparePositions, gridPlacement, tileKey, type Position } from './tileLayout.js';
 import { parseTags } from './tags.js';
 
@@ -107,13 +109,14 @@ function App() {
 
   const selected = editing === 'new' ? null : editing;
   const categories = new Map(tiles.map(tile => [tile.category.toLowerCase(), tile.category]));
+  const categorySettings = preferences.value.layoutCategories;
   const tags = new Map(tiles.flatMap(tile => tile.tags.map(tag => [tag.toLowerCase(), tag] as const)));
   const activeCategory = categories.has(categoryFilter) ? categoryFilter : '';
   const activeTag = tags.has(tagFilter) ? tagFilter : '';
   const visible = tiles.filter(tile =>
     (!activeCategory || tile.category.toLowerCase() === activeCategory) &&
     (!activeTag || tile.tags.some(tag => tag.toLowerCase() === activeTag)) &&
-    [tile.title, tile.description, tile.category, tile.url, ...tile.tags]
+    [tile.title, tile.description, tile.category, categoryName(tile.category.toLowerCase(), tile.category, categorySettings), tile.url, ...tile.tags]
       .some(value => value.toLowerCase().includes(query.trim().toLowerCase())));
   const customLayout = preferences.value.tileLayout && arrangeTiles(tiles, preferences.value.tileLayout);
   const customTiles = customLayout && [...visible].sort((a, b) => comparePositions(customLayout.positions[tileKey(a)], customLayout.positions[tileKey(b)]));
@@ -129,11 +132,12 @@ function App() {
     layoutTrigger.current?.focus();
   }
 
-  function renderTile(tile: Tile, { position, showCategory = Boolean(customLayout), preview = false, overlay }: {
-    position?: Position; showCategory?: boolean; preview?: boolean; overlay?: ReactNode;
+  function renderTile(tile: Tile, { position, showCategory = Boolean(customLayout), preview = false, overlay, settings = categorySettings }: {
+    position?: Position; showCategory?: boolean; preview?: boolean; overlay?: ReactNode; settings?: LayoutCategories;
   } = {}) {
     const placement = position && gridPlacement(position);
     const categoryKey = tile.category.toLowerCase();
+    const label = categoryName(categoryKey, tile.category, settings);
     return <article key={tile.id} aria-label={preview && !overlay ? tile.title : undefined} className={overlay ? 'tile app-tile layout-card' : 'tile app-tile'} style={placement && {
       '--tile-row': placement.gridRow, '--tile-column': placement.gridColumn,
     } as CSSProperties}>
@@ -147,7 +151,7 @@ function App() {
           : <button className="tile-launch" aria-haspopup="dialog" onClick={event => { serviceTrigger.current = event.currentTarget; setBrowsing(tile); }}>{tile.title}<PanelTop size={16} aria-hidden="true" /></button>}
         <p className="muted">{tile.description || new URL(tile.url).host}</p>
         {(showCategory || tile.tags.length > 0) && <div className="tags">
-          {showCategory && <button className="tile-category" aria-label={`Category: ${tile.category}`} aria-pressed={!preview && activeCategory === categoryKey} onClick={() => setCategoryFilter(activeCategory === categoryKey ? '' : categoryKey)}>{tile.category}</button>}
+          {showCategory && <button className="tile-category" aria-label={`Category: ${label}`} aria-pressed={!preview && activeCategory === categoryKey} onClick={() => setCategoryFilter(activeCategory === categoryKey ? '' : categoryKey)}>{label}</button>}
           {tile.tags.map(tag => <button key={tag} aria-pressed={!preview && activeTag === tag.toLowerCase()} onClick={() => setTagFilter(activeTag === tag.toLowerCase() ? '' : tag.toLowerCase())}>{tag}</button>)}
         </div>}
         {jellyfin?.tiles.includes(tile.id) && <p className="muted">{jellyfin.state === 'available'
@@ -158,11 +162,15 @@ function App() {
     </article>;
   }
 
-  function renderGroups(items: Tile[], preview = false) {
-    return [...Map.groupBy(items, tile => tile.category.toLowerCase())].map(([category, group]) => <section className="group" key={category}>
-      <h2>{categories.get(category)} <span className="group-count">{group.length}</span></h2>
-      <div className="grid">{group.map(tile => renderTile(tile, { preview, showCategory: false }))}</div>
-    </section>);
+  function renderGroups(items: Tile[], preview = false, settings = categorySettings) {
+    const groups = Map.groupBy(items, tile => tile.category.toLowerCase());
+    return orderedCategories(groups, settings.order).map(category => {
+      const group = groups.get(category)!;
+      return <section className="group" key={category}>
+        <h2 className="category-divider">{categoryName(category, categories.get(category)!, settings)} <span className="group-count">{group.length}</span></h2>
+        <div className="grid">{group.map(tile => renderTile(tile, { preview, showCategory: false }))}</div>
+      </section>;
+    });
   }
 
   if (!session?.username) return <main className="auth">
@@ -216,17 +224,17 @@ function App() {
         </div>
       </div>
       {editingLayout ? <LayoutEditor tiles={tiles} categories={categories} tags={tags} initialCategory={activeCategory} initialTag={activeTag}
-        renderTile={(tile, position, overlay) => renderTile(tile, { position, overlay, preview: true, showCategory: true })}
-        groupedPreview={renderGroups(tiles, true)}
-        saved={customLayout} onCancel={closeLayout} onSave={tileLayout => {
-        const persisted = preferences.update({ tileLayout });
+        renderTile={(tile, position, settings, overlay) => renderTile(tile, { position, overlay, settings, preview: true, showCategory: true })}
+        groupedPreview={settings => renderGroups(tiles, true, settings)}
+        saved={customLayout} categorySettings={categorySettings} onCancel={closeLayout} onSave={(tileLayout, layoutCategories) => {
+        const persisted = preferences.update({ tileLayout, layoutCategories });
         setLayoutMessage(persisted ? 'Layout saved.' : 'Layout applied for this session. Browser storage is unavailable.');
         closeLayout();
       }} /> : <>
       {layoutMessage && <p className="layout-notice muted" role="status">{layoutMessage}</p>}
       <div className="filters"><label className="search"><Search size={18} /><input type="search" aria-label="Search applications" placeholder="Search applications" value={query} onChange={event => setQuery(event.target.value)} /></label>
         <select aria-label="Filter by category" value={activeCategory} onChange={event => setCategoryFilter(event.target.value)}>
-          <option value="">All categories</option>{[...categories].map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+          <option value="">All categories</option>{orderedCategories(categories, categorySettings.order).map(key => <option key={key} value={key}>{categoryName(key, categories.get(key)!, categorySettings)}</option>)}
         </select>
         <select aria-label="Filter by tag" value={activeTag} onChange={event => setTagFilter(event.target.value)}>
           <option value="">All tags</option>{[...tags].map(([key, label]) => <option key={key} value={key}>{label}</option>)}
@@ -235,11 +243,11 @@ function App() {
       </div>
       {tilesLoading && <p role="status">Loading applications…</p>}
       {!tilesLoading && !error && visible.length === 0 && <section className="empty"><Globe size={28} /><h2>{tiles.length ? 'No matching applications' : 'No applications yet'}</h2><p className="muted">{tiles.length ? 'Try a different search or clear your filters.' : session.role === 'viewer' ? 'Applications will appear here when an editor adds them.' : 'Add a tile to save a link to your first service.'}</p></section>}
-      {customTiles && customLayout ? <div className="custom-layout">
-        <div className={filtered ? 'grid' : 'grid custom-grid'} data-columns={customLayout.columns}>
-          {customTiles.map(tile => renderTile(tile, { position: filtered ? undefined : customLayout.positions[tileKey(tile)] }))}
-        </div>
-      </div> : renderGroups(visible)}
+      {customTiles && customLayout ? filtered
+        ? <div className="grid">{customTiles.map(tile => renderTile(tile))}</div>
+        : <TileGrid tiles={customTiles} layout={customLayout} categories={categories} settings={categorySettings}
+          renderTile={(tile, position) => renderTile(tile, { position })} />
+        : renderGroups(visible)}
       </>}
     </>}
     </main>

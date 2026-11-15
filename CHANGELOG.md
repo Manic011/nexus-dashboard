@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Added category dividers, personal category display names, and category ordering to Customize layout.
+
 - The layout editor now uses the dashboard’s full cards and spacing. A clean preview shows how the draft will reflow at the current screen size.
 
 - Added category and tag highlights in the layout editor, a category arrangement action that preserves tile widths, and category filters on custom grid tiles.
