@@ -1,5 +1,5 @@
 [Unit]
-Description=Nexus Dashboard
+Description=StackJetty Dashboard
 After=network.target
 
 [Service]

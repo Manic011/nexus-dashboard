@@ -1,4 +1,4 @@
-# Contributing to Nexus Dashboard
+# Contributing to StackJetty Dashboard
 
 Develop in the local Git checkout and use Ubuntu as the integration environment. Keep credentials, local databases, deployment settings, and preview data out of commits. The repository is private.
 

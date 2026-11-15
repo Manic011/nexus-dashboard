@@ -65,13 +65,13 @@ export function ServiceDialog({ title, url, username, startRemote, launchRemote,
       remote ? <iframe title={title + ' remote browser'} src={remote}
         sandbox="allow-scripts allow-forms allow-same-origin" referrerPolicy="no-referrer" />
         : remoteError ? <p role="alert">{remoteError}</p>
-        : <p role="status">{launchRemote ? 'Opening remote browser…' : 'Kasm is unavailable. It requires a configured provider and a Nexus administrator account.'}</p>
+        : <p role="status">{launchRemote ? 'Opening remote browser…' : 'Kasm is unavailable. It requires a configured provider and a StackJetty administrator account.'}</p>
     )    : canEmbed ? <>
       <iframe title={title + ' embedded service'} src={address.href}
         sandbox="allow-scripts allow-forms allow-same-origin" referrerPolicy="no-referrer" />
       <details className="service-help">
         <summary>Page not displaying?</summary>
-        <p className="muted">The service must allow Nexus to embed it. Check the saved URL, certificate trust, and the service’s embedding settings. Some sign-in flows also require cookies that your browser may restrict in embedded pages.</p>
+        <p className="muted">The service must allow StackJetty to embed it. Check the saved URL, certificate trust, and the service’s embedding settings. Some sign-in flows also require cookies that your browser may restrict in embedded pages.</p>
       </details>
     </> : <p role="status">{address.origin === location.origin
       ? 'Choose a service URL on a different origin to open it here.'
@@ -84,7 +84,7 @@ function CredentialPanel({ username, address }: { username: string; address: str
   return <details className="credential-panel" onToggle={event => setOpen(event.currentTarget.open)}>
     <summary>Saved login</summary>
     {open && (!window.isSecureContext
-      ? <p className="muted">Open Nexus over HTTPS to use the credential vault.</p>
+      ? <p className="muted">Open StackJetty over HTTPS to use the credential vault.</p>
       : window.crypto?.subtle && navigator.locks
         ? <VaultForm username={username} address={address} />
         : <p className="muted">Use a current browser with Web Crypto and Web Locks to open the vault.</p>)}

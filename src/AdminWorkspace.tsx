@@ -91,7 +91,7 @@ export function AdminWorkspace({ section, api, refresh, inspect }: {
         })}>Review restore</button>
       </li>)}</ul>
       {target && <div className="account-confirmation">
-        <p>Replace the current configuration with {target.record.label} ({target.tiles} tiles and {target.groups} groups)? Nexus saves the current configuration first.</p>
+        <p>Replace the current configuration with {target.record.label} ({target.tiles} tiles and {target.groups} groups)? StackJetty saves the current configuration first.</p>
         <ul className="restore-diff">{target.changes.map(change => <li key={change.kind}><strong>{change.kind}</strong>
           <ul>{(['added', 'removed', 'changed'] as const).map(action => <li key={action}>
             {action[0].toUpperCase() + action.slice(1)} · {change[action].length ? change[action].join(', ') : 'None'}
@@ -171,7 +171,7 @@ export function AdminWorkspace({ section, api, refresh, inspect }: {
     </>}
     {section === 'system' && <>
       <h2>Tile inventory</h2>
-      <p className="muted">Configured services and who can see them in Nexus.</p>
+      <p className="muted">Configured services and who can see them in StackJetty.</p>
       <ul className="user-list">{catalog.tiles.map(tile => <li key={tile.id}>
         <span><strong>{tile.title}</strong><br /><small>{tile.url}</small></span>
         <small className="muted">{tile.category} · {tile.access.restricted ? 'Restricted' : 'All dashboard users'}</small>

@@ -85,7 +85,7 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
         const frame = dialog.locator('iframe');
         assert.equal(await frame.getAttribute('src'), new URL(serviceFixture).href);
         assert.equal(await frame.getAttribute('sandbox'), 'allow-scripts allow-forms allow-same-origin');
-        assert.equal(await page.evaluate(() => localStorage.getItem('service-ready')), null, 'Service storage remains isolated from Nexus');
+        assert.equal(await page.evaluate(() => localStorage.getItem('service-ready')), null, 'Service storage remains isolated from StackJetty');
         assert.equal((await page.request.get(origin)).headers()['x-frame-options'], 'DENY');
         await frame.contentFrame().getByRole('heading', { name: 'Fixture service' }).waitFor();
         assert.equal(page.context().pages().length, 1);
@@ -225,9 +225,9 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
           } });
         });
         await network.selectOption({ index: 1 });
-        await page.getByLabel('IP addresses or ranges preset').selectOption({ label: 'Nexus server only' });
+        await page.getByLabel('IP addresses or ranges preset').selectOption({ label: 'StackJetty server only' });
         assert.ok(await page.getByLabel('IP addresses or ranges', { exact: true }).inputValue());
-        await page.getByLabel('Excluded IPs or ranges preset').selectOption({ label: 'Exclude Nexus server' });
+        await page.getByLabel('Excluded IPs or ranges preset').selectOption({ label: 'Exclude StackJetty server' });
         assert.equal(await page.getByLabel('Excluded IPs or ranges', { exact: true }).inputValue(), await page.getByLabel('IP addresses or ranges', { exact: true }).inputValue());
         await page.getByLabel('Excluded IPs or ranges preset').selectOption({ label: 'No exclusions' });
         await page.getByLabel('Ports or port ranges preset').selectOption({ label: 'Standard web' });
@@ -258,7 +258,7 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
       await button('Backup').click();
       const download = page.waitForEvent('download');
       await page.getByRole('link', { name: 'Download JSON' }).click();
-      assert.equal((await download).suggestedFilename(), 'nexus-dashboard.json');
+      assert.equal((await download).suggestedFilename(), 'stackjetty.json');
       await button('System').click();
       await page.getByText('Database schema', { exact: true }).waitFor();
       await fits(320, 568);

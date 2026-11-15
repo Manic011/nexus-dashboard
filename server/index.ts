@@ -336,7 +336,7 @@ export function createApp(data: string, dist: string, origin: string, setupToken
           ? visible.map(item => ({ ...item, remoteBrowser: true })) : visible);
       }
       if (method === 'GET' && path === '/api/admin/backup') {
-        res.setHeader('Content-Disposition', 'attachment; filename="nexus-dashboard.json"');
+        res.setHeader('Content-Disposition', 'attachment; filename="stackjetty.json"');
         return send(200, { version: 1, tiles: db.prepare('SELECT title, description, url, category, tags, open_mode FROM tiles ORDER BY id').all().map(readTile) });
       }
       if (method === 'GET' && path === '/api/admin/system') {
@@ -352,7 +352,7 @@ export function createApp(data: string, dist: string, origin: string, setupToken
       if (method === 'POST' && ['/api/admin/backup/preview', '/api/admin/backup/import'].includes(path)) {
         const raw = await body(req, 2 * 1024 * 1024);
         const parsed = backup.extend({ updateUrls: z.array(z.string()).max(500).default([]), revision: z.string().optional() }).safeParse(raw);
-        if (!parsed.success) throw new RequestError(400, 'Choose a version 1 Nexus backup containing up to 500 valid tiles.');
+        if (!parsed.success) throw new RequestError(400, 'Choose a version 1 StackJetty backup containing up to 500 valid tiles.');
         const existing = db.prepare('SELECT * FROM tiles ORDER BY id').all();
         const revision = digest(JSON.stringify(existing));
         const savedUrls = new Set(existing.map(row => new URL(String(row.url)).href));
@@ -431,6 +431,6 @@ if (import.meta.main) {
     throw new Error('NEXUS_DISCOVERY must be on or off.');
   }
   const server = createApp(process.env.NEXUS_DATA ?? 'data', process.env.NEXUS_DIST ?? 'dist', origin, process.env.NEXUS_SETUP_TOKEN, jellyfin, discovery !== 'off', process.env.NEXUS_KASM_URL);
-  server.listen(port, host, () => console.log(`Nexus Dashboard listening on ${host}:${port}`));
+  server.listen(port, host, () => console.log(`StackJetty listening on ${host}:${port}`));
   for (const signal of ['SIGTERM', 'SIGINT'] as const) process.once(signal, () => server.close());
 }

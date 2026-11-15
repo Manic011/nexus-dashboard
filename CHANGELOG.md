@@ -2,11 +2,13 @@
 
 ## [Unreleased]
 
+- Renamed Nexus Dashboard to StackJetty Dashboard in the app, documentation, and installer bundle. Existing service and storage identifiers are retained for upgrades.
+
 - Added a browser-wide tile opening preference and per-tile overrides for a new tab, the embedded browser, or Kasm. Tile backups and snapshots carry the override.
 
-- Added an optional Kasm remote browser action for administrators. The remote browser opens the saved tile inside Nexus.
+- Added an optional Kasm remote browser action for administrators. The remote browser opens the saved tile inside StackJetty.
 
-- Expanded the embedded service view and restored service-origin cookie and storage access for apps such as Proxmox. Nexus continues to reject framing of its own pages.
+- Expanded the embedded service view and restored service-origin cookie and storage access for apps such as Proxmox. StackJetty continues to reject framing of its own pages.
 
 - Added an embedded service view that opens directly from tile titles and a browser-local encrypted vault for individual accounts.
 

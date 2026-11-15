@@ -2,9 +2,9 @@
 
 ## Runtime and storage
 
-When a separate Kasm HTTPS endpoint is configured, the administrator-only remote browser API derives a Kasm launch URL from a saved tile ID. The browser embeds the Kasm client and Kasm handles authentication, browser execution, and session lifecycle. Nexus stores no Kasm tokens or browser session data and performs no upstream requests for this feature.
+When a separate Kasm HTTPS endpoint is configured, the administrator-only remote browser API derives a Kasm launch URL from a saved tile ID. The browser embeds the Kasm client and Kasm handles authentication, browser execution, and session lifecycle. StackJetty stores no Kasm tokens or browser session data and performs no upstream requests for this feature.
 
-The tile service view loads a sandboxed frame directly in the browser. The sandbox gives services on a different origin access to their own cookies and storage, and allows scripts and forms. The browser separates Nexus from the service. Nexus blocks itself from being framed through CSP and X-Frame-Options, including after an embedded navigation. The sandbox restricts top-level navigation and popups. A tile opens the frame inside the dashboard, and closing the view unloads it. The credential vault uses versioned AES-256-GCM ciphertext with a fresh IV on each write, a per-vault random salt, and PBKDF2-SHA-256 with 600,000 iterations. The key stays in browser memory while unlocked. Web Locks and a ciphertext comparison prevent simultaneous tabs from overwriting a newer vault. The server has no vault API or database table.
+The tile service view loads a sandboxed frame directly in the browser. The sandbox gives services on a different origin access to their own cookies and storage, and allows scripts and forms. The browser separates StackJetty from the service. StackJetty blocks itself from being framed through CSP and X-Frame-Options, including after an embedded navigation. The sandbox restricts top-level navigation and popups. A tile opens the frame inside the dashboard, and closing the view unloads it. The credential vault uses versioned AES-256-GCM ciphertext with a fresh IV on each write, a per-vault random salt, and PBKDF2-SHA-256 with 600,000 iterations. The key stays in browser memory while unlocked. Web Locks and a ciphertext comparison prevent simultaneous tabs from overwriting a newer vault. The server has no vault API or database table.
 
 The React interface is built with Vite and served by the Node.js process alongside the TypeScript API. Browser requests share one origin. The backend validates input with Zod and uses prepared statements with Node's built-in SQLite bindings.
 
@@ -21,7 +21,7 @@ SQLite uses WAL mode and transactional migrations tracked with `PRAGMA user_vers
 
 First-run setup requires a deployment token and creates the administrator. Passwords are salted and hashed using scrypt. Session cookies use HttpOnly and SameSite=Strict, with Secure enabled for HTTPS origins. Session tokens expire after seven days and are stored as SHA-256 digests. Write requests require the configured Origin and the JSON content type. Setup and login share a process-wide throttle of 12 attempts per minute.
 
-Administrators manage accounts and discovery. Editors manage tiles. Viewers and shared-password guests have read-only dashboard access. Removing an account revokes its sessions. Tile permissions apply to access within Nexus. Linked services enforce their own authentication.
+Administrators manage accounts and discovery. Editors manage tiles. Viewers and shared-password guests have read-only dashboard access. Removing an account revokes its sessions. Tile permissions apply to access within StackJetty. Linked services enforce their own authentication.
 
 ## Discovery and integration
 
@@ -29,7 +29,7 @@ Setting `NEXUS_DISCOVERY=off` disables the discovery, scan planning, interface, 
 
 The administrator selects a server interface. The web discovery route combines mDNS advertisements with bounded HTTP and HTTPS checks of the selected IPv4 targets: a /24 default, or explicit local/private CIDRs, individual addresses, and ranges capped at 4096 unique selected addresses before exclusions. It uses live page evidence first, then the port catalog for suggestions. Recognized unverified certificate names can provide a labeled clue. The browser previews results through the same validation and duplicate checks as a backup import.
 
-Jellyfin receives read-only requests at the configured base URL. Nexus sends the aggregate active stream count to authenticated clients when a tile matches the base URL. The key is supplied through server configuration.
+Jellyfin receives read-only requests at the configured base URL. StackJetty sends the aggregate active stream count to authenticated clients when a tile matches the base URL. The key is supplied through server configuration.
 
 ## HTTP API
 

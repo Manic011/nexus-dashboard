@@ -62,4 +62,4 @@ if ! /opt/nexus-dashboard/runtime/bin/node --input-type=module -e '
   echo 'Startup health check failed. Installation was retained for diagnosis; inspect the service journal.' >&2
   exit 1
 fi
-echo 'Nexus Dashboard installed; service health check passed.'
+echo 'StackJetty Dashboard installed; service health check passed.'

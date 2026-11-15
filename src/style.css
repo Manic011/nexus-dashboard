@@ -11,7 +11,7 @@ a { color: inherit; }
 h1, h2, p { margin: 0; }
 h1 { font-size: clamp(2rem, 6vw, 3.4rem); letter-spacing: -.055em; line-height: 1.06; }
 h2 { font-size: 1.13rem; }
-.muted, .brand-muted { color: var(--muted); }
+.muted { color: var(--muted); }
 .primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 700; min-height: 43px; }
 .primary:hover { background: var(--accent-hover); }
 .danger { background: var(--danger); }
@@ -52,7 +52,7 @@ dialog { max-width: calc(100% - 24px); color: inherit; }
 dialog::backdrop { background: #03080bba; }
 .error { color: var(--error); margin-block: 5px; }
 @media (max-width: 520px) {
-  .account span, .brand-muted { display: none; }
+  .account span { display: none; }
   .intro { align-items: start; flex-direction: column; }
 }
 .admin { margin-top: 26px; display: grid; gap: 16px; }

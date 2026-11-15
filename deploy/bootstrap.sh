@@ -8,7 +8,7 @@ verify_only=false
 origin=
 case ${1:-} in
   --verify-only) verify_only=true ;;
-  -*) fail 'Usage: sudo bash nexus-dashboard-install.sh [browser-origin] or bash nexus-dashboard-install.sh --verify-only' ;;
+  -*) fail 'Usage: sudo bash stackjetty-install.sh [browser-origin] or bash stackjetty-install.sh --verify-only' ;;
   *) origin=${1:-} ;;
 esac
 if (( $# > 1 )); then fail 'Pass at most one argument.'; fi
@@ -21,11 +21,11 @@ if [[ $verify_only == false ]]; then
   [[ $EUID == 0 ]] || fail 'Rerun with sudo to install the systemd service.'
   [[ -d /run/systemd/system ]] || fail 'Ubuntu must be running systemd.'
   for path in /opt/nexus-dashboard /etc/nexus-dashboard /var/lib/nexus-dashboard /etc/systemd/system/nexus-dashboard.service; do
-    [[ ! -e $path && ! -L $path ]] || fail "Existing Nexus installation found at $path. See the upgrade guide."
+    [[ ! -e $path && ! -L $path ]] || fail "Existing StackJetty installation found at $path. See the upgrade guide."
   done
   if getent passwd nexus-dashboard >/dev/null || getent group nexus-dashboard >/dev/null ||
     systemctl cat nexus-dashboard.service >/dev/null 2>&1; then
-    fail 'The Nexus service account or unit already exists. See the upgrade guide.'
+    fail 'The StackJetty service account or unit already exists. See the upgrade guide.'
   fi
   if command -v ss >/dev/null && [[ -n $(ss -ltnH 'sport = :3000') ]]; then
     fail 'Port 3000 is occupied.'

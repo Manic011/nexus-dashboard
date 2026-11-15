@@ -1,4 +1,4 @@
-# Nexus Dashboard
+# StackJetty Dashboard
 
 Develop and maintain Git locally. Build with `npm run build` and verify with `npm test`. Deploy only locally built artifacts to Ubuntu over verified SSH. Use Ubuntu for integration checks, preserve persistent state during deployments, and inspect service logs after deployment. Keep credentials, private deployment settings, and identifying host or network details out of Git and public artifacts.
 

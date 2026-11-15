@@ -117,7 +117,7 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
     {status && <p role="status" className="admin-status">{status}</p>}
     {section === 'users' && <Users api={api} onChange={() => setWorkspaceRevision(value => value + 1)} />}
     {section === 'system' && <section className="tile"><h2>System information</h2>
-      {system ? <dl><dt>Runtime</dt><dd>{system.runtime}</dd><dt>Platform</dt><dd>{system.platform}</dd><dt>Database schema</dt><dd>{system.schema}</dd><dt>Saved tiles</dt><dd>{system.tiles}</dd><dt>Host</dt><dd>{system.hostname}</dd><dt>Kernel and architecture</dt><dd>{system.kernel} · {system.architecture}</dd><dt>Processor</dt><dd>{system.cpu} · {system.logicalCpus} logical cores</dd><dt>Memory</dt><dd>{Math.round(system.freeMemory / 1048576)} MiB free of {Math.round(system.totalMemory / 1048576)} MiB</dd><dt>Service memory</dt><dd>{Math.round(system.serviceMemory / 1048576)} MiB</dd><dt>Uptime</dt><dd>Host {Math.floor(system.machineUptime / 60)} min · Nexus {Math.floor(system.serviceUptime / 60)} min</dd></dl> : <p className="muted">Loading system information…</p>}
+      {system ? <dl><dt>Runtime</dt><dd>{system.runtime}</dd><dt>Platform</dt><dd>{system.platform}</dd><dt>Database schema</dt><dd>{system.schema}</dd><dt>Saved tiles</dt><dd>{system.tiles}</dd><dt>Host</dt><dd>{system.hostname}</dd><dt>Kernel and architecture</dt><dd>{system.kernel} · {system.architecture}</dd><dt>Processor</dt><dd>{system.cpu} · {system.logicalCpus} logical cores</dd><dt>Memory</dt><dd>{Math.round(system.freeMemory / 1048576)} MiB free of {Math.round(system.totalMemory / 1048576)} MiB</dd><dt>Service memory</dt><dd>{Math.round(system.serviceMemory / 1048576)} MiB</dd><dt>Uptime</dt><dd>Host {Math.floor(system.machineUptime / 60)} min · StackJetty {Math.floor(system.serviceUptime / 60)} min</dd></dl> : <p className="muted">Loading system information…</p>}
     </section>}
     {section === 'backup' && <section className="tile"><h2>Dashboard backup</h2><p className="muted">Download your application tiles or merge tiles from a previous export.</p>
       <div className="admin-controls"><a href="/api/admin/backup" download>Download JSON</a>
@@ -180,13 +180,13 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
             <ScanField label="IP addresses or ranges" value={scope.range} disabled={busy} placeholder="Entire displayed range"
               onChange={value => changeScope('range', value)} presets={[
                 { label: 'Entire subnet', value: '' },
-                { label: 'Nexus server only', value: network.address },
+                { label: 'StackJetty server only', value: network.address },
                 { label: 'Start of subnet', value: network.exampleRange },
               ]} />
             <ScanField label="Excluded IPs or ranges" value={scope.exclude} disabled={busy} placeholder="None"
               onChange={value => changeScope('exclude', value)} presets={[
                 { label: 'No exclusions', value: '' },
-                { label: 'Exclude Nexus server', value: network.address },
+                { label: 'Exclude StackJetty server', value: network.address },
               ]} />
             <ScanField label="Ports or port ranges" value={scope.ports} disabled={busy} placeholder="Common homelab ports"
               onChange={value => changeScope('ports', value)} presets={[

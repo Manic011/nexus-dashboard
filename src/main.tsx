@@ -115,7 +115,7 @@ function App() {
   const tagSuggestions = draftTags.length < 12 ? [...tags].filter(([key]) => !draftTags.some(tag => tag.toLowerCase() === key)).slice(0, 6) : [];
   function clearFilters() { setQuery(''); setCategoryFilter(''); setTagFilter(''); }
   const warning = error && <p role="alert" className="error">{error}</p>;
-  const brand = <span className="brand"><span className="mark"><Boxes size={21} /></span>Nexus <span className="brand-muted">Dashboard</span></span>;
+  const brand = <span className="brand"><span className="mark"><Boxes size={21} /></span>StackJetty</span>;
 
   if (!session?.username) return <main className="auth">
     <section className="auth-card">

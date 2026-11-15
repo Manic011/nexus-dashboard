@@ -1,39 +1,39 @@
-# Nexus Dashboard user guide
+# StackJetty Dashboard user guide
 
 ## First sign-in
 
-Open the exact URL configured by the operator. On a fresh instance, select a username, choose a password of 12 to 256 characters, and enter the setup token supplied by the operator. Keep the token in a private place during setup. Once the first administrator exists, Nexus shows the sign-in form.
+Open the exact URL configured by the operator. On a fresh instance, select a username, choose a password of 12 to 256 characters, and enter the setup token supplied by the operator. Keep the token in a private place during setup. Once the first administrator exists, StackJetty shows the sign-in form.
 
 ## Add and organize applications
 
 1. Select **Add tile** and enter a name and an HTTP or HTTPS URL. Include a custom port or path when the service needs one.
 2. Choose an existing category from the dropdown or select **Create a category…** and enter its name. Categories group cards on the dashboard. Category filters and grouping are case-insensitive.
-3. Optionally add a description and up to 12 comma-separated tags. Each tag can have up to 32 characters. Nexus treats tag names that differ only in capitalization as duplicates on a tile.
+3. Optionally add a description and up to 12 comma-separated tags. Each tag can have up to 32 characters. StackJetty treats tag names that differ only in capitalization as duplicates on a tile.
 4. Select **Save tile**. The tile title opens the service using the tile’s opening mode or your default.
 
 Select a tile's pencil button to edit it. Select its trash button and confirm to remove it from the dashboard. Use the search field to match names, descriptions, URLs, categories, and tags. Combine search with either filter, or click a tag on a card to filter by that tag. **Clear filters** returns to the complete dashboard.
 
 ## Open a service and save its login
 
-Under **Appearance → Open tiles by default**, choose **New browser tab**, **Embedded browser**, or **Kasm remote browser**. Nexus saves this default for your signed-in account in the current browser. **Embedded browser** is the initial setting.
+Under **Appearance → Open tiles by default**, choose **New browser tab**, **Embedded browser**, or **Kasm remote browser**. StackJetty saves this default for your signed-in account in the current browser. **Embedded browser** is the initial setting.
 
 When adding or editing a tile, choose **Open this tile**. **Use my default** follows the viewer’s preference. An explicit choice is saved with the tile and applies to everyone who can see it. Kasm requires a configured provider and administrator access. If Kasm is unavailable, **Return to direct view** opens the embedded browser.
 
-Select the tile title to open its service. Close the view or press **Escape** to return to your dashboard and filters. Your browser needs network access to the service URL. On an HTTPS dashboard, the service must use HTTPS. Embedded services can use their own cookies and site storage, subject to your browser settings. If a service forbids framing, the service administrator must explicitly allow the Nexus origin using that service’s supported configuration. Use **Page not displaying?** for checks you can make from the service view.
+Select the tile title to open its service. Close the view or press **Escape** to return to your dashboard and filters. Your browser needs network access to the service URL. On an HTTPS dashboard, the service must use HTTPS. Embedded services can use their own cookies and site storage, subject to your browser settings. If a service forbids framing, the service administrator must explicitly allow the StackJetty origin using that service’s supported configuration. Use **Page not displaying?** for checks you can make from the service view.
 
 Under **Saved login**, create a vault with a separate master password of at least 16 characters. Enter the service username and password, then select **Save login**. Unlock the vault and use **Copy username** or **Copy password** when signing in. Verify the service's address before pasting, especially if its login page redirected. Close the panel or dialog to lock the vault. An unlocked vault also locks after two minutes.
 
-The vault requires a secure browser context, such as HTTPS or localhost, and an individual Nexus account. It saves credentials for the exact tile URL and the signed-in account in this browser profile. A new dashboard address, another device, or a different browser profile uses a different vault. Clearing site data removes the vault. Nexus backups do not contain it, and there is no master-password recovery.
+The vault requires a secure browser context, such as HTTPS or localhost, and an individual StackJetty account. It saves credentials for the exact tile URL and the signed-in account in this browser profile. A new dashboard address, another device, or a different browser profile uses a different vault. Clearing site data removes the vault. StackJetty backups do not contain it, and there is no master-password recovery.
 
-Administrators can select **Open in remote browser** when the operator has configured Kasm. The remote browser opens the saved service and streams it into the same Nexus view. Sign in to Kasm and the service as needed. Use **Return to direct view** to switch back. End the remote session through Kasm when finished.
+Administrators can select **Open in remote browser** when the operator has configured Kasm. The remote browser opens the saved service and streams it into the same StackJetty view. Sign in to Kasm and the service as needed. Use **Return to direct view** to switch back. End the remote session through Kasm when finished.
 
 ## Discover and import services
 
 1. Sign in as administrator and open **Administration → Discovery**.
 2. Choose the server network and confirm permission to check the displayed range.
-3. Select **Discover services**. The web check is limited to the selected local IPv4 range, capped at a /24. Nexus checks every address and port combination in the selected range. Larger ranges can take several minutes.
+3. Select **Discover services**. The web check is limited to the selected local IPv4 range, capped at a /24. StackJetty checks every address and port combination in the selected range. Larger ranges can take several minutes.
 4. Under **Review import**, select the entries you want. Use **Edit details** to revise a name, category, or tags before saving.
-5. Select **Import selected**. Nexus skips URLs that are already saved and repeated URLs within the import.
+5. Select **Import selected**. StackJetty skips URLs that are already saved and repeated URLs within the import.
 
 Discovery checks mDNS advertisements and common HTTP and HTTPS ports. It can use application metadata, page titles, recognizable device pages, and some certificate names as clues. A certificate-based suggestion is labeled as unverified. Services on routed networks, uncommon ports, or behind hostname-based routing may need manual entry. Use **Add known service addresses** to paste one HTTP or HTTPS URL per line and review them before import. [Service port catalog](HOMELAB_PORTS.md)
 
@@ -53,11 +53,11 @@ Enable a **shared dashboard password** in the same section to offer read-only ac
 
 In **Administration → Backup**, select **Download JSON**. The export contains tile names, descriptions, URLs, categories, and tags. Keep it private if the URLs expose details of your network.
 
-To merge an export into the dashboard, use **Preview a backup**, select entries, and review the details before importing. Nexus accepts version 1 backups with up to 500 entries and a request limit of 2 MiB. A merge selects new URLs by default. Existing URLs are unselected and marked **Update existing**. Selecting one explicitly replaces its name, category, description, and tags; its ID and permissions stay intact. A stale update preview is rejected if saved tiles have changed, so reopen the preview before retrying. Use the Ubuntu state backup procedure for accounts, sessions, and the full SQLite database. [Backup and recovery](INSTALL.md#backup-upgrade-and-recovery)
+To merge an export into the dashboard, use **Preview a backup**, select entries, and review the details before importing. StackJetty accepts version 1 backups with up to 500 entries and a request limit of 2 MiB. A merge selects new URLs by default. Existing URLs are unselected and marked **Update existing**. Selecting one explicitly replaces its name, category, description, and tags; its ID and permissions stay intact. A stale update preview is rejected if saved tiles have changed, so reopen the preview before retrying. Use the Ubuntu state backup procedure for accounts, sessions, and the full SQLite database. [Backup and recovery](INSTALL.md#backup-upgrade-and-recovery)
 
 ## Jellyfin and system information
 
-When the operator configures Jellyfin, a tile with the matching base URL displays the aggregate active stream count. **Jellyfin activity unavailable** means Nexus could not fetch a usable response. Administrators can view the Node.js version, platform, database schema version, and tile count under **Administration → System**. [Jellyfin setup](INSTALL.md#jellyfin-activity)
+When the operator configures Jellyfin, a tile with the matching base URL displays the aggregate active stream count. **Jellyfin activity unavailable** means StackJetty could not fetch a usable response. Administrators can view the Node.js version, platform, database schema version, and tile count under **Administration → System**. [Jellyfin setup](INSTALL.md#jellyfin-activity)
 
 ## Appearance preferences
 
@@ -71,9 +71,9 @@ The tile editor lists existing categories and offers up to six reusable tags. Cl
 
 If the server operator disables network discovery, use **Add known service addresses** or reopen a saved result. These options do not probe the network.
 
-In **Users**, create a group and select its members. Under **Tile permissions**, select a tile and enable **Restrict access**. Administrators always have access. Other users need an individual grant or membership in an allowed group. Role restrictions still apply, so viewers cannot edit tiles. These controls govern Nexus visibility and do not change the linked application's sign-in.
+In **Users**, create a group and select its members. Under **Tile permissions**, select a tile and enable **Restrict access**. Administrators always have access. Other users need an individual grant or membership in an allowed group. Role restrictions still apply, so viewers cannot edit tiles. These controls govern StackJetty visibility and do not change the linked application's sign-in.
 
-In **Backup**, save a named snapshot to the server's SQLite state. Select **Review restore** beside a snapshot and confirm to replace the tile and group configuration. Nexus saves the current configuration automatically before restoring it, so you can return to either state. Snapshots include tiles, groups, and tile permissions. User accounts, passwords, and server settings require the full instance backup procedure. The JSON upload still previews a tile merge.
+In **Backup**, save a named snapshot to the server's SQLite state. Select **Review restore** beside a snapshot and confirm to replace the tile and group configuration. StackJetty saves the current configuration automatically before restoring it, so you can return to either state. Snapshots include tiles, groups, and tile permissions. User accounts, passwords, and server settings require the full instance backup procedure. The JSON upload still previews a tile merge.
 
 **System** shows host and kernel information, CPU, memory, process and host uptime, and the tile inventory. The inventory lists configured URLs and access scope.
 
@@ -88,11 +88,11 @@ Open Preview effective access while editing tile permissions to see who can view
 1. Open **Administration → Discovery** and choose **Server network**. This selects the server's source interface, not your workstation's interface. The blank address field defaults to the displayed /24 (or a narrower interface subnet).
 2. Use **Add entry** within **IP addresses or ranges**, **Excluded IPs or ranges**, or **Ports or port ranges** to add separate rows. Remove a row with its labeled remove button. Each row accepts a typed value or a preset; comma-separated entries also work.
 3. Addresses accept individual IPv4 addresses, inclusive ranges such as `10.42.0.10-10.42.0.20`, and CIDRs such as `192.168.1.0/24`. Multiple routed private subnets can be included in one scan. A bare `.0` address is one address, not a subnet: use `/24` for that subnet. CIDRs omit network and broadcast addresses except for /31 and /32. Exclusions use the same syntax. Duplicate targets are checked once.
-4. Explicit targets outside the selected local subnet must be RFC 1918 private addresses: `10.0.0.0/8`, `172.16.0.0/12`, or `192.168.0.0/16`. Each scan accepts at most 4096 unique selected addresses before exclusions. Larger networks must be divided into smaller scans. Routing and firewalls determine reachability; Nexus does not create routes or change firewalls. mDNS remains local to the source interface and does not discover advertisements across routed subnets.
+4. Explicit targets outside the selected local subnet must be RFC 1918 private addresses: `10.0.0.0/8`, `172.16.0.0/12`, or `192.168.0.0/16`. Each scan accepts at most 4096 unique selected addresses before exclusions. Larger networks must be divided into smaller scans. Routing and firewalls determine reachability; StackJetty does not create routes or change firewalls. mDNS remains local to the source interface and does not discover advertisements across routed subnets.
 5. Ports accept individual values and inclusive ranges from 1 through 65535. A blank field uses the common homelab catalog. Port presets include Standard web, Media servers, Proxmox, and Alternative web. A custom port list changes what is checked, not just the naming hints. Known secure ports use HTTPS; other custom ports use HTTP, so arbitrary HTTPS services on nonstandard ports are not guaranteed to be detected.
 6. Select **Review scan scope** and check the deduplicated address, port, and total check counts. Confirm that you have permission to scan every target, then select **Discover services**. Editing the scope clears the authorization and requires another review.
 
-There is no overall scan time limit. Nexus uses 48 concurrent workers and bounded individual requests. A full 65535-port scan can take a long time. Keep the page open to follow progress; this preview does not reconnect to a scan after a page reload or resume scans after a service restart.
+There is no overall scan time limit. StackJetty uses 48 concurrent workers and bounded individual requests. A full 65535-port scan can take a long time. Keep the page open to follow progress; this preview does not reconnect to a scan after a page reload or resume scans after a service restart.
 
 **Stop scan** stops scheduling new web probes. Current probes finish, and the short mDNS collection finishes, before the stopped result appears. You can review services found so far. A stopped scan is never a baseline for comparison. A failed probe or an unrecognized service does not prove the host is offline.
 
@@ -108,7 +108,7 @@ When a complete scan has a previous complete scan of exactly the same source int
 
 ### Import or update services
 
-The review identifies **New tile** and **Update existing** entries and shows evidence such as Web page, mDNS advertisement, TLS certificate (unverified), or Port match. Live page evidence takes priority over catalog guesses. A TLS certificate clue is labeled unverified; Nexus does not disable certificate verification to fetch the application's HTTP content.
+The review identifies **New tile** and **Update existing** entries and shows evidence such as Web page, mDNS advertisement, TLS certificate (unverified), or Port match. Live page evidence takes priority over catalog guesses. A TLS certificate clue is labeled unverified; StackJetty does not disable certificate verification to fetch the application's HTTP content.
 
 - **Filter results** searches names, URLs, categories, and identification sources. Original names remain searchable while you edit them so a rename does not hide the active row. Selections survive filtering; the action count includes selected rows hidden by the filter.
 - **Select new** selects all new results across the entire review. Existing URLs remain unselected. **Clear selection** clears all entries.
