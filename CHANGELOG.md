@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Category headings, divider lines, and open space in a category section accept tile drops.
+
 - Administrators and editors can move tiles between categories from the layout editor. Saving applies the category changes for everyone.
 
 - The layout editor opens in the saved layout. Category sections support tile reordering and full-row cards, and custom-grid editing follows the dashboard’s responsive layout.

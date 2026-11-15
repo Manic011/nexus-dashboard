@@ -6,7 +6,7 @@ import { Administration } from './Administration.js';
 import { openModes, usePreferences, type OpenMode } from './preferences.js';
 import { CategoryPicker } from './CategoryPicker.js';
 import { ServiceDialog } from './ServiceDialog.js';
-import { LayoutEditor } from './LayoutEditor.js';
+import { LayoutEditor, type CategoryDropProps } from './LayoutEditor.js';
 import { TileGrid } from './CategoryDivider.js';
 import { categoryName, orderedCategories, orderGroupedTiles, type LayoutCategories } from './layoutCategories.js';
 import { arrangeTiles, comparePositions, gridPlacement, tileKey, type Position } from './tileLayout.js';
@@ -163,12 +163,13 @@ function App() {
     </article>;
   }
 
-  function renderGroups(items: Tile[], preview = false, settings = categorySettings, overlay?: (tile: Tile) => ReactNode) {
+  function renderGroups(items: Tile[], preview = false, settings = categorySettings, overlay?: (tile: Tile) => ReactNode,
+    dropProps?: (category: string) => CategoryDropProps) {
     const groups = Map.groupBy(items, tile => tile.category.toLowerCase());
     const wideTiles = new Set(settings.wideTiles);
     return orderedCategories(groups, settings.order).map(category => {
       const group = groups.get(category)!;
-      return <section className="group" key={category}>
+      return <section className="group" key={category} {...dropProps?.(category)}>
         <h2 className="category-divider">{categoryName(category, categories.get(category)!, settings)} <span className="group-count">{group.length}</span></h2>
         <div className="grid">{orderGroupedTiles(group, settings.tileOrder).map(tile => renderTile(tile, { preview, showCategory: false, overlay: overlay?.(tile), fullRow: wideTiles.has(tileKey(tile)) }))}</div>
       </section>;
@@ -227,7 +228,7 @@ function App() {
       </div>
       {editingLayout ? <LayoutEditor tiles={tiles} categories={categories} tags={tags} initialCategory={activeCategory} initialTag={activeTag} canEditTiles={session.role === 'admin' || session.role === 'editor'} saving={busy}
         renderTile={(tile, position, settings, overlay) => renderTile(tile, { position, overlay, settings, preview: true, showCategory: true })}
-        renderGroups={(draftTiles, settings, overlay) => renderGroups(draftTiles, true, settings, overlay)}
+        renderGroups={(draftTiles, settings, overlay, dropProps) => renderGroups(draftTiles, true, settings, overlay, dropProps)}
         saved={customLayout} categorySettings={categorySettings} onCancel={closeLayout} onSave={(tileLayout, layoutCategories, moves) => void action(async () => {
         if (moves.length) setTiles(await api<Tile[]>('tiles/categories', 'PATCH', moves));
         const persisted = preferences.update({ tileLayout, layoutCategories });

@@ -1,14 +1,15 @@
-import { Fragment, type ReactNode } from 'react';
+import { Fragment, type HTMLAttributes, type ReactNode } from 'react';
 import { categoryName, categoryRows, type LayoutCategories } from './layoutCategories.js';
 import { tileKey, type LayoutTile, type Position, type TileLayout } from './tileLayout.js';
 
-export function CategoryDivider({ categoryKeys, categories, settings, row }: {
+export function CategoryDivider({ categoryKeys, categories, settings, row, dropProps }: {
   categoryKeys: string[];
   categories: ReadonlyMap<string, string>;
   settings: LayoutCategories;
   row?: number;
+  dropProps?: HTMLAttributes<HTMLHeadingElement>;
 }) {
-  return <h2 className="category-divider" style={row === undefined ? undefined : { '--category-row': row } as React.CSSProperties}>
+  return <h2 className="category-divider" {...dropProps} style={row === undefined ? undefined : { '--category-row': row } as React.CSSProperties}>
     {categoryKeys.map(key => categoryName(key, categories.get(key) ?? key, settings)).join(' · ')}
   </h2>;
 }

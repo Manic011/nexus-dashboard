@@ -1,11 +1,14 @@
 import { Folder, Plus } from 'lucide-react';
-import { Fragment, useLayoutEffect, useRef, useState, type DragEvent, type ReactNode } from 'react';
+import { Fragment, useLayoutEffect, useRef, useState, type DragEvent, type HTMLAttributes, type ReactNode } from 'react';
 import { CategoryDivider, TileGrid } from './CategoryDivider.js';
 import { categoryName, categoryRows, orderedCategories, orderGroupedTiles, type LayoutCategories } from './layoutCategories.js';
 import { arrangeTiles, changeColumns, columnOptions, comparePositions, gridPlacement, groupByCategory, maxEmptyRows, moveTile, overlaps, tileKey, type LayoutTile, type Position, type TileLayout } from './tileLayout.js';
 
 type EditorTile = LayoutTile & { category: string; tags: string[] };
 export type CategoryMove = { id: number; url: string; from: string; category: string };
+export type CategoryDropProps = Pick<HTMLAttributes<HTMLElement>, 'onDragOver' | 'onDragLeave' | 'onDrop'> & {
+  'data-drop-target'?: boolean;
+};
 
 export function LayoutEditor<T extends EditorTile>({ tiles: originalTiles, categories, tags, initialCategory, initialTag, saved, categorySettings, canEditTiles, saving, renderTile, renderGroups, onSave, onCancel }: {
   tiles: T[];
@@ -18,7 +21,8 @@ export function LayoutEditor<T extends EditorTile>({ tiles: originalTiles, categ
   canEditTiles: boolean;
   saving: boolean;
   renderTile: (tile: T, position: Position, settings: LayoutCategories, overlay?: ReactNode) => ReactNode;
-  renderGroups: (tiles: T[], settings: LayoutCategories, overlay?: (tile: T) => ReactNode) => ReactNode;
+  renderGroups: (tiles: T[], settings: LayoutCategories, overlay?: (tile: T) => ReactNode,
+    dropProps?: (category: string) => CategoryDropProps) => ReactNode;
   onSave: (layout: TileLayout | null, settings: LayoutCategories, moves: CategoryMove[]) => void;
   onCancel: () => void;
 }) {
@@ -32,6 +36,7 @@ export function LayoutEditor<T extends EditorTile>({ tiles: originalTiles, categ
   const [tag, setTag] = useState(initialTag);
   const [message, setMessage] = useState('');
   const [extraRows, setExtraRows] = useState(0);
+  const [dropTarget, setDropTarget] = useState('');
   const dragged = useRef('');
   const buttons = useRef(new Map<string, HTMLButtonElement>());
   const focusTile = useRef('');
@@ -61,7 +66,24 @@ export function LayoutEditor<T extends EditorTile>({ tiles: originalTiles, categ
 
   function divider(slot: Position) {
     const keys = headings.get(slot.row);
-    return slot.column === 0 && keys && <CategoryDivider categoryKeys={keys} categories={categories} settings={settings} row={gridRow(slot.row)} />;
+    return slot.column === 0 && keys && <CategoryDivider categoryKeys={keys} categories={categories} settings={settings} row={gridRow(slot.row)}
+      dropProps={keys.length === 1 ? categoryDropProps(keys[0], (source, category) => moveToDivider(source, category, slot.row), `row-${slot.row}`) : undefined} />;
+  }
+
+  function moveToDivider(source: string, category: string, row: number) {
+    const width = layout.positions[source].width;
+    for (let column = 0; column + width <= layout.columns; column++) {
+      const next = moveTile(layout, source, { row, column, width });
+      if (!next) continue;
+      setLayout(next);
+      moveToCategory(source, category);
+      return;
+    }
+    const positions = Object.fromEntries(Object.entries(layout.positions).map(([key, position]) =>
+      [key, position.row > row ? { ...position, row: position.row + 1 } : position]));
+    positions[source] = { row: row + 1, column: 0, width };
+    setLayout({ ...layout, positions });
+    moveToCategory(source, category);
   }
 
   function moveCategory(index: number, offset: number) {
@@ -79,14 +101,48 @@ export function LayoutEditor<T extends EditorTile>({ tiles: originalTiles, categ
 
   function moveToCategory(key: string, category: string, before?: string) {
     const tile = tilesByKey.get(key);
-    if (!canEditTiles || !tile) return;
+    if (!tile) return;
+    const changesCategory = tile.category.toLowerCase() !== category.toLowerCase();
+    if (changesCategory && !canEditTiles) return;
     const order = orderGroupedTiles(tiles, settings.tileOrder).map(tileKey).filter(item => item !== key);
     order.splice(before ? order.indexOf(before) : order.length, 0, key);
-    setAssignments(new Map(assignments).set(tile.id, category));
+    if (changesCategory) setAssignments(new Map(assignments).set(tile.id, category));
     setSettings({ ...settings, tileOrder: order });
     setSelected(key);
     focusTile.current = key;
     setMessage(`${tile.title} moved to ${categoryName(category.toLowerCase(), category, settings)}.`);
+  }
+
+  function endDrag() {
+    dragged.current = '';
+    setDropTarget('');
+  }
+
+  function categoryDropProps(key: string, move = moveToCategory, target = key): CategoryDropProps {
+    const acceptsDrop = () => {
+      const tile = tilesByKey.get(dragged.current);
+      return tile && (canEditTiles || tile.category.toLowerCase() === key);
+    };
+    return {
+      'data-drop-target': dropTarget === target,
+      onDragOver(event) {
+        if (!acceptsDrop()) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+        setDropTarget(target);
+      },
+      onDragLeave(event) {
+        if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
+        setDropTarget(current => current === target ? '' : current);
+      },
+      onDrop(event) {
+        const category = categories.get(key);
+        if (!category || !acceptsDrop()) return;
+        event.preventDefault();
+        move(dragged.current, category);
+        endDrag();
+      },
+    };
   }
 
   function swapGrouped(key: string, target: string) {
@@ -131,13 +187,14 @@ export function LayoutEditor<T extends EditorTile>({ tiles: originalTiles, categ
         event.dataTransfer.setData('text/plain', tile.title);
         event.dataTransfer.effectAllowed = 'move';
       }}
-      onDragEnd={() => { dragged.current = ''; }}
+      onDragEnd={endDrag}
       onDragOver={event => { if (dragged.current) event.preventDefault(); }}
       onDrop={event => {
         if (!dragged.current) return;
         event.preventDefault();
+        event.stopPropagation();
         if (dragged.current !== key) move(dragged.current);
-        dragged.current = '';
+        endDrag();
       }} />;
   }
 
@@ -256,7 +313,8 @@ export function LayoutEditor<T extends EditorTile>({ tiles: originalTiles, categ
         {highlighted && <p className="muted" role="status">{matches.size} of {tiles.length} tiles match. All tiles stay in place.</p>}
       </>}
     </div>
-    {grouped ? renderGroups(tiles, settings, preview ? undefined : tileControl) : preview ? <TileGrid tiles={orderedTiles} layout={layout} categories={categories} settings={settings}
+    {grouped ? renderGroups(tiles, settings, preview ? undefined : tileControl, preview ? undefined : categoryDropProps)
+      : preview ? <TileGrid tiles={orderedTiles} layout={layout} categories={categories} settings={settings}
       renderTile={(tile, position) => renderTile(tile, position, settings)} /> : <>
       <div className="custom-layout">
         <div className="grid custom-grid" data-columns={layout.columns}>

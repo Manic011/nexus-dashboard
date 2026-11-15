@@ -44,6 +44,8 @@ Browser tests on Ubuntu verified that grouped layouts open as editable category 
 
 The Ubuntu browser suite verified dragging a tile to another category, canceling that draft, and saving a category change through the selector. After reload, the tile editor showed the new category. API tests covered access checks, retries, and rollback when a batch contains a conflicting change.
 
+The Ubuntu browser suite also verified drops on the empty end of a category divider, on unused space in a grouped section, and on a divider with one category in the custom grid.
+
 ## Ubuntu verification - 2026-11-13
 
 The discovery/import refinement was exercised in the visible in-app browser against a disposable Ubuntu-hosted instance, with a separate state directory from the saved dashboard. The same locally built release was then promoted to the existing port 3000 instance after a SQLite backup. The existing dashboard configuration was preserved.
