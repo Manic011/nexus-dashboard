@@ -40,6 +40,8 @@ The layout preview regression compared the position, width, and height of a prev
 
 The category settings regression verified personal names and category order in the custom grid and grouped preview. It enabled dividers, saved, and reloaded to confirm that the dashboard kept the labels and order. The browser suite passed on Ubuntu, and the live service served the verified build.
 
+Browser tests on Ubuntu verified that grouped layouts open as editable category sections and retain tile order and full-row widths after a reload. At 320 pixels, they confirmed that a custom-grid card has the same geometry while editing and on the saved dashboard. The live service served the verified build.
+
 ## Ubuntu verification - 2026-11-13
 
 The discovery/import refinement was exercised in the visible in-app browser against a disposable Ubuntu-hosted instance, with a separate state directory from the saved dashboard. The same locally built release was then promoted to the existing port 3000 instance after a SQLite backup. The existing dashboard configuration was preserved.

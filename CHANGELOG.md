@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- The layout editor opens in the saved layout. Category sections support tile reordering and full-row cards, and custom-grid editing follows the dashboard’s responsive layout.
+
 - Added category dividers, personal category display names, and category ordering to Customize layout.
 
 - The layout editor now uses the dashboard’s full cards and spacing. A clean preview shows how the draft will reflow at the current screen size.

@@ -1,7 +1,12 @@
 import { tileKey, type LayoutTile, type TileLayout } from './tileLayout.js';
 
-export type LayoutCategories = { dividers: boolean; order: string[]; names: Record<string, string> };
-export const defaultLayoutCategories: LayoutCategories = { dividers: false, order: [], names: {} };
+export type LayoutCategories = { dividers: boolean; order: string[]; names: Record<string, string>; tileOrder: string[]; wideTiles: string[] };
+export const defaultLayoutCategories: LayoutCategories = { dividers: false, order: [], names: {}, tileOrder: [], wideTiles: [] };
+
+export function orderGroupedTiles<T extends LayoutTile>(tiles: T[], order: string[]) {
+  const rank = new Map(order.map((key, index) => [key, index]));
+  return [...tiles].sort((a, b) => (rank.get(tileKey(a)) ?? Infinity) - (rank.get(tileKey(b)) ?? Infinity));
+}
 
 export function categoryName(key: string, fallback: string, settings: LayoutCategories) {
   return Object.hasOwn(settings.names, key) ? settings.names[key].trim() || fallback : fallback;

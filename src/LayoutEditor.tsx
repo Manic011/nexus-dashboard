@@ -1,12 +1,12 @@
 import { Folder, Plus } from 'lucide-react';
-import { Fragment, useLayoutEffect, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from 'react';
+import { Fragment, useLayoutEffect, useRef, useState, type DragEvent, type ReactNode } from 'react';
 import { CategoryDivider, TileGrid } from './CategoryDivider.js';
-import { categoryName, categoryRows, orderedCategories, type LayoutCategories } from './layoutCategories.js';
+import { categoryName, categoryRows, orderedCategories, orderGroupedTiles, type LayoutCategories } from './layoutCategories.js';
 import { arrangeTiles, changeColumns, columnOptions, comparePositions, gridPlacement, groupByCategory, maxEmptyRows, moveTile, overlaps, tileKey, type LayoutTile, type Position, type TileLayout } from './tileLayout.js';
 
 type EditorTile = LayoutTile & { category: string; tags: string[] };
 
-export function LayoutEditor<T extends EditorTile>({ tiles, categories, tags, initialCategory, initialTag, saved, categorySettings, renderTile, groupedPreview, onSave, onCancel }: {
+export function LayoutEditor<T extends EditorTile>({ tiles, categories, tags, initialCategory, initialTag, saved, categorySettings, renderTile, renderGroups, onSave, onCancel }: {
   tiles: T[];
   categories: ReadonlyMap<string, string>;
   tags: ReadonlyMap<string, string>;
@@ -15,12 +15,12 @@ export function LayoutEditor<T extends EditorTile>({ tiles, categories, tags, in
   saved: TileLayout | null;
   categorySettings: LayoutCategories;
   renderTile: (tile: T, position: Position, settings: LayoutCategories, overlay?: ReactNode) => ReactNode;
-  groupedPreview: (settings: LayoutCategories) => ReactNode;
+  renderGroups: (settings: LayoutCategories, overlay?: (tile: T) => ReactNode) => ReactNode;
   onSave: (layout: TileLayout | null, settings: LayoutCategories) => void;
   onCancel: () => void;
 }) {
   const [layout, setLayout] = useState(() => arrangeTiles(tiles, saved));
-  const [grouped, setGrouped] = useState(false);
+  const [grouped, setGrouped] = useState(!saved);
   const [preview, setPreview] = useState(false);
   const [settings, setSettings] = useState(categorySettings);
   const [selected, setSelected] = useState('');
@@ -65,7 +65,56 @@ export function LayoutEditor<T extends EditorTile>({ tiles, categories, tags, in
     if (!focusTile.current) return;
     buttons.current.get(focusTile.current)?.focus();
     focusTile.current = '';
-  }, [layout]);
+  }, [layout, settings]);
+
+  function swapGrouped(key: string, target: string) {
+    if (key === target) return;
+    if (tilesByKey.get(key)?.category.toLowerCase() !== tilesByKey.get(target)?.category.toLowerCase()) {
+      setMessage('Choose a destination within the same category.');
+      return;
+    }
+    const order = orderGroupedTiles(tiles, settings.tileOrder).map(tileKey);
+    const from = order.indexOf(key);
+    const to = order.indexOf(target);
+    [order[from], order[to]] = [order[to], order[from]];
+    setSelected(key);
+    setSettings({ ...settings, tileOrder: order });
+    setMessage(`${title(key)} moved within its category.`);
+    focusTile.current = key;
+  }
+
+  function tileControl(tile: T, position?: Position) {
+    const key = tileKey(tile);
+    function move(source: string) {
+      if (position) place(source, position, key);
+      else swapGrouped(source, key);
+    }
+    return <button type="button" className="layout-piece"
+      data-match={highlighted ? matches.has(key) : undefined}
+      aria-label={position ? `${tile.title}, row ${position.row + 1}, column ${position.column + 1}` : `Arrange ${tile.title}`}
+      aria-description={[tile.category, ...tile.tags].join('. ')}
+      aria-pressed={selected === key} draggable
+      ref={element => { if (element) buttons.current.set(key, element); else buttons.current.delete(key); }}
+      onClick={() => {
+        setMessage('');
+        if (selected && selected !== key) move(selected);
+        else setSelected(selected === key ? '' : key);
+      }}
+      onDragStart={event => {
+        dragged.current = key;
+        setSelected(key);
+        event.dataTransfer.setData('text/plain', tile.title);
+        event.dataTransfer.effectAllowed = 'move';
+      }}
+      onDragEnd={() => { dragged.current = ''; }}
+      onDragOver={event => { if (dragged.current) event.preventDefault(); }}
+      onDrop={event => {
+        if (!dragged.current) return;
+        event.preventDefault();
+        if (dragged.current !== key) move(dragged.current);
+        dragged.current = '';
+      }} />;
+  }
 
   function place(key: string, destination: Position, swap?: string) {
     const next = moveTile(layout, key, destination, swap);
@@ -105,6 +154,7 @@ export function LayoutEditor<T extends EditorTile>({ tiles, categories, tags, in
       <div className="layout-toolbar">
         <label>Layout<select aria-label="Layout" autoFocus value={grouped ? 'categories' : 'custom'} onChange={event => {
           setGrouped(event.target.value === 'categories');
+          setSelected('');
           setMessage('');
         }}>
           <option value="custom">Custom grid</option><option value="categories">Grouped by category</option>
@@ -119,9 +169,15 @@ export function LayoutEditor<T extends EditorTile>({ tiles, categories, tags, in
             {columnOptions.filter(count => count <= layout.columns).map(count => <option key={count} value={count}>{count} {count === 1 ? 'column' : 'columns'}</option>)}
           </select></label>}
         </>}
-        {!grouped && <button type="button" onClick={() => setPreview(value => !value)}>
+        {grouped && !preview && selected && <label>Width for {title(selected)}<select aria-label={`Width for ${title(selected)}`}
+          value={settings.wideTiles.includes(selected) ? 'full' : 'standard'}
+          onChange={event => setSettings({ ...settings, wideTiles: event.target.value === 'full'
+            ? [...settings.wideTiles, selected] : settings.wideTiles.filter(key => key !== selected) })}>
+          <option value="standard">Standard</option><option value="full">Full row</option>
+        </select></label>}
+        <button type="button" onClick={() => setPreview(value => !value)}>
           {preview ? 'Back to editing' : 'Preview layout'}
-        </button>}
+        </button>
       </div>
       <details className="layout-categories">
         <summary>Category settings</summary>
@@ -139,8 +195,10 @@ export function LayoutEditor<T extends EditorTile>({ tiles, categories, tags, in
           })}
         </ul>
       </details>
-      {grouped ? <p className="muted">Category sections preview</p> : preview ? <p className="muted">Layout preview at your current screen size</p> : <>
-        <p className="muted">Drag tiles or select one, then choose an empty cell to move it or another tile to swap. Select it again to deselect.</p>
+      {preview ? <p className="muted">Layout preview at your current screen size</p> : <>
+        <p className="muted">{grouped
+          ? 'Drag a tile onto another tile in the same category, or select them in order to swap. Select a tile to change its width.'
+          : 'Drag tiles or select one, then choose an empty cell to move it or another tile to swap. Select it again to deselect.'}</p>
         <div className="layout-toolbar layout-organize">
           <label>Highlight category<select aria-label="Highlight category" value={category} onChange={event => setCategory(event.target.value)}>
             <option value="">All categories</option>
@@ -151,19 +209,19 @@ export function LayoutEditor<T extends EditorTile>({ tiles, categories, tags, in
             {[...tags].map(([key, label]) => <option key={key} value={key}>{label}</option>)}
           </select></label>
           {highlighted && <button type="button" onClick={() => { setCategory(''); setTag(''); }}>Clear highlights</button>}
-          <button type="button" onClick={() => {
+          {!grouped && <button type="button" onClick={() => {
             setLayout(groupByCategory(layout, tiles, settings.order));
             setExtraRows(0);
             setMessage('Each category now starts on its own row.');
-          }}><Folder size={16} aria-hidden="true" /> Arrange by category</button>
+          }}><Folder size={16} aria-hidden="true" /> Arrange by category</button>}
         </div>
         {highlighted && <p className="muted" role="status">{matches.size} of {tiles.length} tiles match. All tiles stay in place.</p>}
       </>}
     </div>
-    {grouped ? groupedPreview(settings) : preview ? <TileGrid tiles={orderedTiles} layout={layout} categories={categories} settings={settings}
+    {grouped ? renderGroups(settings, preview ? undefined : tileControl) : preview ? <TileGrid tiles={orderedTiles} layout={layout} categories={categories} settings={settings}
       renderTile={(tile, position) => renderTile(tile, position, settings)} /> : <>
-      <div className="custom-layout layout-scroll">
-        <div className="grid custom-grid layout-board" data-columns={layout.columns} style={{ '--columns': layout.columns } as CSSProperties}>
+      <div className="custom-layout">
+        <div className="grid custom-grid" data-columns={layout.columns}>
           {Array.from({ length: rowCount * layout.columns }, (_, index) => {
             const slot = { row: Math.floor(index / layout.columns), column: index % layout.columns, width: 1 };
             const cell = cells.get(index);
@@ -172,25 +230,7 @@ export function LayoutEditor<T extends EditorTile>({ tiles, categories, tags, in
             if (cell) {
               const { key, position } = cell;
               const tile = tilesByKey.get(key)!;
-              const card = renderTile(tile, { ...position, row: gridRow(position.row) }, settings, <button type="button" className="layout-piece"
-                data-match={highlighted ? matches.has(key) : undefined}
-                aria-label={`${tile.title}, row ${position.row + 1}, column ${position.column + 1}`}
-                aria-description={[tile.category, ...tile.tags, highlighted && (matches.has(key) ? 'Matches highlights' : 'Outside highlights')].filter(Boolean).join('. ')}
-                aria-pressed={selected === key} draggable
-                ref={element => { if (element) buttons.current.set(key, element); else buttons.current.delete(key); }}
-                onClick={() => {
-                  setMessage('');
-                  if (selected && selected !== key) place(selected, position, key);
-                  else setSelected(selected === key ? '' : key);
-                }}
-                onDragStart={event => {
-                  dragged.current = key;
-                  setSelected(key);
-                  event.dataTransfer.setData('text/plain', tile.title);
-                  event.dataTransfer.effectAllowed = 'move';
-                }}
-                onDragEnd={() => { dragged.current = ''; }}
-                onDragOver={allowDrop} onDrop={event => drop(event, position, key)} />);
+              const card = renderTile(tile, { ...position, row: gridRow(position.row) }, settings, tileControl(tile, position));
               return <Fragment key={key}>{divider(slot)}{card}</Fragment>;
             }
             return <Fragment key={`slot-${index}`}>{divider(slot)}<button type="button" className="layout-slot" style={gridPlacement({ ...slot, row: gridRow(slot.row) })}
@@ -204,8 +244,20 @@ export function LayoutEditor<T extends EditorTile>({ tiles, categories, tags, in
         </div>
       </div>
       <button type="button" disabled={extraRows >= maxEmptyRows} onClick={() => setExtraRows(extraRows + 1)}><Plus size={16} /> Add row</button>
+      {position && <form className="layout-toolbar layout-coordinate" key={`${selected}:${position.row}:${position.column}`} onSubmit={event => {
+        event.preventDefault();
+        const data = new FormData(event.currentTarget);
+        const row = Number(data.get('row')) - 1;
+        const column = Number(data.get('column')) - 1;
+        const cell = cells.get(row * layout.columns + column);
+        place(selected, cell?.position ?? { row, column, width: 1 }, cell?.key);
+      }}>
+        <label>Row<input name="row" type="number" min="1" max={rowCount} defaultValue={position.row + 1} required /></label>
+        <label>Column<input name="column" type="number" min="1" max={layout.columns} defaultValue={position.column + 1} required /></label>
+        <button type="submit">Move tile</button>
+      </form>}
     </>}
-    {message && !preview && !grouped && <p className="layout-feedback muted" role="status">{message}</p>}
+    {message && !preview && <p className="layout-feedback muted" role="status">{message}</p>}
     <div className="form-actions layout-actions">
       <button type="button" onClick={onCancel}>Cancel</button>
       <button type="button" className="primary" onClick={() => onSave(grouped ? null : layout, settings)}>Save layout</button>

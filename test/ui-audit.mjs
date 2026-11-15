@@ -79,6 +79,18 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
       await button('Other app').waitFor();
       await button('Customize layout').click();
       const board = page.getByRole('region', { name: 'Customize layout' });
+      assert.equal(await field('Layout').inputValue(), 'categories');
+      await board.getByRole('heading', { name: /^Utilities/ }).waitFor();
+      await button('Arrange Other app').click();
+      await button('Arrange Local tools').click();
+      await field('Width for Other app').selectOption('full');
+      assert.match(await board.locator('.group .app-tile').first().innerText(), /Other app/);
+      await button('Save layout').click();
+      await page.reload();
+      await page.locator('.group .full-row-tile').waitFor();
+      assert.match(await page.locator('.group .app-tile').first().innerText(), /Other app/);
+      await button('Customize layout').click();
+      await field('Layout').selectOption('custom');
       await field('Highlight category').selectOption('utilities');
       await field('Highlight tag').selectOption('lab');
       await board.getByText(/^1 of 2 tiles match/).waitFor();
@@ -130,6 +142,8 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
       const mobileCard = await customCard.evaluate(cardGeometry);
       await button('Customize layout').click();
       await fits(320, 568);
+      const editingCard = board.locator('.layout-card').filter({ has: button('Other app, row 2, column 1') });
+      assert.deepEqual(await editingCard.evaluate(cardGeometry), mobileCard);
       await button('Preview layout').click();
       assert.deepEqual(await previewCard.evaluate(cardGeometry), mobileCard);
       await button('Back to editing').click();
@@ -203,6 +217,7 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
       await button('Save tile').click();
       await page.getByRole('heading', { name: /^Networking/ }).waitFor();
       await button('Customize layout').click();
+      await field('Layout').selectOption('custom');
       await button('Arrange by category').click();
       await board.getByRole('button', { name: 'Local tools, row 1, column 1' }).waitFor();
       await board.getByRole('button', { name: 'Other app, row 2, column 1' }).waitFor();
@@ -388,6 +403,7 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
       assert.equal(await button('Add tile').count(), 0);
       assert.equal(await button('Administration').count(), 0);
       await button('Customize layout').click();
+      await field('Layout').selectOption('custom');
       assert.equal(await page.getByRole('button', { name: /^Local tools, row/ }).count(), 0);
       await button('Save layout').click();
       await page.locator('.custom-grid').waitFor();

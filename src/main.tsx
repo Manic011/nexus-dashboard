@@ -8,7 +8,7 @@ import { CategoryPicker } from './CategoryPicker.js';
 import { ServiceDialog } from './ServiceDialog.js';
 import { LayoutEditor } from './LayoutEditor.js';
 import { TileGrid } from './CategoryDivider.js';
-import { categoryName, orderedCategories, type LayoutCategories } from './layoutCategories.js';
+import { categoryName, orderedCategories, orderGroupedTiles, type LayoutCategories } from './layoutCategories.js';
 import { arrangeTiles, comparePositions, gridPlacement, tileKey, type Position } from './tileLayout.js';
 import { parseTags } from './tags.js';
 
@@ -132,13 +132,14 @@ function App() {
     layoutTrigger.current?.focus();
   }
 
-  function renderTile(tile: Tile, { position, showCategory = Boolean(customLayout), preview = false, overlay, settings = categorySettings }: {
-    position?: Position; showCategory?: boolean; preview?: boolean; overlay?: ReactNode; settings?: LayoutCategories;
+  function renderTile(tile: Tile, { position, showCategory = Boolean(customLayout), preview = false, overlay, settings = categorySettings, fullRow = false }: {
+    position?: Position; showCategory?: boolean; preview?: boolean; overlay?: ReactNode; settings?: LayoutCategories; fullRow?: boolean;
   } = {}) {
     const placement = position && gridPlacement(position);
     const categoryKey = tile.category.toLowerCase();
     const label = categoryName(categoryKey, tile.category, settings);
-    return <article key={tile.id} aria-label={preview && !overlay ? tile.title : undefined} className={overlay ? 'tile app-tile layout-card' : 'tile app-tile'} style={placement && {
+    return <article key={tile.id} aria-label={preview && !overlay ? tile.title : undefined}
+      className={`tile app-tile${overlay ? ' layout-card' : ''}${fullRow ? ' full-row-tile' : ''}`} style={placement && {
       '--tile-row': placement.gridRow, '--tile-column': placement.gridColumn,
     } as CSSProperties}>
       <div inert={preview}>
@@ -162,13 +163,14 @@ function App() {
     </article>;
   }
 
-  function renderGroups(items: Tile[], preview = false, settings = categorySettings) {
+  function renderGroups(items: Tile[], preview = false, settings = categorySettings, overlay?: (tile: Tile) => ReactNode) {
     const groups = Map.groupBy(items, tile => tile.category.toLowerCase());
+    const wideTiles = new Set(settings.wideTiles);
     return orderedCategories(groups, settings.order).map(category => {
       const group = groups.get(category)!;
       return <section className="group" key={category}>
         <h2 className="category-divider">{categoryName(category, categories.get(category)!, settings)} <span className="group-count">{group.length}</span></h2>
-        <div className="grid">{group.map(tile => renderTile(tile, { preview, showCategory: false }))}</div>
+        <div className="grid">{orderGroupedTiles(group, settings.tileOrder).map(tile => renderTile(tile, { preview, showCategory: false, overlay: overlay?.(tile), fullRow: wideTiles.has(tileKey(tile)) }))}</div>
       </section>;
     });
   }
@@ -225,7 +227,7 @@ function App() {
       </div>
       {editingLayout ? <LayoutEditor tiles={tiles} categories={categories} tags={tags} initialCategory={activeCategory} initialTag={activeTag}
         renderTile={(tile, position, settings, overlay) => renderTile(tile, { position, overlay, settings, preview: true, showCategory: true })}
-        groupedPreview={settings => renderGroups(tiles, true, settings)}
+        renderGroups={(settings, overlay) => renderGroups(tiles, true, settings, overlay)}
         saved={customLayout} categorySettings={categorySettings} onCancel={closeLayout} onSave={(tileLayout, layoutCategories) => {
         const persisted = preferences.update({ tileLayout, layoutCategories });
         setLayoutMessage(persisted ? 'Layout saved.' : 'Layout applied for this session. Browser storage is unavailable.');

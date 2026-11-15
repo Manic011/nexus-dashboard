@@ -15,12 +15,14 @@ Select a tile's pencil button to edit it. Select its trash button and confirm to
 
 ## Customize the dashboard layout
 
-1. Select **Customize layout** on the Applications page. Choose between one and six columns. Changing the column count repacks tiles in their current order.
+1. Select **Customize layout** on the Applications page. The editor opens in your saved layout. In **Custom grid**, choose between one and six columns. Changing the column count repacks tiles in their current order.
 2. Drag a tile to an empty cell, or select the tile and then select its destination. To swap two tiles, drop the first tile onto the second or select them in order. A move or swap needs enough space for both tile widths.
 3. Select a tile to change its width. Use **Add row** to make more room, or leave cells empty to space out groups of tiles.
-4. Choose **Preview layout** to see the full dashboard cards with the grid and spacing used at your current screen size. Tile controls are inactive in the editor. Use **Back to editing** to keep arranging, **Save layout** to apply the draft, or **Cancel** to discard it. Choosing **Grouped by category** previews automatic category sections before you save.
+4. Choose **Preview layout** to hide the editing controls. Use **Back to editing** to keep arranging, **Save layout** to apply the draft, or **Cancel** to discard it.
 
-The layout editor shows full cards, including categories, tags, descriptions and any service status. Use **Highlight category** and **Highlight tag** together to locate matching tiles while keeping every tile in its current position. The editor starts with any category or tag selected on the Applications page. **Arrange by category** starts each category on a fresh row and keeps the current tile widths and order within each category. You can adjust that draft before saving. On narrow screens, scroll across the editing grid to place tiles in any column, then use the preview to see how the dashboard will reflow.
+In **Grouped by category**, edit directly within the category sections. Drag a tile onto another tile in the same category, or select them in order to swap. With a tile selected, choose **Standard** or **Full row** for its width. Use **Category settings** to change the order of sections.
+
+The layout editor shows full cards, including categories, tags, descriptions and any service status. Use **Highlight category** and **Highlight tag** together to locate matching tiles while keeping every tile in its current position. The editor starts with any category or tag selected on the Applications page. **Arrange by category** starts each category on a fresh row and keeps the current tile widths and order within each category. You can adjust that draft before saving. On narrow screens the custom grid reflows just like the dashboard. Select a tile and use the **Row** and **Column** fields to place it in the full grid.
 
 The custom grid can mix tiles from different categories. Select a category or tag on a tile to filter the dashboard. Search and filters show matching tiles in a compact grid in the saved order. Narrow screens also follow the saved order. New tiles are placed after the last saved tile. A change to a tile's destination URL gives it a fresh position.
 

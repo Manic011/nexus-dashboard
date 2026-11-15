@@ -27,6 +27,8 @@ function readPreferences(key: string): Preferences {
         order: Array.isArray(categorySettings?.order) ? categorySettings.order.filter((key: unknown) => typeof key === 'string') : [],
         names: Object.fromEntries(Object.entries(categorySettings?.names ?? {})
           .filter((entry): entry is [string, string] => typeof entry[1] === 'string')),
+        tileOrder: Array.isArray(categorySettings?.tileOrder) ? categorySettings.tileOrder.filter((key: unknown) => typeof key === 'string') : [],
+        wideTiles: Array.isArray(categorySettings?.wideTiles) ? categorySettings.wideTiles.filter((key: unknown) => typeof key === 'string') : [],
       },
     };
   } catch {
