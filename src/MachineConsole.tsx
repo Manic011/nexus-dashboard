@@ -105,6 +105,8 @@ export function MachineConsole({ api, username }: { api: DiagnosticApi; username
   const [pendingRemoval, setPendingRemoval] = useState<number>();
   const [shellOpen, setShellOpen] = useState(false);
   const [authentication, setAuthentication] = useState('password');
+  const addMachineDetails = useRef<HTMLDetailsElement>(null);
+  const connectionHeading = useRef<HTMLHeadingElement>(null);
   async function load() { setCatalog(await api('admin/diagnostics/ssh')); }
   useEffect(() => { void load().catch(error => setError(error.message)); }, [api]);
   useEffect(() => {
@@ -145,6 +147,9 @@ export function MachineConsole({ api, username }: { api: DiagnosticApi; username
   }
   const selectedHost = catalog?.hosts.find(host => String(host.id) === hostId);
   const secure = window.isSecureContext && catalog?.secureTransport;
+  useEffect(() => {
+    if (selectedHost && secure && !connection) connectionHeading.current?.focus();
+  }, [selectedHost?.id, secure, connection?.id]);
   return <section className="tile machine-console">
     <h2>SSH machines</h2>
     <p className="muted">Sign in with the remote machine’s username and password, or a private key. Saved passwords are encrypted in this browser. Connections close after ten minutes without activity or one hour total.</p>
@@ -152,15 +157,21 @@ export function MachineConsole({ api, username }: { api: DiagnosticApi; username
     {!catalog ? <p>Loading saved machines…</p> : !catalog.enabled ? <p>Enable NEXUS_SSH=on in the server environment to connect machines.</p> : <>
       {!secure && <p className="error">Open StackJetty over HTTPS or through an SSH-encrypted localhost connection to enter SSH credentials.</p>}
       {!connection && <>
-        <details><summary>Add SSH machine</summary>
+        <details ref={addMachineDetails}><summary>Add SSH machine</summary>
           <p className="muted">Obtain the SHA256 host-key fingerprint from the machine’s trusted console or your administrator. On Linux, use ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub. Use an account with the access you need.</p>
           <form className="machine-form" onSubmit={event => {
             event.preventDefault();
             const form = event.currentTarget;
             const data = Object.fromEntries(new FormData(form));
             void run(async () => {
-              await api('admin/diagnostics/ssh/hosts', 'POST', { ...data, port: Number(data.port) });
-              await load(); form.reset();
+              const saved = await api<{ id: number }>('admin/diagnostics/ssh/hosts', 'POST', { ...data, port: Number(data.port) });
+              form.reset();
+              await load();
+              if (secure) {
+                if (addMachineDetails.current) addMachineDetails.current.open = false;
+                setAuthentication('password');
+                setHostId(String(saved.id));
+              }
             });
           }}>
             <label>Machine name<input name="name" required maxLength={80} /></label>
@@ -168,7 +179,8 @@ export function MachineConsole({ api, username }: { api: DiagnosticApi; username
             <label>SSH port<input name="port" type="number" defaultValue={22} min={1} max={65535} required /></label>
             <label>SSH username<input name="username" autoComplete="off" required maxLength={64} /></label>
             <label>Trusted host fingerprint<input name="fingerprint" autoComplete="off" placeholder="SHA256:…" required /></label>
-            <button disabled={busy}>Save machine</button>
+            <p className="muted">{secure ? 'You’ll enter the SSH password on the next step.' : 'Save the machine here, then use HTTPS or the SSH tunnel to enter its password.'}</p>
+            <button disabled={busy}>{secure ? 'Save machine and continue' : 'Save machine'}</button>
           </form>
         </details>
         <ul className="user-list">{catalog.hosts.map(host => <li key={host.id}>
@@ -196,7 +208,7 @@ export function MachineConsole({ api, username }: { api: DiagnosticApi; username
             } finally { form.reset(); }
           });
         }}>
-          <h3>Connect to {selectedHost.name}</h3>
+          <h3 ref={connectionHeading} tabIndex={-1}>Connect to {selectedHost.name}</h3>
           <label>Authentication<select aria-label="Authentication" name="authentication" value={authentication} onChange={event => setAuthentication(event.target.value)}>
             <option value="password">Password</option><option value="private-key">Private key</option>
           </select></label>

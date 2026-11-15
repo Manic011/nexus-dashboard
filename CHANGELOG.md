@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Open and focus the password form after saving an SSH machine over HTTPS or a private tunnel.
 - Made SSH password authentication the default, added single-prompt PAM support, encrypted browser-local SSH password vaults, and direct-loopback access for private SSH tunnels.
 
 - Moved Diagnostics to the main header and made diagnostic service names and URLs follow tile opening preferences.

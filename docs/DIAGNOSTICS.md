@@ -56,8 +56,8 @@ StackJetty accepts this alternate origin only for a direct loopback connection w
 ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
 ```
 
-4. Select **Save machine**. StackJetty stores connection metadata in its protected database.
-5. Select **Connect to** for that machine. **Password** is selected by default. Enter the remote account's password and choose **Start SSH session**. Choose **Private key** to use a session key and optional passphrase.
+4. Select **Save machine and continue**. StackJetty stores the machine details and opens the connection form. If you're using plain LAN HTTP, **Save machine** stores the details. Switch to HTTPS or the workstation tunnel and select **Connect to** to enter credentials.
+5. **Password** is selected by default. Enter the remote account's password and choose **Start SSH session**, or open **Saved SSH password** to save it in the browser vault. Choose **Private key** to use a session key and optional passphrase.
 
 The host-key fingerprint must match the key negotiated for the connection. A mismatch rejects the connection. If the server presents another legitimate host-key algorithm, obtain that algorithm's fingerprint through a trusted channel. Replace a saved entry when its host or trusted key changes.
 

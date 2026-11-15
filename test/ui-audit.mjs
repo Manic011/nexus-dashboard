@@ -554,8 +554,10 @@ test('diagnostic screens, network test, SSH statistics, files and shell', { time
     await field('SSH port').fill(String(fixture?.server.address().port ?? process.env.NEXUS_UI_SSH_PORT));
     await field('SSH username').fill('fixture');
     await field('Trusted host fingerprint').fill(fixture?.fingerprint ?? process.env.NEXUS_UI_SSH_FINGERPRINT);
-    await button('Save machine').click();
-    await button('Connect to Fixture machine').click();
+    await button('Save machine and continue').click();
+    const connectionHeading = page.getByRole('heading', { name: 'Connect to Fixture machine', exact: true });
+    await connectionHeading.waitFor();
+    assert.ok(await connectionHeading.evaluate(element => document.activeElement === element));
     assert.equal(await field('Authentication').inputValue(), 'password');
     await page.getByText('Saved SSH password', { exact: true }).click();
     const vaultMaster = 'fixture-ssh-master-password';
