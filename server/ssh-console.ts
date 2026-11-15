@@ -45,25 +45,25 @@ function deadline<T>(work: Promise<T>, milliseconds = 10_000): Promise<T> {
 }
 
 function detectSsh(host: string, port: number, signal: AbortSignal) {
-  return new Promise<boolean>(resolve => {
+  return new Promise<string | undefined>(resolve => {
     const client = new ssh2.Client();
     let finished = false;
-    const abort = () => finish(false);
-    function finish(found: boolean) {
+    const abort = () => finish();
+    function finish(fingerprint?: string) {
       if (finished) return;
       finished = true;
       clearTimeout(timeout);
       signal.removeEventListener('abort', abort);
-      resolve(found);
+      resolve(fingerprint);
       queueMicrotask(() => client.destroy());
     }
-    const timeout = setTimeout(() => finish(false), 1200);
+    const timeout = setTimeout(() => finish(), 1200);
     if (signal.aborted) return abort();
     signal.addEventListener('abort', abort, { once: true });
-    client.on('error', () => finish(false));
-    client.once('close', () => finish(false));
-    client.connect({ host, port, username: 'discovery', readyTimeout: 1200, hostVerifier() {
-      finish(true);
+    client.on('error', () => finish());
+    client.once('close', () => finish());
+    client.connect({ host, port, username: 'discovery', readyTimeout: 1200, hostVerifier(key: Buffer) {
+      finish(fingerprintOf(key));
       return false; // End key negotiation before exchanging authentication messages.
     } });
   });
@@ -221,7 +221,7 @@ export function configureSsh(db: DatabaseSync, enabled: boolean, discoveryEnable
           }
           scanning = true;
           let next = 0;
-          const results: { host: string; port: number; saved: boolean; hostname?: string }[] = [];
+          const results: { host: string; port: number; saved: boolean; fingerprint: string; hostname?: string }[] = [];
           const names = new Map<string, Promise<string | undefined>>();
           const saved = new Set(list().map(host => host.host + ':' + host.port));
           try {
@@ -233,10 +233,11 @@ export function configureSsh(db: DatabaseSync, enabled: boolean, discoveryEnable
                 const index = next++;
                 const host = plan.hosts[Math.floor(index / plan.ports.length)];
                 const port = plan.ports[index % plan.ports.length];
-                if (await detectSsh(host, port, signal)) {
+                const fingerprint = await detectSsh(host, port, signal);
+                if (fingerprint) {
                   if (!names.has(host)) names.set(host, discoverHostname(host));
                   const hostname = await names.get(host);
-                  results.push({ host, port, saved: saved.has(host + ':' + port), ...(hostname ? { hostname } : {}) });
+                  results.push({ host, port, fingerprint, saved: saved.has(host + ':' + port), ...(hostname ? { hostname } : {}) });
                 }
               }
             }));
@@ -252,6 +253,7 @@ export function configureSsh(db: DatabaseSync, enabled: boolean, discoveryEnable
         const { hosts } = z.object({ hosts: z.array(hostInput.omit({ fingerprint: true })).min(1).max(512) }).parse(input);
         let added = 0;
         let skipped = 0;
+        const imported: { host: string; port: number; username: string }[] = [];
         db.exec('BEGIN');
         try {
           const saved = new Set(list().map(host => JSON.stringify([host.host.toLowerCase(), host.port, host.username])));
@@ -262,10 +264,11 @@ export function configureSsh(db: DatabaseSync, enabled: boolean, discoveryEnable
             insert.run(host.name, new Date().toISOString(), JSON.stringify({ ...host, fingerprint: '' }));
             saved.add(key);
             added++;
+            imported.push({ host: host.host, port: host.port, username: host.username });
           }
           db.exec('COMMIT');
         } catch (error) { db.exec('ROLLBACK'); throw error; }
-        return { added, skipped };
+        return { added, skipped, imported };
       }
       if (method === 'POST' && path === '/api/admin/diagnostics/ssh/hosts') {
         const host = hostInput.parse(input);

@@ -130,6 +130,8 @@ These routes are relative to `/api/admin/diagnostics`. The server checks that th
 | `POST /ssh/{sessionId}/file-operation` | Create, rename, move, copy, delete, upload, or download through SFTP. |
 | `POST /ssh/{sessionId}/{shell,input,output,resize}` | Open and operate the terminal, including ordered input and a cancellable long poll for output. |
 
+SSH discovery returns the observed fingerprint for each result. The browser can copy a selected vault credential to the exact new destination and observed key after import. The import response identifies newly added records, so duplicates keep their existing credentials. Password assignment seals all destination entries in one browser storage write under the account vault lock. Machine import sends metadata to the server. Host-key approval remains a separate step before authenticating.
+
 ## Operator recovery boundary
 
 `server/state-backup.ts` is a command-line tool, not a web route. It uses the Node SQLite backup API, validates integrity and schema 4, 5, or 6, and refuses existing backup files or populated restore directories. A recovered database includes accounts, tiles, groups, access rules, profiles, history, and configuration snapshots. All restored sessions are deleted so backup recovery cannot reactivate old browser sessions. Configuration snapshots in the administration UI still restore tiles/groups/rules only. Environment secrets and installed application files are backed up separately.

@@ -7,7 +7,7 @@ StackJetty is a development preview. The [requirements audit](REQUIREMENTS_AUDIT
 - Administrator diagnostics for sampled availability, host information, and network throughput. The separate SSH workspace supports concurrent Linux statistics, SFTP file management, and interactive shells. SSH supports first-connection host key review, password and private-key authentication, browser-local encrypted saved passwords, and private localhost access through a workstation SSH tunnel. Dashboard sessions time out after 15 minutes of inactivity and close their SSH connections.
 
 - Default tile opening preference and saved per-tile modes for a new browser tab, direct embedding, or Kasm.
-- SSH machine discovery with reverse DNS name suggestions, editable batch import, inventory editing, groups and search, and bulk editing, connection, and disconnection.
+- SSH machine discovery with reverse DNS name suggestions, editable batch import with vault credential assignment, inventory editing, groups and search, and bulk editing, connection, and disconnection.
 
 - Optional Kasm browser launch inside the service view for administrators. Real provider validation requires a configured Kasm deployment.
 

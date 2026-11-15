@@ -84,6 +84,8 @@ Open **SSH machines** directly from the main header to connect and switch betwee
 
 Under **Add SSH machine → Discover SSH machines**, scan your network and review the results. Edit the suggested names, choose machines, supply their shared SSH username and optional group, and select **Add selected machines**. You can save further selections from the same results with different usernames or groups. Hostname suggestions use network reverse DNS when available.
 
+Unlock **Vault** and select **Vault credential for selected machines** to reuse a saved password during batch import. Its username fills in automatically and can be edited. The password is encrypted for each newly added machine and its observed SSH key. After verifying the host keys, use **Connect selected** to connect with those saved passwords.
+
 ## Jellyfin and system information
 
 When the operator configures Jellyfin, a tile with the matching base URL displays the aggregate active stream count. **Jellyfin activity unavailable** means StackJetty could not fetch a usable response. Administrators can view the Node.js version, platform, database schema version, and tile count under **Administration → System**. [Jellyfin setup](INSTALL.md#jellyfin-activity)

@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import type { DiagnosticApi } from './Diagnostics.js';
+import { sshCredentialAddress, useCredentialVault } from './CredentialVault.js';
+import { credentialLabel } from './VaultControls.js';
 
-type Endpoint = { host: string; port: number; saved: boolean; hostname?: string };
+type Endpoint = { host: string; port: number; saved: boolean; hostname?: string; fingerprint?: string };
 type Candidate = Endpoint & { name: string; selected: boolean };
 type Interface = { name: string; range: string };
 const path = 'admin/diagnostics/ssh/discover';
@@ -9,6 +11,9 @@ const path = 'admin/diagnostics/ssh/discover';
 export function SshDiscovery({ api, select, onAdded }: {
   api: DiagnosticApi; select: (endpoint: Candidate) => void; onAdded: () => Promise<void>;
 }) {
+  const vault = useCredentialVault();
+  const [credential, setCredential] = useState('');
+  const [pendingAssignment, setPendingAssignment] = useState<{ address: string; username: string }[]>([]);
   const [interfaces, setInterfaces] = useState<Interface[]>();
   const [results, setResults] = useState<Candidate[]>([]);
   const [username, setUsername] = useState('');
@@ -20,8 +25,46 @@ export function SshDiscovery({ api, select, onAdded }: {
   const scan = useRef<AbortController>(null);
   useEffect(() => () => scan.current?.abort(), []);
   const chosen = results.filter(endpoint => endpoint.selected && !endpoint.saved);
+  const credentials = Object.entries(vault.entries ?? {}).filter(([, value]) => value.password);
+  const selectedCredential = vault.entries?.[credential];
+  async function assign(targets: { address: string; username: string }[]) {
+    await vault.assign(credential, targets);
+    setPendingAssignment([]);
+  }
   function edit(index: number, changes: Partial<Candidate>) {
     setResults(current => current.map((endpoint, position) => position === index ? { ...endpoint, ...changes } : endpoint));
+  }
+  async function addSelected() {
+    if (!chosen.length || saving || busy) return;
+    if (credential && chosen.some(endpoint => !endpoint.fingerprint)) {
+      setError('Scan again to read the SSH keys before assigning credentials.');
+      return;
+    }
+    setSaving(true); setError('');
+    try {
+      if (credential && !vault.get(credential)?.password) {
+        throw new Error('Unlock the vault and choose a saved credential before adding these machines.');
+      }
+      const report = await api<{ added: number; skipped: number; imported: { host: string; port: number; username: string }[] }>('admin/diagnostics/ssh/hosts/import', 'POST', {
+        hosts: chosen.map(({ name, host, port }) => ({ name, host, port, username, group })),
+      });
+      const savedKeys = new Set(chosen.map(endpoint => endpoint.host + ':' + endpoint.port));
+      setResults(current => current.map(endpoint => savedKeys.has(endpoint.host + ':' + endpoint.port)
+        ? { ...endpoint, saved: true, selected: false } : endpoint));
+      setNotice(`Added ${report.added} ${report.added === 1 ? 'machine' : 'machines'}. Skipped ${report.skipped} already saved entries.`);
+      const targets = credential ? report.imported.map(machine => ({
+        username: machine.username,
+        address: sshCredentialAddress({ ...machine, fingerprint: chosen.find(endpoint =>
+          endpoint.host === machine.host && endpoint.port === machine.port)!.fingerprint }),
+      })) : [];
+      setPendingAssignment(targets);
+      await onAdded();
+      if (credential && report.imported.length) {
+        await assign(targets);
+        setNotice(`Added ${report.added} ${report.added === 1 ? 'machine' : 'machines'} with vault credentials. Verify their host keys before connecting.`);
+      }
+    } catch (error) { setError(error instanceof Error ? error.message : 'Could not add machines.'); }
+    finally { setSaving(false); }
   }
 
   return <details className="ssh-discovery" onToggle={event => {
@@ -56,23 +99,23 @@ export function SshDiscovery({ api, select, onAdded }: {
     </form>
     {notice && <p role="status">{notice}</p>}
     {error && <p role="alert" className="error">{error}</p>}
-    {results.length > 0 && <form className="ssh-discovery-review" aria-label="Review discovered SSH machines" onSubmit={async event => {
+    {results.length > 0 && <form className="ssh-discovery-review" aria-label="Review discovered SSH machines" onSubmit={event => {
       event.preventDefault();
-      if (!chosen.length || saving || busy) return;
-      setSaving(true); setError('');
-      try {
-        const report = await api<{ added: number; skipped: number }>('admin/diagnostics/ssh/hosts/import', 'POST', {
-          hosts: chosen.map(({ name, host, port }) => ({ name, host, port, username, group })),
-        });
-        const savedKeys = new Set(chosen.map(endpoint => endpoint.host + ':' + endpoint.port));
-        setResults(current => current.map(endpoint => savedKeys.has(endpoint.host + ':' + endpoint.port)
-          ? { ...endpoint, saved: true, selected: false } : endpoint));
-        setNotice(`Added ${report.added} ${report.added === 1 ? 'machine' : 'machines'}. Skipped ${report.skipped} already saved entries.`);
-        await onAdded();
-      } catch (error) { setError(error instanceof Error ? error.message : 'Could not add machines.'); }
-      finally { setSaving(false); }
+      void addSelected();
     }}>
       <div className="machine-form">
+        <label>Vault credential for selected machines<select aria-label="Vault credential for selected machines" value={credential} disabled={saving || !!pendingAssignment.length}
+          onChange={event => {
+            setCredential(event.target.value);
+            const saved = vault.entries?.[event.target.value];
+            if (saved) setUsername(saved.username);
+          }}>
+          <option value="">Set passwords later</option>
+          {credentials.map(([address, value]) => <option key={address} value={address}>{value.username} · {credentialLabel(address)}</option>)}
+          {credential && !selectedCredential && <option value={credential}>Unlock vault to use the selected credential</option>}
+        </select></label>
+        {!vault.entries && <p className="muted">Unlock your vault from the header to choose a saved credential.</p>}
+        {selectedCredential && <p className="muted">The selected password is saved to your encrypted vault for each added machine and its discovered SSH key. Review each key before connecting.</p>}
         <label>SSH username for selected machines<input value={username} onChange={event => setUsername(event.target.value)}
           autoComplete="off" maxLength={64} required disabled={saving} /></label>
         <label>Group for selected machines<input value={group} onChange={event => setGroup(event.target.value)} maxLength={60} disabled={saving} /></label>
@@ -95,8 +138,18 @@ export function SshDiscovery({ api, select, onAdded }: {
         {endpoint.saved ? <small className="muted">Already saved</small> :
           <button type="button" disabled={saving} aria-label={`Use ${endpoint.host}:${endpoint.port}`} onClick={() => select(endpoint)}>Use address</button>}
       </li>)}</ul>
-      <button className="primary" disabled={saving || busy || !chosen.length}>{saving ? 'Adding machines…' : `Add selected machines (${chosen.length})`}</button>
+      <button className="primary" disabled={saving || busy || !chosen.length || !!pendingAssignment.length || (!!credential && !selectedCredential)}>{saving ? 'Adding machines…' : `Add selected machines (${chosen.length})`}</button>
       <p className="muted">Review each name before adding. Hostnames come from network DNS when available. Verify each machine’s host key before connecting.</p>
     </form>}
+    {pendingAssignment.length > 0 && <div className="credential-panel">
+      <p>The machines are saved. Their vault credentials still need to be assigned.</p>
+      <button type="button" disabled={saving || !selectedCredential} onClick={async () => {
+        setSaving(true); setError('');
+        try { await assign(pendingAssignment); setNotice('Vault credentials assigned. Verify each host key before connecting.'); }
+        catch (error) { setError(error instanceof Error ? error.message : 'Could not assign vault credentials.'); }
+        finally { setSaving(false); }
+      }}>Retry credential assignment</button>
+      <button type="button" disabled={saving} onClick={() => { setPendingAssignment([]); setCredential(''); setError(''); }}>Set credentials later</button>
+    </div>}
   </details>;
 }

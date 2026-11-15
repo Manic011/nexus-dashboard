@@ -87,7 +87,7 @@ export function VaultEditor({ address, machine, onUse }: {
   </>;
 }
 
-function credentialLabel(address: string) {
+export function credentialLabel(address: string) {
   if (!address.startsWith('ssh:')) return address;
   try {
     const [host, port, username] = JSON.parse(address.slice(4));

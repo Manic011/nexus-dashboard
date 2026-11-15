@@ -73,6 +73,7 @@ test('diagnostic monitoring and SSH sessions enforce access, fingerprints and ow
     assert.equal(discovered.results[0].host, host.host);
     assert.equal(discovered.results[0].port, host.port);
     assert.equal(discovered.results[0].saved, false);
+    assert.equal(discovered.results[0].fingerprint, fingerprint);
     assert.equal((await request(scanPath, 'POST', { ...scan, range: '203.0.113.1' })).status, 400);
     assert.equal((await request(scanPath, 'POST', { ...scan, range: '192.168.0.0/23' })).status, 400);
     assert.deepEqual((await (await request('admin/diagnostics/ssh')).json()).hosts, []);
@@ -80,8 +81,10 @@ test('diagnostic monitoring and SSH sessions enforce access, fingerprints and ow
     const imports = [{ ...host, name: 'First import', username: 'batch-one' }, { ...host, name: 'Second import', username: 'batch-two' }];
     assert.equal((await request(importPath, 'POST', { hosts: [imports[0], { ...imports[1], name: '' }] })).status, 400);
     assert.deepEqual((await (await request('admin/diagnostics/ssh')).json()).hosts, []);
-    assert.deepEqual(await (await request(importPath, 'POST', { hosts: imports })).json(), { added: 2, skipped: 0 });
-    assert.deepEqual(await (await request(importPath, 'POST', { hosts: imports })).json(), { added: 0, skipped: 2 });
+    assert.deepEqual(await (await request(importPath, 'POST', { hosts: imports })).json(), {
+      added: 2, skipped: 0, imported: imports.map(({ host, port, username }) => ({ host, port, username })),
+    });
+    assert.deepEqual(await (await request(importPath, 'POST', { hosts: imports })).json(), { added: 0, skipped: 2, imported: [] });
     const imported = (await (await request('admin/diagnostics/ssh')).json()).hosts;
     assert.deepEqual(imported.map((entry: { name: string }) => entry.name), ['First import', 'Second import']);
     for (const entry of imported) {

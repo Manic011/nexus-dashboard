@@ -58,6 +58,10 @@ Discovery tries reverse DNS for each responding SSH address. When the network su
 
 Saved results are marked **Already saved**. The save operation skips existing records with the same address, port, and SSH username, including when a batch is retried. It validates the whole batch before saving. Hostname suggestions depend on the DNS available to the StackJetty server and serve as editable display names. Connections retain the scanned IP address, and each machine requires host-key verification before authentication. **Use address** remains available to fill in the individual machine form.
 
+To reuse a password, unlock **Vault** in the main header and choose **Vault credential for selected machines** in the discovery review. Selecting it fills in the saved username, which you can edit for the SSH accounts. **Add selected machines** saves the machines and copies the chosen password into your encrypted browser vault for each newly added destination and its observed SSH key. Existing records skipped during import keep their credentials.
+
+Verify each machine's host key before using **Connect with saved password** or **Connect selected**. If the key changes from the one found during discovery, the assigned password does not match the new destination. Editing the source credential later updates that entry independently from the copies. If the vault locks or storage fails after the machines are saved, unlock it and choose **Retry credential assignment**, or **Set credentials later**.
+
 Discovery checks for an SSH handshake without signing in. It runs from the StackJetty server, scans one range selection at a time, and can be canceled. Each scan supports up to 254 addresses, 8 ports, and 512 address and port combinations. Port 22 is the default. Scans require administrator access over HTTPS or the private localhost connection. Operators can enable or disable SSH discovery separately with `NEXUS_SSH_DISCOVERY`.
 
 1. Open **SSH machines → Add SSH machine**.

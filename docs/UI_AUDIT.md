@@ -52,6 +52,8 @@ The grouped layout regression drags an entire category by its header handle, che
 
 ## Diagnostics verification
 
+The batch credential browser test passed locally and on an isolated Ubuntu instance. It chose a service vault credential, changed its username for SSH, checked that locking the vault disabled the batch save, unlocked it, and imported the machine. The test confirmed the import request omitted the password, the encrypted vault held a credential for the observed SSH key, and the saved password control was available after host-key approval. The live release passed HTTP and trusted LAN HTTPS checks.
+
 The SSH discovery review passed locally and against an isolated Ubuntu instance. The browser edited a discovered machine's name, cleared and restored its selection, saved it through batch import, and continued with host-key verification and SSH login. API tests saved two named machines together, retried the batch without duplication, verified an invalid entry prevented all writes, and confirmed imported machines have an empty trusted fingerprint. The live release was verified on HTTP and trusted LAN HTTPS. Hostname suggestions depend on network reverse DNS records.
 
 Chromium verified the HTTP tile fallback at an HTTPS dashboard address locally and using the deployed Ubuntu frontend. A fixture tile showed the new-tab link and opened the HTTP service in that tab.

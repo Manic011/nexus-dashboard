@@ -11,6 +11,7 @@ type CredentialVault = {
   unlock: (password: string, confirmation: string) => Promise<void>;
   lock: () => void;
   save: (address: string, credential?: Credential) => Promise<void>;
+  assign: (source: string, targets: { address: string; username: string }[]) => Promise<void>;
   hasLegacy: (hostId: number) => boolean;
   importLegacy: (hostId: number, address: string, username: string, password: string) => Promise<void>;
 };
@@ -106,20 +107,40 @@ export function CredentialVaultProvider({ username, children }: { username: stri
     });
   }
 
-  async function save(address: string, credential?: Credential, replace = true) {
+  async function update(change: (next: VaultEntries) => void) {
     const generation = epoch.current;
     await navigator.locks.request(key, async () => {
       const { sealed, vault } = current.current;
       assertCurrent(generation, sealed);
       if (!vault) throw new Error('Unlock the vault first.');
-      if (!replace && Object.hasOwn(vault.entries, address)) throw new Error('A password is already saved for this destination.');
       const next = { ...vault.entries };
-      if (credential) next[address] = credential;
-      else delete next[address];
+      change(next);
       const envelope = await vault.seal(next);
       assertCurrent(generation, sealed);
       localStorage.setItem(key, envelope);
       open({ ...vault, entries: next }, envelope);
+    });
+  }
+
+  async function save(address: string, credential?: Credential, replace = true) {
+    await update(next => {
+      if (!replace && Object.hasOwn(next, address)) throw new Error('A password is already saved for this destination.');
+      if (credential) next[address] = credential;
+      else delete next[address];
+    });
+  }
+
+  async function assign(source: string, targets: { address: string; username: string }[]) {
+    await update(next => {
+      const credential = next[source];
+      if (!credential?.password) throw new Error('Choose an available saved credential.');
+      if (credential.password.length > 4096) throw new Error('This password exceeds the SSH password length limit.');
+      for (const { address, username } of targets) {
+        if (Object.hasOwn(next, address) && (next[address].password !== credential.password || next[address].username !== username)) {
+          throw new Error('A different credential is already saved for a selected machine. Review it in the vault before assigning this batch.');
+        }
+        next[address] = { username, password: credential.password };
+      }
     });
   }
 
@@ -152,5 +173,5 @@ export function CredentialVaultProvider({ username, children }: { username: stri
     return vault.entries[address];
   }
 
-  return <Context.Provider value={{ available: storage.available, exists, entries, get, unlock, lock, save, hasLegacy, importLegacy }}>{children}</Context.Provider>;
+  return <Context.Provider value={{ available: storage.available, exists, entries, get, unlock, lock, save, assign, hasLegacy, importLegacy }}>{children}</Context.Provider>;
 }
