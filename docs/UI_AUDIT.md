@@ -42,6 +42,8 @@ The category settings regression verified personal names and category order in t
 
 Browser tests on Ubuntu verified that grouped layouts open as editable category sections and retain tile order and full-row widths after a reload. At 320 pixels, they confirmed that a custom-grid card has the same geometry while editing and on the saved dashboard. The live service served the verified build.
 
+The Ubuntu browser suite verified dragging a tile to another category, canceling that draft, and saving a category change through the selector. After reload, the tile editor showed the new category. API tests covered access checks, retries, and rollback when a batch contains a conflicting change.
+
 ## Ubuntu verification - 2026-11-13
 
 The discovery/import refinement was exercised in the visible in-app browser against a disposable Ubuntu-hosted instance, with a separate state directory from the saved dashboard. The same locally built release was then promoted to the existing port 3000 instance after a SQLite backup. The existing dashboard configuration was preserved.

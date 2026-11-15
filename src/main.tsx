@@ -129,7 +129,7 @@ function App() {
 
   function closeLayout() {
     setEditingLayout(false);
-    layoutTrigger.current?.focus();
+    requestAnimationFrame(() => layoutTrigger.current?.focus());
   }
 
   function renderTile(tile: Tile, { position, showCategory = Boolean(customLayout), preview = false, overlay, settings = categorySettings, fullRow = false }: {
@@ -196,7 +196,7 @@ function App() {
   </main>;
 
   return <>
-    <header><div className="shell top">{brand}<div className="account">{session.role === 'admin' && <button onClick={() => { setEditingLayout(false); setAdmin(value => !value); }}>{admin ? 'Dashboard' : 'Administration'}</button>}<span>{session.username}</span><details className="preferences"><summary>Appearance</summary><div className="preferences-panel">
+    <header><div className="shell top">{brand}<div className="account">{session.role === 'admin' && <button disabled={busy} onClick={() => { setEditingLayout(false); setAdmin(value => !value); }}>{admin ? 'Dashboard' : 'Administration'}</button>}<span>{session.username}</span><details className="preferences"><summary>Appearance</summary><div className="preferences-panel">
       <label><span>Theme</span><select aria-label="Theme" value={preferences.value.theme} onChange={event => preferences.update({ theme: event.target.value === 'light' ? 'light' : event.target.value === 'dark' ? 'dark' : 'system' })}><option value="system">System</option><option value="dark">Dark</option><option value="light">Light</option></select></label>
       <label><span>Card density</span><select aria-label="Card density" value={preferences.value.density} onChange={event => preferences.update({ density: event.target.value === 'compact' ? 'compact' : 'comfortable' })}><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></label>
       <label><span>Open tiles by default</span><select aria-label="Open tiles by default" value={preferences.value.openMode} onChange={event => {
@@ -218,21 +218,22 @@ function App() {
       {!editing && !deleting && warning}
       {admin ? <><h1>Administration</h1><Administration api={api} onImport={refresh} categories={[...categories.values()]} /></> : <><div className="intro"><div><h1>Applications</h1><p className="muted">Organize and open the services you use.</p></div>
         <div className="dashboard-actions">
-          <button ref={layoutTrigger} hidden={!tiles.length || tilesLoading} aria-expanded={editingLayout} onClick={() => {
+          <button ref={layoutTrigger} disabled={busy} hidden={!tiles.length || tilesLoading} aria-expanded={editingLayout} onClick={() => {
             setLayoutMessage('');
             setEditingLayout(value => !value);
           }}><LayoutGrid size={18} /> Customize layout</button>
           {session.role !== 'viewer' && !editingLayout && <button className="primary" onClick={() => { setError(''); setEditing('new'); }}><Plus size={19} /> Add tile</button>}
         </div>
       </div>
-      {editingLayout ? <LayoutEditor tiles={tiles} categories={categories} tags={tags} initialCategory={activeCategory} initialTag={activeTag}
+      {editingLayout ? <LayoutEditor tiles={tiles} categories={categories} tags={tags} initialCategory={activeCategory} initialTag={activeTag} canEditTiles={session.role === 'admin' || session.role === 'editor'} saving={busy}
         renderTile={(tile, position, settings, overlay) => renderTile(tile, { position, overlay, settings, preview: true, showCategory: true })}
-        renderGroups={(settings, overlay) => renderGroups(tiles, true, settings, overlay)}
-        saved={customLayout} categorySettings={categorySettings} onCancel={closeLayout} onSave={(tileLayout, layoutCategories) => {
+        renderGroups={(draftTiles, settings, overlay) => renderGroups(draftTiles, true, settings, overlay)}
+        saved={customLayout} categorySettings={categorySettings} onCancel={closeLayout} onSave={(tileLayout, layoutCategories, moves) => void action(async () => {
+        if (moves.length) setTiles(await api<Tile[]>('tiles/categories', 'PATCH', moves));
         const persisted = preferences.update({ tileLayout, layoutCategories });
         setLayoutMessage(persisted ? 'Layout saved.' : 'Layout applied for this session. Browser storage is unavailable.');
         closeLayout();
-      }} /> : <>
+      })} /> : <>
       {layoutMessage && <p className="layout-notice muted" role="status">{layoutMessage}</p>}
       <div className="filters"><label className="search"><Search size={18} /><input type="search" aria-label="Search applications" placeholder="Search applications" value={query} onChange={event => setQuery(event.target.value)} /></label>
         <select aria-label="Filter by category" value={activeCategory} onChange={event => setCategoryFilter(event.target.value)}>

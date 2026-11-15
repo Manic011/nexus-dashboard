@@ -5,8 +5,9 @@ import { categoryName, categoryRows, orderedCategories, orderGroupedTiles, type 
 import { arrangeTiles, changeColumns, columnOptions, comparePositions, gridPlacement, groupByCategory, maxEmptyRows, moveTile, overlaps, tileKey, type LayoutTile, type Position, type TileLayout } from './tileLayout.js';
 
 type EditorTile = LayoutTile & { category: string; tags: string[] };
+export type CategoryMove = { id: number; url: string; from: string; category: string };
 
-export function LayoutEditor<T extends EditorTile>({ tiles, categories, tags, initialCategory, initialTag, saved, categorySettings, renderTile, renderGroups, onSave, onCancel }: {
+export function LayoutEditor<T extends EditorTile>({ tiles: originalTiles, categories, tags, initialCategory, initialTag, saved, categorySettings, canEditTiles, saving, renderTile, renderGroups, onSave, onCancel }: {
   tiles: T[];
   categories: ReadonlyMap<string, string>;
   tags: ReadonlyMap<string, string>;
@@ -14,15 +15,18 @@ export function LayoutEditor<T extends EditorTile>({ tiles, categories, tags, in
   initialTag: string;
   saved: TileLayout | null;
   categorySettings: LayoutCategories;
+  canEditTiles: boolean;
+  saving: boolean;
   renderTile: (tile: T, position: Position, settings: LayoutCategories, overlay?: ReactNode) => ReactNode;
-  renderGroups: (settings: LayoutCategories, overlay?: (tile: T) => ReactNode) => ReactNode;
-  onSave: (layout: TileLayout | null, settings: LayoutCategories) => void;
+  renderGroups: (tiles: T[], settings: LayoutCategories, overlay?: (tile: T) => ReactNode) => ReactNode;
+  onSave: (layout: TileLayout | null, settings: LayoutCategories, moves: CategoryMove[]) => void;
   onCancel: () => void;
 }) {
-  const [layout, setLayout] = useState(() => arrangeTiles(tiles, saved));
+  const [layout, setLayout] = useState(() => arrangeTiles(originalTiles, saved));
   const [grouped, setGrouped] = useState(!saved);
   const [preview, setPreview] = useState(false);
   const [settings, setSettings] = useState(categorySettings);
+  const [assignments, setAssignments] = useState(new Map<number, string>());
   const [selected, setSelected] = useState('');
   const [category, setCategory] = useState(initialCategory);
   const [tag, setTag] = useState(initialTag);
@@ -31,7 +35,13 @@ export function LayoutEditor<T extends EditorTile>({ tiles, categories, tags, in
   const dragged = useRef('');
   const buttons = useRef(new Map<string, HTMLButtonElement>());
   const focusTile = useRef('');
+  const moves = originalTiles.flatMap(tile => {
+    const category = assignments.get(tile.id);
+    return category && category !== tile.category ? [{ id: tile.id, url: tile.url, from: tile.category, category }] : [];
+  });
+  const tiles = originalTiles.map(tile => ({ ...tile, category: assignments.get(tile.id) ?? tile.category }));
   const tilesByKey = new Map(tiles.map(tile => [tileKey(tile), tile]));
+  const selectedTile = tilesByKey.get(selected);
   const title = (key: string) => tilesByKey.get(key)?.title ?? '';
   const highlighted = Boolean(category || tag);
   const matches = new Set(tiles.filter(tile => (!category || tile.category.toLowerCase() === category) &&
@@ -67,10 +77,25 @@ export function LayoutEditor<T extends EditorTile>({ tiles, categories, tags, in
     focusTile.current = '';
   }, [layout, settings]);
 
+  function moveToCategory(key: string, category: string, before?: string) {
+    const tile = tilesByKey.get(key);
+    if (!canEditTiles || !tile) return;
+    const order = orderGroupedTiles(tiles, settings.tileOrder).map(tileKey).filter(item => item !== key);
+    order.splice(before ? order.indexOf(before) : order.length, 0, key);
+    setAssignments(new Map(assignments).set(tile.id, category));
+    setSettings({ ...settings, tileOrder: order });
+    setSelected(key);
+    focusTile.current = key;
+    setMessage(`${tile.title} moved to ${categoryName(category.toLowerCase(), category, settings)}.`);
+  }
+
   function swapGrouped(key: string, target: string) {
     if (key === target) return;
-    if (tilesByKey.get(key)?.category.toLowerCase() !== tilesByKey.get(target)?.category.toLowerCase()) {
-      setMessage('Choose a destination within the same category.');
+    const destination = tilesByKey.get(target);
+    if (!destination) return;
+    if (tilesByKey.get(key)?.category.toLowerCase() !== destination.category.toLowerCase()) {
+      if (canEditTiles) moveToCategory(key, destination.category, target);
+      else setMessage('Editing access is required to change a tile’s category.');
       return;
     }
     const order = orderGroupedTiles(tiles, settings.tileOrder).map(tileKey);
@@ -149,6 +174,7 @@ export function LayoutEditor<T extends EditorTile>({ tiles, categories, tags, in
   }
 
   return <section className="layout-editor" aria-labelledby="layout-heading">
+    <div inert={saving}>
     <div className="layout-settings">
       <h2 id="layout-heading">Customize layout</h2>
       <div className="layout-toolbar">
@@ -175,6 +201,16 @@ export function LayoutEditor<T extends EditorTile>({ tiles, categories, tags, in
             ? [...settings.wideTiles, selected] : settings.wideTiles.filter(key => key !== selected) })}>
           <option value="standard">Standard</option><option value="full">Full row</option>
         </select></label>}
+        {canEditTiles && !preview && selectedTile && <label>Move to category
+          <select aria-label="Move to category" value="" onChange={event => {
+            const destination = categories.get(event.target.value);
+            if (destination) moveToCategory(selected, destination);
+          }}>
+            <option value="">Choose a category</option>
+            {categoryOrder.filter(key => key !== selectedTile.category.toLowerCase()).map(key =>
+              <option key={key} value={key}>{categoryName(key, categories.get(key)!, settings)}</option>)}
+          </select>
+        </label>}
         <button type="button" onClick={() => setPreview(value => !value)}>
           {preview ? 'Back to editing' : 'Preview layout'}
         </button>
@@ -197,7 +233,9 @@ export function LayoutEditor<T extends EditorTile>({ tiles, categories, tags, in
       </details>
       {preview ? <p className="muted">Layout preview at your current screen size</p> : <>
         <p className="muted">{grouped
-          ? 'Drag a tile onto another tile in the same category, or select them in order to swap. Select a tile to change its width.'
+          ? canEditTiles
+            ? 'Drag a tile onto another tile to move it, or select the tile and its destination. Moves between sections update the tile’s category.'
+            : 'Drag a tile onto another tile in the same category, or select them in order to swap.'
           : 'Drag tiles or select one, then choose an empty cell to move it or another tile to swap. Select it again to deselect.'}</p>
         <div className="layout-toolbar layout-organize">
           <label>Highlight category<select aria-label="Highlight category" value={category} onChange={event => setCategory(event.target.value)}>
@@ -218,7 +256,7 @@ export function LayoutEditor<T extends EditorTile>({ tiles, categories, tags, in
         {highlighted && <p className="muted" role="status">{matches.size} of {tiles.length} tiles match. All tiles stay in place.</p>}
       </>}
     </div>
-    {grouped ? renderGroups(settings, preview ? undefined : tileControl) : preview ? <TileGrid tiles={orderedTiles} layout={layout} categories={categories} settings={settings}
+    {grouped ? renderGroups(tiles, settings, preview ? undefined : tileControl) : preview ? <TileGrid tiles={orderedTiles} layout={layout} categories={categories} settings={settings}
       renderTile={(tile, position) => renderTile(tile, position, settings)} /> : <>
       <div className="custom-layout">
         <div className="grid custom-grid" data-columns={layout.columns}>
@@ -258,9 +296,11 @@ export function LayoutEditor<T extends EditorTile>({ tiles, categories, tags, in
       </form>}
     </>}
     {message && !preview && <p className="layout-feedback muted" role="status">{message}</p>}
+    </div>
+    {moves.length > 0 && <p className="layout-feedback muted" role="status">Saving updates the categories of {moves.length} {moves.length === 1 ? 'tile' : 'tiles'} for everyone.</p>}
     <div className="form-actions layout-actions">
-      <button type="button" onClick={onCancel}>Cancel</button>
-      <button type="button" className="primary" onClick={() => onSave(grouped ? null : layout, settings)}>Save layout</button>
+      <button type="button" disabled={saving} onClick={onCancel}>Cancel</button>
+      <button type="button" className="primary" disabled={saving} onClick={() => onSave(grouped ? null : layout, settings, moves)}>{saving ? 'Saving…' : 'Save layout'}</button>
     </div>
   </section>;
 }

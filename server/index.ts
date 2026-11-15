@@ -32,6 +32,12 @@ function readTile({ tags, open_mode, ...item }: Record<string, unknown>) {
 }
 
 const backup = z.object({ version: z.literal(1), tiles: z.array(tile).max(500) });
+const categoryMoves = z.array(z.object({
+  id: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  url: tile.shape.url,
+  from: tile.shape.category,
+  category: tile.shape.category,
+})).min(1).max(500).refine(moves => new Set(moves.map(move => move.id)).size === moves.length);
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 const lifetime = 7 * 24 * 60 * 60;
 class RequestError extends Error {
@@ -329,7 +335,28 @@ export function createApp(data: string, dist: string, origin: string, setupToken
         launch.hash = '/go?' + new URLSearchParams({ kasm_url: new URL(target.data).href });
         return send(200, { url: launch.href });
       }
-      if (method === 'GET' && path === '/api/tiles') {
+      if ((method === 'GET' && path === '/api/tiles') || (method === 'PATCH' && path === '/api/tiles/categories')) {
+        if (method === 'PATCH') {
+          const parsed = categoryMoves.safeParse(await body(req, 2 * 1024 * 1024));
+          if (!parsed.success) throw new RequestError(400, 'Choose up to 500 distinct tiles with valid categories.');
+          const find = db.prepare('SELECT url, category FROM tiles WHERE id=?');
+          const update = db.prepare('UPDATE tiles SET category=? WHERE id=?');
+          db.exec('BEGIN IMMEDIATE');
+          try {
+            for (const move of parsed.data) {
+              const current = find.get(move.id);
+              if (!current || !canSee(move.id)) throw new RequestError(404, 'Tile not found.');
+              if (current.url !== move.url || (current.category !== move.from && current.category !== move.category)) {
+                throw new RequestError(409, 'A tile changed while you were editing. Reopen the layout and try again.');
+              }
+              if (current.category !== move.category) update.run(move.category, move.id);
+            }
+            db.exec('COMMIT');
+          } catch (error) {
+            db.exec('ROLLBACK');
+            throw error;
+          }
+        }
         const visible = db.prepare('SELECT * FROM tiles ORDER BY category COLLATE NOCASE, title COLLATE NOCASE, id').all()
           .filter(item => canSee(item.id)).map(readTile);
         return send(200, kasm && authenticated.role === 'admin'

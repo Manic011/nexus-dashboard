@@ -48,6 +48,14 @@ test('setup, authentication, tile CRUD, persistence and logout', async () => {
     assert.equal(response.status, 201);
     const { id } = await response.json();
     assert.equal((await request('tiles/' + id, 'PUT', { title: 'Updated', url: tile.url, category: tile.category, description: tile.description })).status, 200);
+    const move = { id, url: tile.url, from: 'General', category: 'Media' };
+    const second = await (await request('tiles', 'POST', { ...tile, url: 'https://second.example' })).json();
+    assert.equal((await request('tiles/categories', 'PATCH', [move, { ...move, id: second.id }])).status, 409);
+    assert.equal((await (await request('tiles')).json()).find((item: { id: number }) => item.id === id).category, 'General');
+    assert.equal((await request('tiles/categories', 'PATCH', [move])).status, 200);
+    assert.equal((await request('tiles/categories', 'PATCH', [move])).status, 200);
+    assert.equal((await request('tiles/categories', 'PATCH', [{ ...move, from: 'Media', category: 'General' }])).status, 200);
+    assert.equal((await request('tiles/' + second.id, 'DELETE')).status, 200);
     await stop();
     app = createApp(data, 'dist', origin, 'integration-token');
     await start();
@@ -105,6 +113,7 @@ test('setup, authentication, tile CRUD, persistence and logout', async () => {
       assert.equal((await request('admin/users')).status, 403);
       assert.equal((await request('admin/discovery/mdns', 'POST', {})).status, 403);
       assert.equal((await request('tiles', 'POST', tile)).status, role === 'editor' ? 201 : 403);
+      assert.equal((await request('tiles/categories', 'PATCH', [{ ...move, id: importedTile.id }])).status, role === 'editor' ? 404 : 403);
       cookie = administrator;
       assert.equal((await request('admin/users/' + id, 'DELETE')).status, 200);
       cookie = accountCookie;
