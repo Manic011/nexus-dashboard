@@ -2,6 +2,8 @@
 
 A self-hosted dashboard for your homelab. Discover services, organize them into searchable tiles, and check on the machines that run them.
 
+100% of this application was written with GPT-6.1 Sol. I've done my best to point it in the right directions, but this is just a fun experiment for me to build a project that is useful for myself. I've done my best to audit everything, and keep security in mind, but please use at your own risk. 
+
 **Development preview** · [Get started](#get-started) · [Screenshots](#screenshots) · [Documentation](#documentation)
 
 ![StackJetty dashboard showing infrastructure and media services organized into categorized tiles](docs/screenshots/dashboard.png)
