@@ -30,7 +30,7 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
       app.listen(3419, '127.0.0.1');
       await once(app, 'listening');
     }
-    const browser = await chromium.launch();
+    const browser = await chromium.launch({ executablePath: process.env.NEXUS_UI_CHROMIUM_PATH });
     try {
       const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
       page.setDefaultTimeout(remote ? 15000 : 7000);
@@ -77,6 +77,43 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
       await field('Category').selectOption({ label: 'Utilities' });
       await button('Save tile').click();
       await button('Other app').waitFor();
+      await button('Customize layout').click();
+      const board = page.getByRole('region', { name: 'Customize layout' });
+      await field('Columns').selectOption('3');
+      await button('Add row').click();
+      await board.getByRole('button', { name: /^Other app, row/ }).dragTo(button('Empty cell, row 3, column 2'));
+      const moved = button('Other app, row 3, column 2');
+      await moved.waitFor();
+      await field('Width for Other app').selectOption('2');
+      await board.getByText('Other app now spans 2 columns.').waitFor();
+      await moved.press('Enter');
+      await moved.press('Enter');
+      await button('Empty cell, row 2, column 3').press('Enter');
+      await board.getByText(/There is not enough room/).waitFor();
+      await button('Empty cell, row 2, column 1').press('Enter');
+      await button('Other app, row 2, column 1').waitFor();
+      await button('Save layout').click();
+      await page.getByText('Layout saved.', { exact: true }).waitFor();
+      await page.reload();
+      const customCard = page.locator('.app-tile').filter({ has: button('Other app') });
+      await customCard.waitFor();
+      assert.equal(await customCard.evaluate(card => getComputedStyle(card).gridRowStart), '2');
+      assert.equal(await customCard.evaluate(card => getComputedStyle(card).gridColumnEnd), 'span 2');
+      await field('Search applications').fill('Other app');
+      await button('Local tools').waitFor({ state: 'hidden' });
+      assert.equal(await customCard.evaluate(card => getComputedStyle(card).gridRowStart), 'auto');
+      await button('Clear filters').click();
+      await fits(320, 568);
+      assert.equal(await customCard.evaluate(card => getComputedStyle(card).gridRowStart), 'auto');
+      await button('Customize layout').click();
+      await fits(320, 568);
+      await field('Layout').selectOption('categories');
+      await board.getByRole('button', { name: 'Cancel' }).click();
+      await page.locator('.custom-grid').waitFor();
+      await button('Customize layout').click();
+      await field('Layout').selectOption('categories');
+      await button('Save layout').click();
+      await page.locator('.group').waitFor();
       await fits(320, 568);
       if (serviceFixture) {
         const trigger = button('Local tools');
@@ -298,8 +335,13 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
       await button('Imported app').waitFor();
       assert.equal(await button('Add tile').count(), 0);
       assert.equal(await button('Administration').count(), 0);
+      await button('Customize layout').click();
+      assert.equal(await page.getByRole('button', { name: /^Local tools, row/ }).count(), 0);
+      await button('Save layout').click();
+      await page.locator('.custom-grid').waitFor();
       await button('Sign out').click();
       await login('admin', password);
+      await page.locator('.group').first().waitFor();
       await button('Administration').click();
       await button('Users').click();
       await field('Tile').selectOption({ label: 'Local tools · ' + (serviceFixture ?? origin) });
@@ -311,6 +353,7 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
       await button('Sign out').click();
       await login('reader', password);
       await button('Local tools').waitFor();
+      await page.locator('.custom-grid').waitFor();
       await button('Sign out').click();
       await login('admin', password);
       await button('Administration').click();
@@ -351,7 +394,7 @@ test('administration keeps manual import available when discovery is disabled', 
     });
     assert.equal(setup.status, 200);
     const session = setup.headers.get('set-cookie').split(';')[0].split('=')[1];
-    const browser = await chromium.launch();
+    const browser = await chromium.launch({ executablePath: process.env.NEXUS_UI_CHROMIUM_PATH });
     try {
       const context = await browser.newContext();
       await context.addCookies([{ name: 'nexus_session', value: session, url: origin }]);

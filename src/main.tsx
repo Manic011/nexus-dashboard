@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { ArrowUpRight, Boxes, Globe, LogOut, PanelTop, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
+import { ArrowUpRight, Boxes, Globe, LayoutGrid, LogOut, PanelTop, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import { createRoot } from 'react-dom/client';
 import './style.css';
 import { Administration } from './Administration.js';
 import { openModes, usePreferences, type OpenMode } from './preferences.js';
 import { CategoryPicker } from './CategoryPicker.js';
 import { ServiceDialog } from './ServiceDialog.js';
+import { LayoutEditor } from './LayoutEditor.js';
+import { arrangeTiles, comparePositions, gridPlacement, tileKey, type Position } from './tileLayout.js';
 import { parseTags } from './tags.js';
 
 type Session = { setup: boolean; setupTokenRequired: boolean; username: string | null; role?: 'admin' | 'editor' | 'viewer' | null; shared?: boolean };
@@ -31,6 +33,9 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [sharedLogin, setSharedLogin] = useState(false);
   const [admin, setAdmin] = useState(false);
+  const [editingLayout, setEditingLayout] = useState(false);
+  const [layoutMessage, setLayoutMessage] = useState('');
+  const layoutTrigger = useRef<HTMLButtonElement>(null);
   const [categoryFilter, setCategoryFilter] = useState('');
   const [tagDraft, setTagDraft] = useState('');
   const [tagFilter, setTagFilter] = useState('');
@@ -111,11 +116,39 @@ function App() {
     [tile.title, tile.description, tile.category, tile.url, ...tile.tags]
       .some(value => value.toLowerCase().includes(query.trim().toLowerCase())));
   const groups = Map.groupBy(visible, tile => tile.category.toLowerCase());
+  const customLayout = preferences.value.tileLayout && arrangeTiles(tiles, preferences.value.tileLayout);
+  const customTiles = customLayout && [...visible].sort((a, b) => comparePositions(customLayout.positions[tileKey(a)], customLayout.positions[tileKey(b)]));
+  const filtered = Boolean(activeCategory || activeTag || query.trim());
   const draftTags = parseTags(tagDraft);
   const tagSuggestions = draftTags.length < 12 ? [...tags].filter(([key]) => !draftTags.some(tag => tag.toLowerCase() === key)).slice(0, 6) : [];
   function clearFilters() { setQuery(''); setCategoryFilter(''); setTagFilter(''); }
   const warning = error && <p role="alert" className="error">{error}</p>;
   const brand = <span className="brand"><span className="mark"><Boxes size={21} /></span>StackJetty</span>;
+
+  function closeLayout() {
+    setEditingLayout(false);
+    layoutTrigger.current?.focus();
+  }
+
+  function renderTile(tile: Tile, position?: Position) {
+    const placement = position && gridPlacement(position);
+    return <article key={tile.id} className="tile app-tile" style={placement && {
+      '--tile-row': placement.gridRow, '--tile-column': placement.gridColumn,
+    } as CSSProperties}>
+      <div className="tile-top"><span className="tile-icon"><Globe size={19} /></span>{session?.role !== 'viewer' && <div className="actions">
+        <button aria-label={'Edit ' + tile.title} onClick={() => { setError(''); setEditing(tile); }}><Pencil size={16} /></button>
+        <button aria-label={'Delete ' + tile.title} onClick={() => { setError(''); setDeleting(tile); }}><Trash2 size={16} /></button>
+      </div>}</div>
+      {openingMode(tile) === 'new-tab'
+        ? <a className="tile-launch" href={tile.url} target="_blank" rel="noopener noreferrer">{tile.title}<ArrowUpRight size={16} aria-hidden="true" /></a>
+        : <button className="tile-launch" aria-haspopup="dialog" onClick={event => { serviceTrigger.current = event.currentTarget; setBrowsing(tile); }}>{tile.title}<PanelTop size={16} aria-hidden="true" /></button>}
+      <p className="muted">{tile.description || new URL(tile.url).host}</p>
+      {tile.tags.length > 0 && <div className="tags">{tile.tags.map(tag => <button key={tag} aria-pressed={activeTag === tag.toLowerCase()} onClick={() => setTagFilter(activeTag === tag.toLowerCase() ? '' : tag.toLowerCase())}>{tag}</button>)}</div>}
+      {jellyfin?.tiles.includes(tile.id) && <p className="muted">{jellyfin.state === 'available'
+        ? `${jellyfin.streams} active ${jellyfin.streams === 1 ? 'stream' : 'streams'}`
+        : 'Jellyfin activity unavailable'}</p>}
+    </article>;
+  }
 
   if (!session?.username) return <main className="auth">
     <section className="auth-card">
@@ -138,7 +171,7 @@ function App() {
   </main>;
 
   return <>
-    <header><div className="shell top">{brand}<div className="account">{session.role === 'admin' && <button onClick={() => setAdmin(value => !value)}>{admin ? 'Dashboard' : 'Administration'}</button>}<span>{session.username}</span><details className="preferences"><summary>Appearance</summary><div className="preferences-panel">
+    <header><div className="shell top">{brand}<div className="account">{session.role === 'admin' && <button onClick={() => { setEditingLayout(false); setAdmin(value => !value); }}>{admin ? 'Dashboard' : 'Administration'}</button>}<span>{session.username}</span><details className="preferences"><summary>Appearance</summary><div className="preferences-panel">
       <label><span>Theme</span><select aria-label="Theme" value={preferences.value.theme} onChange={event => preferences.update({ theme: event.target.value === 'light' ? 'light' : event.target.value === 'dark' ? 'dark' : 'system' })}><option value="system">System</option><option value="dark">Dark</option><option value="light">Light</option></select></label>
       <label><span>Card density</span><select aria-label="Card density" value={preferences.value.density} onChange={event => preferences.update({ density: event.target.value === 'compact' ? 'compact' : 'comfortable' })}><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></label>
       <label><span>Open tiles by default</span><select aria-label="Open tiles by default" value={preferences.value.openMode} onChange={event => {
@@ -151,14 +184,28 @@ function App() {
       setSharedLogin(false);
       setTiles([]);
       setBrowsing(null);
+      setEditingLayout(false);
+      setLayoutMessage('');
       clearFilters();
       setAdmin(false);
     })}><LogOut size={16} /> Sign out</button></div></div></header>
     <main className="shell dashboard">
       {!editing && !deleting && warning}
       {admin ? <><h1>Administration</h1><Administration api={api} onImport={refresh} categories={[...categories.values()]} /></> : <><div className="intro"><div><h1>Applications</h1><p className="muted">Organize and open the services you use.</p></div>
-        {session.role !== 'viewer' && <button className="primary" onClick={() => { setError(''); setEditing('new'); }}><Plus size={19} /> Add tile</button>}
+        <div className="dashboard-actions">
+          <button ref={layoutTrigger} hidden={!tiles.length || tilesLoading} aria-expanded={editingLayout} onClick={() => {
+            setLayoutMessage('');
+            setEditingLayout(value => !value);
+          }}><LayoutGrid size={18} /> Customize layout</button>
+          {session.role !== 'viewer' && !editingLayout && <button className="primary" onClick={() => { setError(''); setEditing('new'); }}><Plus size={19} /> Add tile</button>}
+        </div>
       </div>
+      {editingLayout ? <LayoutEditor tiles={tiles} saved={customLayout} onCancel={closeLayout} onSave={tileLayout => {
+        const persisted = preferences.update({ tileLayout });
+        setLayoutMessage(persisted ? 'Layout saved.' : 'Layout applied for this session. Browser storage is unavailable.');
+        closeLayout();
+      }} /> : <>
+      {layoutMessage && <p className="layout-notice muted" role="status">{layoutMessage}</p>}
       <div className="filters"><label className="search"><Search size={18} /><input type="search" aria-label="Search applications" placeholder="Search applications" value={query} onChange={event => setQuery(event.target.value)} /></label>
         <select aria-label="Filter by category" value={activeCategory} onChange={event => setCategoryFilter(event.target.value)}>
           <option value="">All categories</option>{[...categories].map(([key, label]) => <option key={key} value={key}>{label}</option>)}
@@ -170,23 +217,15 @@ function App() {
       </div>
       {tilesLoading && <p role="status">Loading applications…</p>}
       {!tilesLoading && !error && groups.size === 0 && <section className="empty"><Globe size={28} /><h2>{tiles.length ? 'No matching applications' : 'No applications yet'}</h2><p className="muted">{tiles.length ? 'Try a different search or clear your filters.' : session.role === 'viewer' ? 'Applications will appear here when an editor adds them.' : 'Add a tile to save a link to your first service.'}</p></section>}
-      {[...groups].map(([category, items]) => <section className="group" key={category}>
+      {customTiles && customLayout ? <div className="custom-layout">
+        <div className={filtered ? 'grid' : 'grid custom-grid'} data-columns={customLayout.columns}>
+          {customTiles.map(tile => renderTile(tile, filtered ? undefined : customLayout.positions[tileKey(tile)]))}
+        </div>
+      </div> : [...groups].map(([category, items]) => <section className="group" key={category}>
         <h2>{categories.get(category)} <span className="group-count">{items.length}</span></h2>
-        <div className="grid">{items.map(tile => <article key={tile.id} className="tile app-tile">
-          <div className="tile-top"><span className="tile-icon"><Globe size={19} /></span>{session.role !== 'viewer' && <div className="actions">
-            <button aria-label={'Edit ' + tile.title} onClick={() => { setError(''); setEditing(tile); }}><Pencil size={16} /></button>
-            <button aria-label={'Delete ' + tile.title} onClick={() => { setError(''); setDeleting(tile); }}><Trash2 size={16} /></button>
-          </div>}</div>
-          {openingMode(tile) === 'new-tab'
-            ? <a className="tile-launch" href={tile.url} target="_blank" rel="noopener noreferrer">{tile.title}<ArrowUpRight size={16} aria-hidden="true" /></a>
-            : <button className="tile-launch" aria-haspopup="dialog" onClick={event => { serviceTrigger.current = event.currentTarget; setBrowsing(tile); }}>{tile.title}<PanelTop size={16} aria-hidden="true" /></button>}
-          <p className="muted">{tile.description || new URL(tile.url).host}</p>
-          {tile.tags.length > 0 && <div className="tags">{tile.tags.map(tag => <button key={tag} aria-pressed={activeTag === tag.toLowerCase()} onClick={() => setTagFilter(activeTag === tag.toLowerCase() ? '' : tag.toLowerCase())}>{tag}</button>)}</div>}
-          {jellyfin?.tiles.includes(tile.id) && <p className="muted">{jellyfin.state === 'available'
-            ? `${jellyfin.streams} active ${jellyfin.streams === 1 ? 'stream' : 'streams'}`
-            : 'Jellyfin activity unavailable'}</p>}
-        </article>)}</div>
+        <div className="grid">{items.map(tile => renderTile(tile))}</div>
       </section>)}
+      </>}
     </>}
     </main>
     {browsing && <ServiceDialog title={browsing.title} url={browsing.url} startRemote={openingMode(browsing) === 'kasm'} launchRemote={browsing.remoteBrowser ? launchRemote : undefined} username={session.username === 'shared' ? undefined : session.username} onClose={() => { setBrowsing(null); serviceTrigger.current?.focus(); }} />}

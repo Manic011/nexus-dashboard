@@ -23,7 +23,7 @@ The Ubuntu integration preview has exercised sign-in, tile edits and imports, di
 | Area | Remaining work |
 | --- | --- |
 | Ubuntu installation | The one-command bundle is available for private transfer. Verify a clean-host privileged bootstrap, actual reboot, application upgrade, and release rollback. Dedicated-account service installation and restart pass. |
-| Dashboard experience | Add further layout controls and tile types. Light, dark, and system themes and card density preferences are available. |
+| Dashboard experience | Personal layouts support custom placement, column count, tile widths, and responsive reflow. Themes and card density are available. Further tile types remain planned. |
 | Discovery | Add more discovery sources and optional schedules. |
 | Live integrations | Add supported integrations beyond Jellyfin. |
 | Access | Add multiple dashboards, dashboard-specific permissions and passwords, and richer account management. |

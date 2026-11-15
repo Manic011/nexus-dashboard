@@ -21,7 +21,7 @@ SQLite uses WAL mode and transactional migrations tracked with `PRAGMA user_vers
 
 First-run setup requires a deployment token and creates the administrator. Passwords are salted and hashed using scrypt. Session cookies use HttpOnly and SameSite=Strict, with Secure enabled for HTTPS origins. Session tokens expire after seven days and are stored as SHA-256 digests. Write requests require the configured Origin and the JSON content type. Setup and login share a process-wide throttle of 12 attempts per minute.
 
-Administrators manage accounts and discovery. Editors manage tiles. Viewers and shared-password guests have read-only dashboard access. Removing an account revokes its sessions. Tile permissions apply to access within StackJetty. Linked services enforce their own authentication.
+Administrators manage accounts and discovery. Editors manage tiles. Viewers and shared-password guests can arrange their personal view of the tiles they can access. Personal tile positions and widths are stored in browser appearance preferences keyed by account. The grid is rendered using the tiles returned by the permissions-filtered API. Removing an account revokes its sessions. Tile permissions apply to access within StackJetty. Linked services enforce their own authentication.
 
 ## Discovery and integration
 

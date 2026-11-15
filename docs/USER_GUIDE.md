@@ -13,6 +13,17 @@ Open the exact URL configured by the operator. On a fresh instance, select a use
 
 Select a tile's pencil button to edit it. Select its trash button and confirm to remove it from the dashboard. Use the search field to match names, descriptions, URLs, categories, and tags. Combine search with either filter, or click a tag on a card to filter by that tag. **Clear filters** returns to the complete dashboard.
 
+## Customize the dashboard layout
+
+1. Select **Customize layout** on the Applications page. Choose between one and six columns. Changing the column count repacks tiles in their current order.
+2. Drag a tile to an empty cell, or select the tile and then select its destination. To swap two tiles, drop the first tile onto the second or select them in order. A move or swap needs enough space for both tile widths.
+3. Select a tile to change its width. Use **Add row** to make more room, or leave cells empty to space out groups of tiles.
+4. Choose **Save layout** to apply your changes or **Cancel** to discard them. To return to automatic category sections, choose **Grouped by category** from the **Layout** menu and save.
+
+The custom grid can mix tiles from different categories. Search and filters show a compact list of matching tiles in the saved order. Narrow screens also use the saved order in a responsive grid. New tiles are placed after the last saved tile. A change to a tile's destination URL gives it a fresh position.
+
+Layout preferences are personal, including for viewers. They are saved for the signed-in account in the current browser profile and are cleared with other site data. Server backups do not carry them.
+
 ## Open a service and save its login
 
 Under **Appearance → Open tiles by default**, choose **New browser tab**, **Embedded browser**, or **Kasm remote browser**. StackJetty saves this default for your signed-in account in the current browser. **Embedded browser** is the initial setting.
@@ -43,7 +54,7 @@ Discovery checks mDNS advertisements and common HTTP and HTTPS ports. It can use
 | --- | --- |
 | Administrator | Dashboard editing, discovery, backup import and export, account management, and system information. |
 | Editor | Dashboard viewing and tile creation, editing, and deletion. |
-| Viewer | Read-only dashboard access. |
+| Viewer | Dashboard viewing and personal layout preferences. |
 
 In **Administration → Users**, enter a username, initial password, and role, then select **Create user**. To revoke an editor or viewer's access, select **Remove access** and confirm. Removal also ends that user's current sessions.
 

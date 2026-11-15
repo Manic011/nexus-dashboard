@@ -4,7 +4,7 @@ StackJetty ships with no preconfigured users, dashboards, hostnames, network tar
 
 ## Runtime data
 
-Accounts, password hashes, session digests, tiles, groups, permissions, profiles, history, and configuration snapshots live in the local SQLite state directory. Appearance settings are stored in the current browser. Administrators can inspect their own host information and configured services. Other roles receive only the tiles allowed by their permissions. A tile grant controls StackJetty visibility and does not grant access to the linked service itself.
+Accounts, password hashes, session digests, tiles, groups, permissions, profiles, history, and configuration snapshots live in the local SQLite state directory. Appearance settings and personal tile layouts are stored in the current browser. Layout preferences include tile IDs and destination URLs so StackJetty can match placements to saved tiles. Administrators can inspect their own host information and configured services. Other roles receive only the tiles allowed by their permissions. A tile grant controls StackJetty visibility and does not grant access to the linked service itself.
 
 There is no application analytics or telemetry exporter. Authorized discovery contacts the selected network targets and local multicast services. A configured Jellyfin integration sends its key only to the operator-configured base URL. Opening a tile navigates the user's browser to the configured service. Browser and upstream applications have their own privacy behavior.
 

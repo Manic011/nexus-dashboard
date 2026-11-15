@@ -32,6 +32,8 @@ On Linux CI, install the browser dependencies with the `--with-deps` option. The
 
 The browser suite also checks discovery progress and source labels using controlled responses, restore diffs, individual grants, invalid tile input, and the Jellyfin activity count with a fixture.
 
+The personal layout regression checks drag and keyboard placement, tile width, rejection of a move beyond the grid, persistence on reload, search, mobile reflow, cancel/reset, and separate administrator and viewer layouts. It passed against a disposable Ubuntu instance. The live service was verified to serve the tested frontend assets and report healthy after the update.
+
 ## Ubuntu verification - 2026-11-13
 
 The discovery/import refinement was exercised in the visible in-app browser against a disposable Ubuntu-hosted instance, with a separate state directory from the saved dashboard. The same locally built release was then promoted to the existing port 3000 instance after a SQLite backup. The existing dashboard configuration was preserved.

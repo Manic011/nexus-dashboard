@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Added personal dashboard layouts with drag-and-drop, keyboard and touch placement, adjustable columns, tile widths, and gaps. Layouts are saved per account in the current browser.
+
 - Renamed Nexus Dashboard to StackJetty Dashboard in the app, documentation, and installer bundle. Existing service and storage identifiers are retained for upgrades.
 
 - Added a browser-wide tile opening preference and per-tile overrides for a new tab, the embedded browser, or Kasm. Tile backups and snapshots carry the override.

@@ -8,7 +8,7 @@ This matrix follows sections 1–26 of the master instructions. Partial means th
 | 2. GitHub | Private repository with source history, local Git, CI configuration, changelog and roadmap issues | Routine CI review, milestones, project board, branch protection, repository security settings and release automation |
 | 3. Environment | Local build, verified SSH, native systemd installation, dedicated account and restart checks | Actual reboot checks, HTTPS and optional Compose |
 | 4. Architecture | React, Vite, TypeScript, REST and transactional SQLite migrations | OpenAPI, background jobs, integration adapters, event streams and persistence abstraction |
-| 5. UX | Responsive launcher, first-run account creation and tile forms | Guided onboarding, richer editing, layout controls and full accessibility verification |
+| 5. UX | Responsive launcher, first-run account creation, tile forms, and personal layouts with adjustable columns, spacing, and tile widths | Guided onboarding, richer editing, and full accessibility verification |
 | 6. Tiles | Categorized web links with names and descriptions | Icons, bookmarks and other tile types, metrics, statuses, sizes, ordering and advanced settings |
 | 7. Discovery | Operator-selected source interface, mDNS and web identification, private multi-subnet CIDR/range targets, exclusions, custom ports, profiles, cancellation, comparisons, and reviewed import/update | SSDP, wider service signatures, hostname enrichment, Docker/Proxmox inventory, more import formats, scheduling and notifications |
 | 8. Integrations | Jellyfin active-stream counts | Proxmox, UniFi, Home Assistant, Docker and further adapters, credential management and polling |
