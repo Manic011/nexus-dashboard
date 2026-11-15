@@ -45,7 +45,7 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
         await field('Username').fill(username);
         await field('Password').fill(secret);
         await button('Sign in').click();
-        await page.getByRole('heading', { name: 'Applications' }).waitFor().catch(async error => {
+        await page.getByRole('heading', { name: 'Applications', exact: true }).waitFor().catch(async error => {
           throw new Error('Sign-in failed: ' + (await page.locator('main').innerText()), { cause: error });
         });
       }

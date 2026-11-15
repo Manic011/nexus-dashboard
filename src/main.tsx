@@ -80,7 +80,6 @@ function App() {
       element.showModal();
       if (editing) element.querySelector<HTMLInputElement>('input[name="title"]')?.focus();
     }
-    if (editing) setTagDraft(editing === 'new' ? '' : editing.tags.join(', '));
     if (!editing && !deleting) element.close();
   }, [editing, deleting]);
 
@@ -105,6 +104,12 @@ function App() {
     setEditing(null);
     setDeleting(null);
     setError('');
+  }
+
+  function openTileEditor(tile: Tile | 'new') {
+    setError('');
+    setTagDraft(tile === 'new' ? '' : tile.tags.join(', '));
+    setEditing(tile);
   }
 
   const selected = editing === 'new' ? null : editing;
@@ -144,7 +149,7 @@ function App() {
     } as CSSProperties}>
       <div inert={preview}>
         <div className="tile-top"><span className="tile-icon"><Globe size={19} /></span>{session?.role !== 'viewer' && <div className="actions">
-          <button aria-label={'Edit ' + tile.title} onClick={() => { setError(''); setEditing(tile); }}><Pencil size={16} /></button>
+          <button aria-label={'Edit ' + tile.title} onClick={() => openTileEditor(tile)}><Pencil size={16} /></button>
           <button aria-label={'Delete ' + tile.title} onClick={() => { setError(''); setDeleting(tile); }}><Trash2 size={16} /></button>
         </div>}</div>
         {openingMode(tile) === 'new-tab'
@@ -223,7 +228,7 @@ function App() {
             setLayoutMessage('');
             setEditingLayout(value => !value);
           }}><LayoutGrid size={18} /> Customize layout</button>
-          {session.role !== 'viewer' && !editingLayout && <button className="primary" onClick={() => { setError(''); setEditing('new'); }}><Plus size={19} /> Add tile</button>}
+          {session.role !== 'viewer' && !editingLayout && <button className="primary" onClick={() => openTileEditor('new')}><Plus size={19} /> Add tile</button>}
         </div>
       </div>
       {editingLayout ? <LayoutEditor tiles={tiles} categories={categories} tags={tags} initialCategory={activeCategory} initialTag={activeTag} canEditTiles={session.role === 'admin' || session.role === 'editor'} saving={busy}

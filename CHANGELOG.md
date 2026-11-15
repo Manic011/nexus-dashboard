@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Initialize saved tile tags before opening the editor to prevent an empty field during the first render.
+- Made the browser sign-in test match the Applications heading exactly while dashboard tiles load.
+
 - Category headings, divider lines, and open space in a category section accept tile drops.
 
 - Administrators and editors can move tiles between categories from the layout editor. Saving applies the category changes for everyone.
