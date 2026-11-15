@@ -235,7 +235,7 @@ function App() {
       {!editing && !deleting && warning}
       {page === 'administration' ? <><h1>Administration</h1><Administration api={api} onImport={refresh} categories={[...categories.values()]} /></>
       : page === 'diagnostics' ? <><h1>Diagnostics</h1><Suspense fallback={<p role="status">Loading diagnostics…</p>}>
-        <Diagnostics api={api} serviceLink={(service, label) => serviceLink({ ...service, description: '', tags: [] }, label, 'diagnostic-launch')} />
+        <Diagnostics api={api} username={session.username} serviceLink={(service, label) => serviceLink({ ...service, description: '', tags: [] }, label, 'diagnostic-launch')} />
       </Suspense></> : <><div className="intro"><div><h1>Applications</h1><p className="muted">Organize and open the services you use.</p></div>
         <div className="dashboard-actions">
           <button ref={layoutTrigger} disabled={busy} hidden={!tiles.length || tilesLoading} aria-expanded={editingLayout} onClick={() => {

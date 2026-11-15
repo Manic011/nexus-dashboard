@@ -121,9 +121,9 @@ export function configureSsh(db: DatabaseSync, enabled: boolean, secureTransport
   return {
     closeOwner(owner: string) { for (const [id, session] of sessions) if (session.owner === owner) close(id); },
     close() { clearInterval(timer); for (const id of sessions.keys()) close(id); },
-    async handle(method: string, path: string, input: unknown, owner: string) {
+    async handle(method: string, path: string, input: unknown, owner: string, localTransport = false) {
       if (!path.startsWith('/api/admin/diagnostics/ssh')) return undefined;
-      if (method === 'GET' && path === '/api/admin/diagnostics/ssh') return { enabled, secureTransport, hosts: list() };
+      if (method === 'GET' && path === '/api/admin/diagnostics/ssh') return { enabled, secureTransport: secureTransport || localTransport, hosts: list() };
       if (!enabled) throw new DiagnosticError(403, 'Enable NEXUS_SSH=on in the server environment to use SSH.');
       if (method === 'POST' && path === '/api/admin/diagnostics/ssh/hosts') {
         const host = hostInput.parse(input);
@@ -139,11 +139,14 @@ export function configureSsh(db: DatabaseSync, enabled: boolean, secureTransport
         return {};
       }
       if (path === '/api/admin/diagnostics/ssh/connect' && method === 'POST') {
-        if (!secureTransport) throw new DiagnosticError(403, 'SSH credentials require a dashboard configured for HTTPS or localhost.');
+        if (!secureTransport && !localTransport) throw new DiagnosticError(403, 'SSH credentials require HTTPS or a verified localhost connection.');
         if (connecting.has(owner) || sessions.size + connecting.size >= 8) throw new DiagnosticError(429, 'An SSH connection is already opening or the session limit was reached.');
-        const credentials = z.object({ hostId: z.number().int().positive(), password: z.string().max(4096).optional(),
+        const credentials = z.object({ hostId: z.number().int().positive(), authentication: z.enum(['password', 'private-key']).optional(), password: z.string().max(4096).optional(),
           privateKey: z.string().max(32768).optional(), passphrase: z.string().max(4096).optional() }).parse(input);
-        if (!credentials.password && !credentials.privateKey) throw new DiagnosticError(400, 'Provide a password or private key for this session.');
+        const method = credentials.authentication ?? (credentials.privateKey ? 'private-key' : 'password');
+        if (method === 'password' ? !credentials.password : !credentials.privateKey) {
+          throw new DiagnosticError(400, method === 'password' ? 'Enter the SSH password.' : 'Enter the session private key.');
+        }
         const host = list().find(host => host.id === credentials.hostId);
         if (!host) throw new DiagnosticError(404, 'Machine not found.');
         connecting.add(owner);
@@ -153,9 +156,16 @@ export function configureSsh(db: DatabaseSync, enabled: boolean, secureTransport
           await deadline(new Promise<void>((resolve, reject) => {
             client.once('ready', resolve);
             client.on('error', reject);
+            client.on('keyboard-interactive', (_name, _instructions, _language, prompts, finish) => {
+              const passwordPrompt = prompts.length === 1 && !prompts[0].echo && /^\s*password(?:\s+for\s+[^:]+)?\s*:\s*$/i.test(prompts[0].prompt);
+              finish(method === 'password' && passwordPrompt ? [credentials.password!] : []);
+            });
             client.connect({ host: host.host, port: host.port, username: host.username,
-              password: credentials.password || undefined, privateKey: credentials.privateKey || undefined,
-              passphrase: credentials.passphrase || undefined, readyTimeout: 10_000, keepaliveInterval: 20_000,
+              authHandler: method === 'password' ? ['password', 'keyboard-interactive'] : ['publickey'],
+              tryKeyboard: method === 'password',
+              password: method === 'password' ? credentials.password : undefined,
+              privateKey: method === 'private-key' ? credentials.privateKey : undefined,
+              passphrase: method === 'private-key' ? credentials.passphrase : undefined, readyTimeout: 10_000, keepaliveInterval: 20_000,
               hostVerifier(key: Buffer) {
                 verified = 'SHA256:' + createHash('sha256').update(key).digest('base64').replace(/=+$/, '') === host.fingerprint;
                 return verified;

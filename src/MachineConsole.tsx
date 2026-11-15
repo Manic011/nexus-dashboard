@@ -3,6 +3,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { formatBytes, formatUptime, type DiagnosticApi } from './Diagnostics.js';
+import { VaultForm } from './ServiceDialog.js';
 
 type Host = { id: number; name: string; host: string; port: number; username: string; fingerprint: string };
 type Catalog = { enabled: boolean; secureTransport: boolean; hosts: Host[] };
@@ -71,7 +72,26 @@ function RemoteTerminal({ api, connection }: { api: DiagnosticApi; connection: C
     {error && <p role="alert" className="error">{error}</p>}</>;
 }
 
-export function MachineConsole({ api }: { api: DiagnosticApi }) {
+function sshVaultKey(username: string, id: number) {
+  return 'nexus.ssh.vault.v1:' + username + ':' + id;
+}
+
+function SavedSshPassword({ username, host, connect }: {
+  username: string; host: Host; connect: (password: string) => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const address = 'ssh:' + JSON.stringify([host.host.toLowerCase(), host.port, host.username, host.fingerprint]);
+  return <details className="credential-panel" onToggle={event => setOpen(event.currentTarget.open)}>
+    <summary>Saved SSH password</summary>
+    {open && (window.crypto?.subtle && navigator.locks ? <>
+      <p className="muted">Protect this machine’s password with a vault password. It is encrypted for your account in this browser.</p>
+      <VaultForm username={username} address={address} storageKey={sshVaultKey(username, host.id)} fixedUsername={host.username}
+        onUse={credential => connect(credential.password)} />
+    </> : <p className="muted">Use a current browser with Web Crypto and Web Locks to save SSH passwords.</p>)}
+  </details>;
+}
+
+export function MachineConsole({ api, username }: { api: DiagnosticApi; username: string }) {
   const [catalog, setCatalog] = useState<Catalog>();
   const [hostId, setHostId] = useState('');
   const [connection, setConnection] = useState<Connection>();
@@ -84,6 +104,7 @@ export function MachineConsole({ api }: { api: DiagnosticApi }) {
   const [busy, setBusy] = useState(false);
   const [pendingRemoval, setPendingRemoval] = useState<number>();
   const [shellOpen, setShellOpen] = useState(false);
+  const [authentication, setAuthentication] = useState('password');
   async function load() { setCatalog(await api('admin/diagnostics/ssh')); }
   useEffect(() => { void load().catch(error => setError(error.message)); }, [api]);
   useEffect(() => {
@@ -118,13 +139,18 @@ export function MachineConsole({ api }: { api: DiagnosticApi }) {
     const result = await api<FileListing>('admin/diagnostics/ssh/' + connection!.id + '/files', 'POST', { path });
     setListing(result); setPath(result.path); setFile(undefined);
   }
+  async function connect(credentials: object) {
+    const session = await api<Connection>('admin/diagnostics/ssh/connect', 'POST', { ...credentials, hostId: Number(hostId) });
+    setStats(undefined); setListing(undefined); setShellOpen(false); setMode('stats'); setConnection(session); setPath('.');
+  }
+  const selectedHost = catalog?.hosts.find(host => String(host.id) === hostId);
   const secure = window.isSecureContext && catalog?.secureTransport;
   return <section className="tile machine-console">
     <h2>SSH machines</h2>
-    <p className="muted">Connections use the remote account’s permissions. Credentials are used for the current session. Connections close after ten minutes without activity or one hour total.</p>
+    <p className="muted">Sign in with the remote machine’s username and password, or a private key. Saved passwords are encrypted in this browser. Connections close after ten minutes without activity or one hour total.</p>
     {error && <p role="alert" className="error">{error}</p>}
     {!catalog ? <p>Loading saved machines…</p> : !catalog.enabled ? <p>Enable NEXUS_SSH=on in the server environment to connect machines.</p> : <>
-      {!secure && <p className="error">Open a dashboard configured for HTTPS or localhost to enter SSH credentials.</p>}
+      {!secure && <p className="error">Open StackJetty over HTTPS or through an SSH-encrypted localhost connection to enter SSH credentials.</p>}
       {!connection && <>
         <details><summary>Add SSH machine</summary>
           <p className="muted">Obtain the SHA256 host-key fingerprint from the machine’s trusted console or your administrator. On Linux, use ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub. Use an account with the access you need.</p>
@@ -147,33 +173,41 @@ export function MachineConsole({ api }: { api: DiagnosticApi }) {
         </details>
         <ul className="user-list">{catalog.hosts.map(host => <li key={host.id}>
           <div><strong>{host.name}</strong><br /><small className="muted">{host.username}@{host.host}:{host.port}</small></div>
-          <div className="actions"><button disabled={busy || !secure} onClick={() => { setHostId(String(host.id)); setError(''); }}>Connect to {host.name}</button>
+          <div className="actions"><button disabled={busy || !secure} onClick={() => { setHostId(String(host.id)); setAuthentication('password'); setError(''); }}>Connect to {host.name}</button>
             <button disabled={busy} onClick={() => setPendingRemoval(host.id)}>Remove {host.name}</button></div>
           {pendingRemoval === host.id && <div className="account-confirmation"><p>Remove this saved machine?</p>
             <button disabled={busy} onClick={() => void run(async () => {
-              await api('admin/diagnostics/ssh/hosts/' + host.id, 'DELETE'); setPendingRemoval(undefined); setHostId(''); await load();
+              await api('admin/diagnostics/ssh/hosts/' + host.id, 'DELETE');
+              const key = sshVaultKey(username, host.id);
+              try {
+                if (navigator.locks) await navigator.locks.request(key, () => localStorage.removeItem(key));
+                else localStorage.removeItem(key);
+              } finally { setPendingRemoval(undefined); setHostId(''); await load(); }
             })}>Confirm machine removal</button><button onClick={() => setPendingRemoval(undefined)}>Cancel removal</button></div>}
         </li>)}</ul>
         {!catalog.hosts.length && <p>No saved machines.</p>}
-        {hostId && secure && <form key={hostId} className="machine-form" onSubmit={event => {
+        {selectedHost && secure && <div key={hostId}><form className="machine-form" onSubmit={event => {
           event.preventDefault();
           const form = event.currentTarget;
           const data = Object.fromEntries(new FormData(form));
           void run(async () => {
             try {
-              const session = await api<Connection>('admin/diagnostics/ssh/connect', 'POST', { ...data, hostId: Number(hostId) });
-              setStats(undefined); setListing(undefined); setShellOpen(false); setMode('stats'); setConnection(session); setPath('.');
+              await connect(data);
             } finally { form.reset(); }
           });
         }}>
-          <h3>Connect to {catalog.hosts.find(host => String(host.id) === hostId)?.name}</h3>
-          <label>SSH password<input type="password" name="password" autoComplete="off" maxLength={4096} /></label>
-          <details><summary>Use a private key</summary>
-            <label>Session private key<textarea name="privateKey" rows={4} autoComplete="off" spellCheck={false} maxLength={32768} /></label>
-            <label>Key passphrase<input name="passphrase" type="password" autoComplete="off" maxLength={4096} /></label>
-          </details>
+          <h3>Connect to {selectedHost.name}</h3>
+          <label>Authentication<select aria-label="Authentication" name="authentication" value={authentication} onChange={event => setAuthentication(event.target.value)}>
+            <option value="password">Password</option><option value="private-key">Private key</option>
+          </select></label>
+          {authentication === 'password' ? <label>SSH password<input type="password" name="password" autoComplete="off" maxLength={4096} required /></label>
+            : <><label>Session private key<textarea name="privateKey" rows={4} autoComplete="off" spellCheck={false} maxLength={32768} required /></label>
+              <label>Key passphrase<input name="passphrase" type="password" autoComplete="off" maxLength={4096} /></label></>}
           <button className="primary" disabled={busy}>{busy ? 'Connecting…' : 'Start SSH session'}</button>
-        </form>}
+        </form>
+          <SavedSshPassword username={username} host={selectedHost} connect={password =>
+            run(() => connect({ authentication: 'password', password }))} />
+        </div>}
       </>}
       {connection && <>
         <div className="diagnostic-service-head"><h3>{connection.name}</h3><button disabled={busy} onClick={() => void run(async () => {

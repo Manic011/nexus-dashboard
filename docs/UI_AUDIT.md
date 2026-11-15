@@ -50,6 +50,8 @@ CI run 43683126684 exposed a first-render race in the tile editor’s Tags field
 
 ## Diagnostics verification
 
+The SSH password regression passed locally and against a disposable Ubuntu backend. It verified the default password method, encrypted browser storage, persistence after reload, rejection of an incorrect master password, password removal and replacement, reconnecting with a saved password, Linux statistics, SFTP preview, shell input, and removal of the current browser's saved vault when deleting the machine. The full local browser suite also passed its dashboard and administration flows. All seven API tests passed locally and on Ubuntu, including password/PAM authentication, host-key and session checks, rejection of plain LAN HTTP credentials, and rejection of forwarded-header or missing-origin attempts to use the localhost exception.
+
 The local browser suite exercised uptime checks, enabling and pausing monitoring, host metrics, the network transfer test, machine registration, SSH authentication, Linux statistics, SFTP file listing and preview, terminal input, mobile width, disconnect, and machine removal. The diagnostic browser test also passed against a disposable Ubuntu instance. Its temporary loopback SSH server executed statistics and shell commands on Linux. API tests checked host-key rejection, session isolation, duplicate shell input, viewer denial, and the HTTPS/localhost credential requirement.
 
 The live Ubuntu deployment preserved the saved configuration and now collects observations for its configured services. A visible Chrome check verified host statistics, network test results, and the HTTP credential-entry restriction. Real operator SSH credentials and a public HTTPS tunnel remain deployment-specific checks.

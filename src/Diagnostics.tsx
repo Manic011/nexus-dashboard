@@ -24,7 +24,7 @@ type Summary = {
     dayPercent: number | null; weekPercent: number | null; history: Sample[] })[];
 };
 
-export function Diagnostics({ api, serviceLink }: { api: DiagnosticApi; serviceLink: (service: DiagnosticService, label: string) => ReactNode }) {
+export function Diagnostics({ api, username, serviceLink }: { api: DiagnosticApi; username: string; serviceLink: (service: DiagnosticService, label: string) => ReactNode }) {
   const [tab, setTab] = useState('services');
   const [summary, setSummary] = useState<Summary>();
   const [error, setError] = useState('');
@@ -128,6 +128,6 @@ export function Diagnostics({ api, serviceLink }: { api: DiagnosticApi; serviceL
       {speed && <dl className="metric-grid diagnostic-metrics" role="status"><div><dt>Round trip</dt><dd>{speed.latency.toFixed(1)} ms</dd></div>
         <div><dt>Download</dt><dd>{speed.down.toFixed(1)} Mbps</dd></div><div><dt>Upload</dt><dd>{speed.up.toFixed(1)} Mbps</dd></div></dl>}
     </section>}
-    {tab === 'machines' && <MachineConsole api={api} />}
+    {tab === 'machines' && <MachineConsole api={api} username={username} />}
   </div>;
 }

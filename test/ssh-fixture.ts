@@ -4,7 +4,7 @@ import ssh2 from 'ssh2';
 import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 
-export function createSshFixture(realMachine = false) {
+export function createSshFixture(realMachine = false, authentication: 'password' | 'keyboard-interactive' = 'password') {
   const key = generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' });
   const parsed = ssh2.utils.parseKey(key);
   assert.ok(!Array.isArray(parsed) && !(parsed instanceof Error));
@@ -15,8 +15,13 @@ export function createSshFixture(realMachine = false) {
   sshServer.on('connection', client => {
     client.on('error', () => {});
     client.on('authentication', context => {
-      if (context.method === 'password' && context.username === 'fixture' && context.password === 'fixture-password') context.accept();
-      else context.reject();
+      if (authentication === 'keyboard-interactive' && context.method === 'keyboard-interactive' && context.username === 'fixture') {
+        context.prompt([{ prompt: 'Password: ', echo: false }], answers => {
+          if (answers[0] === 'fixture-password') context.accept();
+          else context.reject();
+        });
+      } else if (authentication === 'password' && context.method === 'password' && context.username === 'fixture' && context.password === 'fixture-password') context.accept();
+      else context.reject([authentication]);
     });
     client.on('ready', () => client.on('session', accept => {
       const session = accept();

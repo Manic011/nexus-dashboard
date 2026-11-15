@@ -8,7 +8,7 @@ Accounts, password hashes, session digests, tiles, groups, permissions, profiles
 
 There is no application analytics or telemetry exporter. Authorized discovery contacts the selected network targets and local multicast services. A configured Jellyfin integration sends its key only to the operator-configured base URL. Opening a tile navigates the user's browser to the configured service. Browser and upstream applications have their own privacy behavior.
 
-Opt-in monitoring contacts saved tile URLs and records sampled availability for seven days. SSH machine records contain hostnames, usernames, ports, and trusted fingerprints. SSH credentials and terminal output stay in memory for the active connection. The file browser displays data retrieved from the chosen remote account. These features are restricted to administrators. Full-database backups contain monitoring history and machine metadata.
+Opt-in monitoring contacts saved tile URLs and records sampled availability for seven days. SSH machine records contain hostnames, usernames, ports, and trusted fingerprints. Optional SSH passwords are encrypted with a master password and saved in the current browser, scoped to the account and machine. The server uses credentials in memory for the active connection. The file browser displays data retrieved from the chosen remote account. These features are restricted to administrators. Full-database backups contain monitoring history and machine metadata.
 
 ## Backups and logs
 

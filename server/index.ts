@@ -149,6 +149,14 @@ export function createApp(data: string, dist: string, origin: string, setupToken
     try {
       const path = new URL(req.url ?? '/', origin).pathname;
       const method = req.method;
+      const requestHost = URL.parse('http://' + (req.headers.host ?? ''));
+      const loopbackOrigin = requestHost && requestHost.host === req.headers.host &&
+        ['127.0.0.1', 'localhost', '[::1]'].includes(requestHost.hostname) &&
+        ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress ?? '') &&
+        ['forwarded', 'x-forwarded-for', 'x-forwarded-host', 'x-forwarded-proto'].every(header => req.headers[header] === undefined)
+        ? requestHost.origin : undefined;
+      const localTransport = Boolean(loopbackOrigin && (!req.headers.origin || req.headers.origin === loopbackOrigin));
+      const allowedOrigin = req.headers.origin === origin || Boolean(loopbackOrigin && req.headers.origin === loopbackOrigin);
       if (method === 'GET' && path === '/healthz') {
         db.prepare('SELECT 1').get();
         return send(200, { status: 'ok' });
@@ -167,7 +175,7 @@ export function createApp(data: string, dist: string, origin: string, setupToken
         }
         return;
       }
-      if (method !== 'GET' && (req.headers.origin !== origin || req.headers['content-type']?.split(';')[0] !== 'application/json')) {
+      if (method !== 'GET' && (!allowedOrigin || req.headers['content-type']?.split(';')[0] !== 'application/json')) {
         throw new RequestError(403, 'Request origin or content type is invalid.');
       }
       const token = req.headers.cookie?.match(/(?:^|; *)nexus_session=([a-f0-9]{64})(?:;|$)/)?.[1];
@@ -244,7 +252,7 @@ export function createApp(data: string, dist: string, origin: string, setupToken
           }
           const input = method === 'GET' || method === 'DELETE' ? undefined : await body(req, 65536);
           const result = path.startsWith('/api/admin/diagnostics/ssh')
-            ? await ssh.handle(method!, path, input, digest(token))
+            ? await ssh.handle(method!, path, input, digest(token), localTransport)
             : await diagnostics.handle(method!, path, input);
           if (result === undefined) return send(404, { error: 'Diagnostic endpoint not found.' });
           return send(200, result);

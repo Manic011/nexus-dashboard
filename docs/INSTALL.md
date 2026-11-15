@@ -239,4 +239,4 @@ Protect and back up `/etc/nexus-dashboard/nexus.env` separately. Never place dat
 
 ## Optional SSH diagnostics
 
-Set `NEXUS_SSH=on` in the protected environment file to allow administrator SSH sessions. Configure `NEXUS_ORIGIN` for trusted HTTPS access before entering remote credentials. Restart `nexus-dashboard.service` after changing the environment file. Upgrades must synchronize the complete production dependency set, including `ssh2`, and all built UI assets. [Diagnostics and SSH setup](DIAGNOSTICS.md)
+Set `NEXUS_SSH=on` in the protected environment file to allow administrator SSH sessions. Use trusted HTTPS access or a direct loopback connection through an authenticated SSH tunnel for remote credentials. Restart `nexus-dashboard.service` after changing the environment file. Upgrades must synchronize the complete production dependency set, including `ssh2`, and all built UI assets. [Diagnostics and SSH setup](DIAGNOSTICS.md)

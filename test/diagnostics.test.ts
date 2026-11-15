@@ -13,6 +13,7 @@ test('diagnostic monitoring and SSH sessions enforce access, fingerprints and ow
   const previousSsh = process.env.NEXUS_SSH;
   process.env.NEXUS_SSH = 'on';
   const { server: sshServer, fingerprint, received, input } = createSshFixture();
+  const keyboard = createSshFixture(false, 'keyboard-interactive');
   const service = createServer((_req, res) => { res.writeHead(401); res.end(); });
   const origin = 'http://127.0.0.1';
   const app = createApp(directory, 'dist', origin, 'fixture-token');
@@ -24,6 +25,7 @@ test('diagnostic monitoring and SSH sessions enforce access, fingerprints and ow
   }
   try {
     sshServer.listen(0, '127.0.0.1'); await once(sshServer, 'listening');
+    keyboard.server.listen(0, '127.0.0.1'); await once(keyboard.server, 'listening');
     service.listen(0, '127.0.0.1'); await once(service, 'listening');
     app.listen(0, '127.0.0.1'); await once(app, 'listening');
     const binding = app.address(); assert.ok(binding && typeof binding !== 'string');
@@ -46,6 +48,16 @@ test('diagnostic monitoring and SSH sessions enforce access, fingerprints and ow
     const saved = await (await request('admin/diagnostics/ssh/hosts', 'POST', host)).json();
     const wrong = await (await request('admin/diagnostics/ssh/hosts', 'POST', { ...host, fingerprint: 'SHA256:' + 'A'.repeat(43) })).json();
     assert.equal((await request('admin/diagnostics/ssh/connect', 'POST', { hostId: wrong.id, password: 'fixture-password' })).status, 502);
+    assert.equal((await request('admin/diagnostics/ssh/connect', 'POST', { hostId: saved.id, authentication: 'password', password: 'incorrect' })).status, 502);
+    const keyboardAddress = keyboard.server.address(); assert.ok(keyboardAddress && typeof keyboardAddress !== 'string');
+    const keyboardHost = await (await request('admin/diagnostics/ssh/hosts', 'POST', {
+      ...host, name: 'PAM fixture', port: keyboardAddress.port, fingerprint: keyboard.fingerprint,
+    })).json();
+    const keyboardConnection = await request('admin/diagnostics/ssh/connect', 'POST', {
+      hostId: keyboardHost.id, authentication: 'password', password: 'fixture-password',
+    });
+    assert.equal(keyboardConnection.status, 200);
+    await request('admin/diagnostics/ssh/' + (await keyboardConnection.json()).id, 'DELETE');
     const connected = await request('admin/diagnostics/ssh/connect', 'POST', { hostId: saved.id, password: 'fixture-password' });
     assert.equal(connected.status, 200);
     const connection = await connected.json();
@@ -83,7 +95,7 @@ test('diagnostic monitoring and SSH sessions enforce access, fingerprints and ow
   } finally {
     if (previousSsh === undefined) delete process.env.NEXUS_SSH; else process.env.NEXUS_SSH = previousSsh;
     const closed = once(app, 'close'); app.close(); app.closeAllConnections(); await closed;
-    sshServer.close(); service.close(); service.closeAllConnections();
+    sshServer.close(); keyboard.server.close(); service.close(); service.closeAllConnections();
     rmSync(directory, { recursive: true, force: true });
   }
 });
@@ -106,6 +118,22 @@ test('SSH credential entry is rejected for plain HTTP LAN origins', async () => 
       method: 'POST', headers: { ...headers, cookie }, body: JSON.stringify({ hostId: 1, password: 'fixture-password' }),
     });
     assert.equal(response.status, 403);
+    const localOrigin = new URL(root).origin;
+    const catalog = await fetch(root + 'admin/diagnostics/ssh', { headers: { cookie } });
+    assert.equal((await catalog.json()).secureTransport, true);
+    const attempted = { hostId: 1, authentication: 'password', password: 'fixture-password' };
+    const local = await fetch(root + 'admin/diagnostics/ssh/connect', {
+      method: 'POST', headers: { ...headers, origin: localOrigin, cookie }, body: JSON.stringify(attempted),
+    });
+    assert.equal(local.status, 404);
+    const proxy = await fetch(root + 'admin/diagnostics/ssh/connect', {
+      method: 'POST', headers: { ...headers, origin: localOrigin, cookie, 'X-Forwarded-For': '192.0.2.1' }, body: JSON.stringify(attempted),
+    });
+    assert.equal(proxy.status, 403);
+    const missingOrigin = await fetch(root + 'admin/diagnostics/ssh/connect', {
+      method: 'POST', headers: { cookie, 'Content-Type': 'application/json' }, body: JSON.stringify(attempted),
+    });
+    assert.equal(missingOrigin.status, 403);
   } finally {
     if (previousSsh === undefined) delete process.env.NEXUS_SSH; else process.env.NEXUS_SSH = previousSsh;
     const closed = once(app, 'close'); app.close(); app.closeAllConnections(); await closed;

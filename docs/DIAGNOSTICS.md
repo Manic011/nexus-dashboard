@@ -32,7 +32,19 @@ SSH support is disabled by default. Set this in the protected server environment
 NEXUS_SSH=on
 ```
 
-The browser and configured `NEXUS_ORIGIN` must use HTTPS or localhost before SSH credentials can be entered. Use the installation guide to configure the origin and trusted HTTPS access. The SSH connector runs from the StackJetty server, so that server needs network access to the target SSH port. The machine's SSH service and authentication must already be configured.
+Use trusted HTTPS access or a localhost connection before entering SSH credentials. The SSH connector runs from the StackJetty server, so that server needs network access to the target SSH port. The machine's SSH service and authentication must already be configured.
+
+### Private access through an SSH tunnel
+
+From your workstation shell, use your existing trusted SSH configuration to forward a loopback port to StackJetty:
+
+```sh
+ssh -N -o BatchMode=yes -o StrictHostKeyChecking=yes -o ExitOnForwardFailure=yes -L 127.0.0.1:3443:127.0.0.1:3000 USER@SERVER
+```
+
+Open [http://127.0.0.1:3443](http://127.0.0.1:3443) in the workstation browser and sign in with your dashboard account. Keep the SSH connection running while using that address. The tunnel encrypts traffic between the workstation and Ubuntu. Browser access to loopback also makes Web Crypto available for password storage.
+
+StackJetty accepts this alternate origin only for a direct loopback connection with a literal localhost Host header and no forwarding headers. Write requests must match that loopback origin exactly. Normal network access continues to use the configured origin.
 
 ### Register a machine
 
@@ -45,11 +57,19 @@ ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
 ```
 
 4. Select **Save machine**. StackJetty stores connection metadata in its protected database.
-5. Select **Connect to** for that machine, enter its SSH password or session private key and optional passphrase, and choose **Start SSH session**.
+5. Select **Connect to** for that machine. **Password** is selected by default. Enter the remote account's password and choose **Start SSH session**. Choose **Private key** to use a session key and optional passphrase.
 
 The host-key fingerprint must match the key negotiated for the connection. A mismatch rejects the connection. If the server presents another legitimate host-key algorithm, obtain that algorithm's fingerprint through a trusted channel. Replace a saved entry when its host or trusted key changes.
 
-Passwords and private keys are used in server memory for the active connection. They are excluded from saved machine records, browser preferences, logs, and backups. Reconnecting requires entering credentials again. Saved host metadata, including hostnames and usernames, is included in a full-database backup and should be protected with the rest of the database.
+SSH password authentication supports the SSH password method and a single non-echo PAM password prompt. The fingerprint verifies server identity before authentication.
+
+### Save an encrypted SSH password
+
+Open **Saved SSH password** for a selected machine. Create a vault with a master password of at least 16 characters, enter **SSH password to save**, and select **Save SSH password**. Later, unlock that vault and choose **Connect with saved password**. **Remove saved password** clears the entry, and **Lock vault** closes it immediately. The vault also locks after two minutes or when its panel closes.
+
+Each saved machine has an encrypted vault scoped to your dashboard username in the current browser profile and origin. The vault uses AES-256-GCM with a random salt and fresh IV on every write. PBKDF2-SHA-256 derives the key from the master password using 600,000 iterations. Web Locks and a saved-ciphertext comparison protect concurrent writes. The master password stays in the browser. The encrypted entry is bound to the hostname, port, SSH username, and trusted host fingerprint.
+
+Passwords and private keys are used in server memory during authentication and the active connection. Optional saved passwords live as ciphertext in browser storage. Saved machine records and full-database backups carry host metadata, including hostnames and usernames. Protect those backups. The password vault is browser-local, so use the same browser profile and dashboard address to unlock it. Clearing site data removes saved vaults. Keep the master password available because vault recovery is unavailable. Removing a saved machine clears its vault from the current browser.
 
 ### Machine statistics
 
@@ -70,7 +90,7 @@ The browser uses authenticated same-origin requests to send input and poll outpu
 ## Troubleshooting
 
 - **SSH disabled** — set `NEXUS_SSH=on` and restart the service.
-- **HTTPS or localhost required** — configure a trusted HTTPS origin and open that address.
+- **HTTPS or localhost required** — open the trusted HTTPS address or use the workstation SSH tunnel above.
 - **Host-key verification failed** — verify the machine address and trusted fingerprint through a separate trusted channel.
 - **Authentication failed** — check the remote account, authentication method, key format, and passphrase. The connector supports SSH2 password authentication and private keys in formats accepted by ssh2.
 - **Statistics unavailable** — check that the target runs Linux and exposes procfs and the required utilities. File browsing and the shell can still be used when their SSH subsystems are available.

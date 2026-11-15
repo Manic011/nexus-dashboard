@@ -74,7 +74,7 @@ To merge an export into the dashboard, use **Preview a backup**, select entries,
 
 ## Jellyfin and system information
 
-Administrators can open **Diagnostics** from the main header for service availability, dashboard host metrics, a browser-to-server network test, and SSH machines. Select a service name or URL to follow that tile's opening preference. Enable monitoring to start collecting uptime history. SSH requires operator enablement, a trusted host-key fingerprint, and an HTTPS or localhost dashboard. [Diagnostics and SSH guide](DIAGNOSTICS.md)
+Administrators can open **Diagnostics** from the main header for service availability, dashboard host metrics, a browser-to-server network test, and SSH machines. Select a service name or URL to follow that tile's opening preference. Enable monitoring to start collecting uptime history. SSH requires operator enablement, a trusted host-key fingerprint, and an HTTPS or localhost dashboard. Password authentication is the default; private keys remain available. **Saved SSH password** offers a master-password-encrypted vault in the current browser. For private access before HTTPS is configured, follow the workstation SSH tunnel instructions in the [diagnostics and SSH guide](DIAGNOSTICS.md).
 
 When the operator configures Jellyfin, a tile with the matching base URL displays the aggregate active stream count. **Jellyfin activity unavailable** means StackJetty could not fetch a usable response. Administrators can view the Node.js version, platform, database schema version, and tile count under **Administration → System**. [Jellyfin setup](INSTALL.md#jellyfin-activity)
 

@@ -15,6 +15,8 @@ The Node.js November 2026 release includes fixes in bundled HTTP parsing, SQLite
 
 ## Application review
 
+- Saved SSH passwords use browser-side authenticated encryption with a master password, per-machine storage keys, destination binding, automatic locking, and concurrency checks. SSH password and single-prompt PAM authentication retain trusted host-key verification. A localhost alias is permitted only for direct loopback peers with a matching Host and write Origin, and with forwarding headers absent. Missing or foreign write origins remain rejected.
+
 - Diagnostics APIs are administrator-only and retain the existing session, Origin, and JSON checks. SSH is disabled by default and requires HTTPS or localhost for credentials, a trusted host-key fingerprint, and explicit authentication. Each connection is bound to the initiating session, expires, and is closed on logout. Remote statistics use a fixed command, SFTP paths are passed through the protocol, and shell input uses sequence numbers. Shell access carries the remote account's authority and should be enabled only for trusted administrators. Monitoring contacts saved tile URLs with bounded concurrency and does not follow redirects.
 
 - Reviewed SQLite statements and request parsing. Queries that use request values bind parameters. Tile URLs are limited to HTTP or HTTPS and reject embedded credentials. React renders names, descriptions, service evidence, and tags as text. The content security policy restricts resource loading, framing, and plugin objects.

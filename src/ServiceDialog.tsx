@@ -91,9 +91,16 @@ function CredentialPanel({ username, address }: { username: string; address: str
   </details>;
 }
 
-function VaultForm({ username, address }: { username: string; address: string }) {
-  const key = 'nexus.vault.v1:' + username;
-  const [sealed, setSealed] = useState(() => localStorage.getItem(key));
+export function VaultForm({ username, address, storageKey, fixedUsername, onUse }: {
+  username: string; address: string; storageKey?: string; fixedUsername?: string;
+  onUse?: (credential: { username: string; password: string }) => Promise<void>;
+}) {
+  const key = storageKey ?? 'nexus.vault.v1:' + username;
+  const [storage] = useState(() => {
+    try { return { available: true, sealed: localStorage.getItem(key) }; }
+    catch { return { available: false, sealed: null }; }
+  });
+  const [sealed, setSealed] = useState(storage.sealed);
   const [vault, setVault] = useState<Awaited<ReturnType<typeof unlockVault>>>();
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
@@ -160,27 +167,30 @@ function VaultForm({ username, address }: { username: string; address: string })
     const envelope = await vault.seal(entries);
     await write(envelope);
     setVault(current => current && { ...current, entries });
-    setStatus(next ? 'Login saved.' : 'Login removed.');
+    setStatus(fixedUsername ? next ? 'SSH password saved.' : 'SSH password removed.' : next ? 'Login saved.' : 'Login removed.');
   }
+
+  if (!storage.available) return <p className="muted">Browser storage is unavailable. Enable site storage to use the encrypted vault.</p>;
 
   return <>
     {vault ? <form className="vault-form" key={address + String(!!saved)} onSubmit={event => {
       event.preventDefault();
       const data = new FormData(event.currentTarget);
-      void run(() => save({ username: String(data.get('username')), password: String(data.get('password')) }));
+      void run(() => save({ username: fixedUsername ?? String(data.get('username')), password: String(data.get('password')) }));
     }} autoComplete="off">
-      <label>Service username<input name="username" defaultValue={saved?.username} maxLength={512} disabled={busy} /></label>
-      <label>Service password<input name="password" type="password" defaultValue={saved?.password} maxLength={2048} required disabled={busy} /></label>
+      <label>{fixedUsername ? 'Saved SSH username' : 'Service username'}<input name="username" defaultValue={fixedUsername ?? saved?.username} readOnly={!!fixedUsername} maxLength={512} disabled={busy} /></label>
+      <label>{fixedUsername ? 'SSH password to save' : 'Service password'}<input name="password" type="password" defaultValue={saved?.password} maxLength={fixedUsername ? 4096 : 2048} required disabled={busy} /></label>
       <div className="service-actions">
-        <button type="submit" disabled={busy}>Save login</button>
+        <button type="submit" disabled={busy}>{fixedUsername ? 'Save SSH password' : 'Save login'}</button>
+        {saved && onUse && <button type="button" disabled={busy} onClick={() => void run(() => onUse(saved))}>Connect with saved password</button>}
         {saved && <>
-          <button type="button" disabled={busy} onClick={() => void run(async () => {
+          {!fixedUsername && <><button type="button" disabled={busy} onClick={() => void run(async () => {
             await navigator.clipboard.writeText(saved.username); setStatus('Username copied.');
           })}>Copy username</button>
           <button type="button" disabled={busy} onClick={() => void run(async () => {
             await navigator.clipboard.writeText(saved.password); setStatus('Password copied.');
-          })}>Copy password</button>
-          <button type="button" disabled={busy} onClick={() => void run(() => save())}>Remove login</button>
+          })}>Copy password</button></>}
+          <button type="button" disabled={busy} onClick={() => void run(() => save())}>{fixedUsername ? 'Remove saved password' : 'Remove login'}</button>
         </>}
         <button type="button" disabled={busy} onClick={() => { setVault(undefined); setStatus('Vault locked.'); }}>Lock vault</button>
       </div>
