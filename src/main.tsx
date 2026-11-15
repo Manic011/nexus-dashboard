@@ -1,16 +1,16 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Boxes, Globe, LogOut, PanelTop, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { ArrowUpRight, Boxes, Globe, LogOut, PanelTop, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import { createRoot } from 'react-dom/client';
 import './style.css';
 import { Administration } from './Administration.js';
-import { usePreferences } from './preferences.js';
+import { openModes, usePreferences, type OpenMode } from './preferences.js';
 import { CategoryPicker } from './CategoryPicker.js';
 import { ServiceDialog } from './ServiceDialog.js';
 import { parseTags } from './tags.js';
 
 type Session = { setup: boolean; setupTokenRequired: boolean; username: string | null; role?: 'admin' | 'editor' | 'viewer' | null; shared?: boolean };
 type Jellyfin = { tiles: number[]; state?: 'available' | 'unavailable'; streams?: number };
-type Tile = { id: number; title: string; description: string; url: string; category: string; tags: string[]; remoteBrowser?: boolean };
+type Tile = { id: number; title: string; description: string; url: string; category: string; tags: string[]; openMode?: OpenMode | 'default'; remoteBrowser?: boolean };
 
 async function api<T>(path: string, method = 'GET', body?: object): Promise<T> {
   const result = await fetch('/api/' + path, method === 'GET' ? {} : {
@@ -38,6 +38,11 @@ function App() {
   const [editing, setEditing] = useState<Tile | 'new' | null>(null);
   const [browsing, setBrowsing] = useState<Tile | null>(null);
   const serviceTrigger = useRef<HTMLButtonElement>(null);
+  const browsingId = browsing?.id;
+  const launchRemote = useCallback(() => api<{ url: string }>('admin/remote-browser/' + browsingId), [browsingId]);
+  function openingMode(tile: Tile) {
+    return tile.openMode && tile.openMode !== 'default' ? tile.openMode : preferences.value.openMode;
+  }
   const [deleting, setDeleting] = useState<Tile | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
 
@@ -136,6 +141,10 @@ function App() {
     <header><div className="shell top">{brand}<div className="account">{session.role === 'admin' && <button onClick={() => setAdmin(value => !value)}>{admin ? 'Dashboard' : 'Administration'}</button>}<span>{session.username}</span><details className="preferences"><summary>Appearance</summary><div className="preferences-panel">
       <label><span>Theme</span><select aria-label="Theme" value={preferences.value.theme} onChange={event => preferences.update({ theme: event.target.value === 'light' ? 'light' : event.target.value === 'dark' ? 'dark' : 'system' })}><option value="system">System</option><option value="dark">Dark</option><option value="light">Light</option></select></label>
       <label><span>Card density</span><select aria-label="Card density" value={preferences.value.density} onChange={event => preferences.update({ density: event.target.value === 'compact' ? 'compact' : 'comfortable' })}><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></label>
+      <label><span>Open tiles by default</span><select aria-label="Open tiles by default" value={preferences.value.openMode} onChange={event => {
+        const mode = openModes.find(item => item.value === event.target.value);
+        if (mode) preferences.update({ openMode: mode.value });
+      }}>{openModes.map(mode => <option key={mode.value} value={mode.value}>{mode.label}</option>)}</select></label>
     </div></details><button disabled={busy} onClick={() => void action(async () => {
       await api('logout', 'POST');
       setSession(await api<Session>('session'));
@@ -168,7 +177,9 @@ function App() {
             <button aria-label={'Edit ' + tile.title} onClick={() => { setError(''); setEditing(tile); }}><Pencil size={16} /></button>
             <button aria-label={'Delete ' + tile.title} onClick={() => { setError(''); setDeleting(tile); }}><Trash2 size={16} /></button>
           </div>}</div>
-          <button className="tile-launch" aria-haspopup="dialog" onClick={event => { serviceTrigger.current = event.currentTarget; setBrowsing(tile); }}>{tile.title}<PanelTop size={16} aria-hidden="true" /></button>
+          {openingMode(tile) === 'new-tab'
+            ? <a className="tile-launch" href={tile.url} target="_blank" rel="noopener noreferrer">{tile.title}<ArrowUpRight size={16} aria-hidden="true" /></a>
+            : <button className="tile-launch" aria-haspopup="dialog" onClick={event => { serviceTrigger.current = event.currentTarget; setBrowsing(tile); }}>{tile.title}<PanelTop size={16} aria-hidden="true" /></button>}
           <p className="muted">{tile.description || new URL(tile.url).host}</p>
           {tile.tags.length > 0 && <div className="tags">{tile.tags.map(tag => <button key={tag} aria-pressed={activeTag === tag.toLowerCase()} onClick={() => setTagFilter(activeTag === tag.toLowerCase() ? '' : tag.toLowerCase())}>{tag}</button>)}</div>}
           {jellyfin?.tiles.includes(tile.id) && <p className="muted">{jellyfin.state === 'available'
@@ -178,7 +189,7 @@ function App() {
       </section>)}
     </>}
     </main>
-    {browsing && <ServiceDialog title={browsing.title} url={browsing.url} launchRemote={browsing.remoteBrowser ? () => api<{ url: string }>('admin/remote-browser/' + browsing.id) : undefined} username={session.username === 'shared' ? undefined : session.username} onClose={() => { setBrowsing(null); serviceTrigger.current?.focus(); }} />}
+    {browsing && <ServiceDialog title={browsing.title} url={browsing.url} startRemote={openingMode(browsing) === 'kasm'} launchRemote={browsing.remoteBrowser ? launchRemote : undefined} username={session.username === 'shared' ? undefined : session.username} onClose={() => { setBrowsing(null); serviceTrigger.current?.focus(); }} />}
     <dialog ref={dialog} aria-labelledby="dialog-title" onCancel={event => { event.preventDefault(); if (!busy) closeDialog(); }}>
       {(editing || deleting) && <>
         <div className="dialog-head"><h2 id="dialog-title">{deleting ? 'Delete tile' : selected ? 'Edit tile' : 'Add tile'}</h2><button aria-label="Close" disabled={busy} onClick={closeDialog}><X size={19} /></button></div>
@@ -195,6 +206,10 @@ function App() {
         })}>
           <label>Name<input name="title" autoFocus autoComplete="off" defaultValue={selected?.title} maxLength={80} required /></label>
           <label>URL<input name="url" type="url" autoComplete="off" spellCheck={false} placeholder="https://example.com" defaultValue={selected?.url} maxLength={2048} required /></label>
+          <label>Open this tile<select name="openMode" aria-label="Open this tile" defaultValue={selected?.openMode ?? 'default'}>
+            <option value="default">Use my default</option>
+            {openModes.map(mode => <option key={mode.value} value={mode.value}>{mode.label}</option>)}
+          </select></label>
           <CategoryPicker categories={[...categories.values()]} initial={selected?.category ?? 'General'} />
           <label>Tags <small className="muted">Use up to 12 comma-separated tags.</small><input name="tags" value={tagDraft} onChange={event => setTagDraft(event.target.value)} placeholder="Media, family" maxLength={420} /></label>
           {tagSuggestions.length > 0 && <div className="tags tag-suggestions" aria-label="Existing tags">{tagSuggestions.map(([key, tag]) => <button type="button" key={key} onClick={() => setTagDraft([...draftTags, tag].join(', '))}>+ {tag}</button>)}</div>}

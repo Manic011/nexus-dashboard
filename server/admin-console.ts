@@ -131,8 +131,8 @@ export function configureAdministration(db: DatabaseSync) {
         const row = db.prepare('SELECT label FROM admin_records WHERE kind=? AND id=?').get('backup', id);
         const previous = snapshot('Before restoring ' + String(row?.label));
         db.exec('DELETE FROM tile_access; DELETE FROM tiles; DELETE FROM access_groups');
-        const tile = db.prepare('INSERT INTO tiles(id,title,description,url,category,tags) VALUES (?,?,?,?,?,?)');
-        for (const row of target.tiles) tile.run(row.id, row.title, row.description, row.url, row.category, row.tags);
+        const tile = db.prepare('INSERT INTO tiles(id,title,description,url,category,tags,open_mode) VALUES (?,?,?,?,?,?,?)');
+        for (const row of target.tiles) tile.run(row.id, row.title, row.description, row.url, row.category, row.tags, row.open_mode ?? 'default');
         const group = db.prepare('INSERT INTO access_groups(id,name,members) VALUES (?,?,?)');
         for (const row of target.groups) group.run(row.id, row.name, row.members);
         const access = db.prepare('INSERT INTO tile_access VALUES (?,?)');

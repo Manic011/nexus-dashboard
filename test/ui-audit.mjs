@@ -156,8 +156,35 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
       await page.getByText('Appearance', { exact: true }).click();
       await field('Theme').selectOption('light');
       await field('Card density').selectOption('compact');
+      await field('Open tiles by default').selectOption('new-tab');
+      await page.getByText('Appearance', { exact: true }).click();
+      const externalTile = page.getByRole('link', { name: 'Local tools' });
+      assert.equal(await externalTile.getAttribute('target'), '_blank');
+      await button('Edit Local tools').click();
+      await field('Open this tile').selectOption('embedded');
+      await button('Save tile').click();
+      await button('Local tools').waitFor();
       await page.reload();
       await page.locator('html[data-theme=light][data-density=compact]').waitFor();
+      await button('Local tools').waitFor();
+      await page.getByRole('link', { name: 'Other app' }).waitFor();
+      await button('Edit Local tools').click();
+      await field('Open this tile').selectOption('kasm');
+      await button('Save tile').click();
+      await dialog.waitFor({ state: 'hidden' });
+      if (!remote) {
+        await page.route(provider, route => route.fulfill({ contentType: 'text/html', body: '<h1>Workspace session</h1>' }));
+        await button('Local tools').click();
+        await dialog.frameLocator('iframe[title="Local tools remote browser"]').getByRole('heading', { name: 'Workspace session' }).waitFor();
+        await button('Close service view').click();
+      }
+      await button('Edit Local tools').click();
+      await field('Open this tile').selectOption('default');
+      await button('Save tile').click();
+      await dialog.waitFor({ state: 'hidden' });
+      await page.getByText('Appearance', { exact: true }).click();
+      await field('Open tiles by default').selectOption('embedded');
+      await page.getByText('Appearance', { exact: true }).click();
 
       await button('Administration').click();
       await page.getByRole('heading', { name: 'Find services on your network' }).waitFor();

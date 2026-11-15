@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Added a browser-wide tile opening preference and per-tile overrides for a new tab, the embedded browser, or Kasm. Tile backups and snapshots carry the override.
+
 - Added an optional Kasm remote browser action for administrators. The remote browser opens the saved tile inside Nexus.
 
 - Expanded the embedded service view and restored service-origin cookie and storage access for apps such as Proxmox. Nexus continues to reject framing of its own pages.

@@ -9,13 +9,17 @@ Open the exact URL configured by the operator. On a fresh instance, select a use
 1. Select **Add tile** and enter a name and an HTTP or HTTPS URL. Include a custom port or path when the service needs one.
 2. Choose an existing category from the dropdown or select **Create a category…** and enter its name. Categories group cards on the dashboard. Category filters and grouping are case-insensitive.
 3. Optionally add a description and up to 12 comma-separated tags. Each tag can have up to 32 characters. Nexus treats tag names that differ only in capitalization as duplicates on a tile.
-4. Select **Save tile**. The tile title opens the service inside Nexus.
+4. Select **Save tile**. The tile title opens the service using the tile’s opening mode or your default.
 
 Select a tile's pencil button to edit it. Select its trash button and confirm to remove it from the dashboard. Use the search field to match names, descriptions, URLs, categories, and tags. Combine search with either filter, or click a tag on a card to filter by that tag. **Clear filters** returns to the complete dashboard.
 
 ## Open a service and save its login
 
-Select the tile title to open its service in Nexus. Close the view or press **Escape** to return to your dashboard and filters. Your browser needs network access to the service URL. On an HTTPS dashboard, the service must use HTTPS. Embedded services can use their own cookies and site storage, subject to your browser settings. If a service forbids framing, the service administrator must explicitly allow the Nexus origin using that service’s supported configuration. Use **Page not displaying?** for checks you can make from the service view.
+Under **Appearance → Open tiles by default**, choose **New browser tab**, **Embedded browser**, or **Kasm remote browser**. Nexus saves this default for your signed-in account in the current browser. **Embedded browser** is the initial setting.
+
+When adding or editing a tile, choose **Open this tile**. **Use my default** follows the viewer’s preference. An explicit choice is saved with the tile and applies to everyone who can see it. Kasm requires a configured provider and administrator access. If Kasm is unavailable, **Return to direct view** opens the embedded browser.
+
+Select the tile title to open its service. Close the view or press **Escape** to return to your dashboard and filters. Your browser needs network access to the service URL. On an HTTPS dashboard, the service must use HTTPS. Embedded services can use their own cookies and site storage, subject to your browser settings. If a service forbids framing, the service administrator must explicitly allow the Nexus origin using that service’s supported configuration. Use **Page not displaying?** for checks you can make from the service view.
 
 Under **Saved login**, create a vault with a separate master password of at least 16 characters. Enter the service username and password, then select **Save login**. Unlock the vault and use **Copy username** or **Copy password** when signing in. Verify the service's address before pasting, especially if its login page redirected. Close the panel or dialog to lock the vault. An unlocked vault also locks after two minutes.
 

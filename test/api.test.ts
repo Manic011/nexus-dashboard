@@ -51,7 +51,7 @@ test('setup, authentication, tile CRUD, persistence and logout', async () => {
     await stop();
     app = createApp(data, 'dist', origin, 'integration-token');
     await start();
-    assert.deepEqual(await (await request('tiles')).json(), [{ ...tile, id, title: 'Updated' }]);
+    assert.deepEqual(await (await request('tiles')).json(), [{ ...tile, id, title: 'Updated', openMode: 'default' }]);
     assert.equal((await request('tiles/' + id, 'DELETE')).status, 200);
     assert.deepEqual(await (await request('tiles')).json(), []);
     const snapshot = { version: 1, tiles: [tile, { ...tile, url: 'https://example.com/' }] };
@@ -61,7 +61,7 @@ test('setup, authentication, tile CRUD, persistence and logout', async () => {
     assert.equal(initialPreview.skipped, 1);
     assert.deepEqual(await (await request('admin/backup/import', 'POST', snapshot)).json(), { imported: 1, skipped: 1 });
     assert.deepEqual(await (await request('admin/backup/import', 'POST', snapshot)).json(), { imported: 0, skipped: 2 });
-    assert.deepEqual(await (await request('admin/backup')).json(), { version: 1, tiles: [tile] });
+    assert.deepEqual(await (await request('admin/backup')).json(), { version: 1, tiles: [{ ...tile, openMode: 'default' }] });
     assert.equal((await (await request('admin/system')).json()).tiles, 1);
     const importedTile = (await (await request('tiles')).json())[0];
     await request('admin/tile-access/' + importedTile.id, 'PUT', { restricted: true, users: [], groups: [] });

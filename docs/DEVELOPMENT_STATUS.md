@@ -4,6 +4,8 @@ Nexus Dashboard is a development preview. The [requirements audit](REQUIREMENTS_
 
 ## Available in the preview
 
+- Default tile opening preference and saved per-tile modes for a new browser tab, direct embedding, or Kasm.
+
 - Optional Kasm browser launch inside the service view for administrators. Real provider validation requires a configured Kasm deployment.
 
 - Sandboxed service view and browser-local encrypted login storage for individual accounts. Cross-device vault sync and recovery are outside the current implementation.

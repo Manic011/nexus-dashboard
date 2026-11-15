@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react';
 
-const defaults = { theme: 'system', density: 'comfortable' } as const;
-type Preferences = { theme: 'system' | 'dark' | 'light'; density: 'comfortable' | 'compact' };
+export const openModes = [
+  { value: 'new-tab', label: 'New browser tab' },
+  { value: 'embedded', label: 'Embedded browser' },
+  { value: 'kasm', label: 'Kasm remote browser' },
+] as const;
+export type OpenMode = (typeof openModes)[number]['value'];
+
+const defaults = { theme: 'system', density: 'comfortable', openMode: 'embedded' } as const;
+type Preferences = { theme: 'system' | 'dark' | 'light'; density: 'comfortable' | 'compact'; openMode: OpenMode };
 
 function readPreferences(key: string): Preferences {
   try {
@@ -9,6 +16,7 @@ function readPreferences(key: string): Preferences {
     return {
       theme: stored.theme === 'light' || stored.theme === 'dark' ? stored.theme : defaults.theme,
       density: stored.density === 'compact' ? 'compact' : defaults.density,
+      openMode: openModes.find(mode => mode.value === stored.openMode)?.value ?? defaults.openMode,
     };
   } catch {
     return defaults;

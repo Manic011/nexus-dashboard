@@ -6,33 +6,37 @@ type ServiceDialogProps = {
   title: string;
   url: string;
   username?: string;
+  startRemote: boolean;
   launchRemote?: () => Promise<{ url: string }>;
   onClose: () => void;
 };
 
-export function ServiceDialog({ title, url, username, launchRemote, onClose }: ServiceDialogProps) {
+export function ServiceDialog({ title, url, username, startRemote, launchRemote, onClose }: ServiceDialogProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const address = new URL(url);
   const [remote, setRemote] = useState<string>();
-  const [startingRemote, setStartingRemote] = useState(false);
+  const [remoteSelected, setRemoteSelected] = useState(startRemote);
   const [remoteError, setRemoteError] = useState('');
 
-  async function openRemote() {
-    if (!launchRemote) return;
-    setStartingRemote(true);
-    setRemoteError('');
-    try {
-      const { url } = await launchRemote();
+  useEffect(() => {
+    if (!remoteSelected || !launchRemote) return;
+    let active = true;
+    launchRemote().then(({ url }) => {
       const workspace = new URL(url);
       if (workspace.protocol !== 'https:' || workspace.origin === location.origin) {
         throw new Error('Remote browser requires a separate HTTPS origin.');
       }
-      setRemote(workspace.href);
-    } catch (error) {
-      setRemoteError(error instanceof Error ? error.message : 'Unable to open the remote browser.');
-    } finally {
-      setStartingRemote(false);
-    }
+      if (active) setRemote(workspace.href);
+    }).catch(error => {
+      if (active) setRemoteError(error instanceof Error ? error.message : 'Unable to open the remote browser.');
+    });
+    return () => { active = false; };
+  }, [remoteSelected, launchRemote]);
+
+  function selectView(useRemote: boolean) {
+    setRemote(undefined);
+    setRemoteError('');
+    setRemoteSelected(useRemote);
   }
   const canEmbed = address.origin !== location.origin &&
     (address.protocol === 'https:' || location.protocol === 'http:');
@@ -53,16 +57,16 @@ export function ServiceDialog({ title, url, username, launchRemote, onClose }: S
     </div>
     <p className="muted service-address">{address.origin}</p>
     {username && <CredentialPanel username={username} address={address.href} />}
-    {launchRemote && <div className="service-actions">
-      {remote ? <button type="button" onClick={() => setRemote(undefined)}>Return to direct view</button>
-        : <button type="button" disabled={startingRemote} onClick={() => void openRemote()}>
-          {startingRemote ? 'Opening remote browser…' : 'Open in remote browser'}
-        </button>}
-      {remoteError && <p role="alert">{remoteError}</p>}
+    {(launchRemote || remoteSelected) && <div className="service-actions">
+      {remoteSelected ? <button type="button" onClick={() => selectView(false)}>Return to direct view</button>
+        : <button type="button" onClick={() => selectView(true)}>Open in remote browser</button>}
     </div>}
-    {remote ? <iframe title={title + ' remote browser'} src={remote}
-      sandbox="allow-scripts allow-forms allow-same-origin" referrerPolicy="no-referrer" />
-    : canEmbed ? <>
+    {remoteSelected ? (
+      remote ? <iframe title={title + ' remote browser'} src={remote}
+        sandbox="allow-scripts allow-forms allow-same-origin" referrerPolicy="no-referrer" />
+        : remoteError ? <p role="alert">{remoteError}</p>
+        : <p role="status">{launchRemote ? 'Opening remote browser…' : 'Kasm is unavailable. It requires a configured provider and a Nexus administrator account.'}</p>
+    )    : canEmbed ? <>
       <iframe title={title + ' embedded service'} src={address.href}
         sandbox="allow-scripts allow-forms allow-same-origin" referrerPolicy="no-referrer" />
       <details className="service-help">

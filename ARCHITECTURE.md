@@ -8,7 +8,7 @@ The tile service view loads a sandboxed frame directly in the browser. The sandb
 
 The React interface is built with Vite and served by the Node.js process alongside the TypeScript API. Browser requests share one origin. The backend validates input with Zod and uses prepared statements with Node's built-in SQLite bindings.
 
-SQLite uses WAL mode and transactional migrations tracked with `PRAGMA user_version`. The database stores accounts, session token digests, and application tiles. Tiles have a single category and a JSON array of tags. The migration to schema 3 adds an empty tag array to existing tiles. Version 1 JSON exports accept older entries without tags.
+SQLite uses WAL mode and transactional migrations tracked with `PRAGMA user_version`. The database stores accounts, session token digests, and application tiles. Tiles have a single category and a JSON array of tags. The migration to schema 3 adds an empty tag array to existing tiles. Schema 5 adds a tile opening mode that defaults to the viewer’s preference. Version 1 JSON exports include the mode and accept older entries without a mode or tags. Older configuration snapshots restore missing modes as **Use my default**.
 
 | Directory | Responsibility |
 | --- | --- |
@@ -102,6 +102,6 @@ Complete scans of identical effective scope compare URL sets with the most recen
 
 ## Operator recovery boundary
 
-`server/state-backup.ts` is a command-line tool, not a web route. It uses the Node SQLite backup API, validates integrity and schema 4, and refuses existing backup files or populated restore directories. A recovered database includes accounts, tiles, groups, access rules, profiles, history, and configuration snapshots. All restored sessions are deleted so backup recovery cannot reactivate old browser sessions. Configuration snapshots in the administration UI still restore tiles/groups/rules only. Environment secrets and installed application files are backed up separately.
+`server/state-backup.ts` is a command-line tool, not a web route. It uses the Node SQLite backup API, validates integrity and schema 4 or 5, and refuses existing backup files or populated restore directories. A recovered database includes accounts, tiles, groups, access rules, profiles, history, and configuration snapshots. All restored sessions are deleted so backup recovery cannot reactivate old browser sessions. Configuration snapshots in the administration UI still restore tiles/groups/rules only. Environment secrets and installed application files are backed up separately.
 
 The native installer can adopt a pre-existing state directory into a new installation. It preserves the original directory, requires a supported runtime, rejects symlinks that escape the staged bundle, and verifies startup health. The systemd account writes only state; it cannot modify root-owned application files.
