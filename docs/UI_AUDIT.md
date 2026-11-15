@@ -48,6 +48,8 @@ The Ubuntu browser suite also verified drops on the empty end of a category divi
 
 CI run 43683126684 exposed a first-render race in the tile editor’s Tags field. Saved tags now initialize with the editor state. The browser sign-in test also uses an exact Applications heading to avoid matching the empty-state heading. The browser suite passed locally and against Ubuntu after these changes. The live frontend was updated and its health endpoint verified.
 
+The grouped layout regression drags an entire category by its header handle, checks that its tile moves with it, reorders with the arrow keys, and verifies preview and saved order after reload. It passed locally and against an isolated Ubuntu instance.
+
 ## Diagnostics verification
 
 The November 15, 2026 documentation smoke test ran the full local Chromium suite and all eight API tests locally and on Ubuntu. The Ubuntu-hosted browser scenario exercised tile opening preferences, uptime sampling, host metrics, network transfers, first-use SSH key approval, saved password locking and reuse, concurrent workspaces, shell input, file actions, and independent disconnect. Screenshots were captured separately in a disposable local browser with fictional tiles, a fixture SSH server, and sample files. The download exercise verified the browser event and payload. It did not verify a file saved to disk.

@@ -1,4 +1,4 @@
-import { Folder, Plus } from 'lucide-react';
+import { Folder, GripVertical, Plus } from 'lucide-react';
 import { Fragment, useLayoutEffect, useRef, useState, type DragEvent, type HTMLAttributes, type ReactNode } from 'react';
 import { CategoryDivider, TileGrid } from './CategoryDivider.js';
 import { categoryName, categoryRows, orderedCategories, orderGroupedTiles, type LayoutCategories } from './layoutCategories.js';
@@ -8,6 +8,7 @@ type EditorTile = LayoutTile & { category: string; tags: string[] };
 export type CategoryMove = { id: number; url: string; from: string; category: string };
 export type CategoryDropProps = Pick<HTMLAttributes<HTMLElement>, 'onDragOver' | 'onDragLeave' | 'onDrop'> & {
   'data-drop-target'?: boolean;
+  'data-category-insert'?: 'before' | 'after';
 };
 
 export function LayoutEditor<T extends EditorTile>({ tiles: originalTiles, categories, tags, initialCategory, initialTag, saved, categorySettings, canEditTiles, saving, renderTile, renderGroups, onSave, onCancel }: {
@@ -22,7 +23,7 @@ export function LayoutEditor<T extends EditorTile>({ tiles: originalTiles, categ
   saving: boolean;
   renderTile: (tile: T, position: Position, settings: LayoutCategories, overlay?: ReactNode) => ReactNode;
   renderGroups: (tiles: T[], settings: LayoutCategories, overlay?: (tile: T) => ReactNode,
-    dropProps?: (category: string) => CategoryDropProps) => ReactNode;
+    dropProps?: (category: string) => CategoryDropProps, categoryControl?: (category: string) => ReactNode) => ReactNode;
   onSave: (layout: TileLayout | null, settings: LayoutCategories, moves: CategoryMove[]) => void;
   onCancel: () => void;
 }) {
@@ -37,9 +38,13 @@ export function LayoutEditor<T extends EditorTile>({ tiles: originalTiles, categ
   const [message, setMessage] = useState('');
   const [extraRows, setExtraRows] = useState(0);
   const [dropTarget, setDropTarget] = useState('');
+  const [categoryDrop, setCategoryDrop] = useState<{ key: string; side: 'before' | 'after' }>();
   const dragged = useRef('');
+  const draggedCategory = useRef('');
   const buttons = useRef(new Map<string, HTMLButtonElement>());
+  const handles = useRef(new Map<string, HTMLButtonElement>());
   const focusTile = useRef('');
+  const focusCategory = useRef('');
   const moves = originalTiles.flatMap(tile => {
     const category = assignments.get(tile.id);
     return category && category !== tile.category ? [{ id: tile.id, url: tile.url, from: tile.category, category }] : [];
@@ -62,6 +67,8 @@ export function LayoutEditor<T extends EditorTile>({ tiles: originalTiles, categ
   }
   const orderedTiles = [...tiles].sort((a, b) => comparePositions(layout.positions[tileKey(a)], layout.positions[tileKey(b)]));
   const categoryOrder = orderedCategories(categories, settings.order);
+  const populated = new Set(tiles.map(tile => tile.category.toLowerCase()));
+  const sectionOrder = categoryOrder.filter(key => populated.has(key));
   const { headings, gridRow } = categoryRows(orderedTiles, layout, settings);
 
   function divider(slot: Position) {
@@ -93,10 +100,25 @@ export function LayoutEditor<T extends EditorTile>({ tiles: originalTiles, categ
     setSettings({ ...settings, order });
   }
 
+  function moveSection(source: string, target: string, side: 'before' | 'after') {
+    if (source === target) return;
+    const order = categoryOrder.filter(key => key !== source);
+    order.splice(order.indexOf(target) + (side === 'after' ? 1 : 0), 0, source);
+    focusCategory.current = source;
+    setSettings({ ...settings, order });
+    const name = categoryName(source, categories.get(source) ?? source, settings);
+    setMessage(`${name} moved to category position ${order.filter(key => populated.has(key)).indexOf(source) + 1}.`);
+  }
+
   useLayoutEffect(() => {
-    if (!focusTile.current) return;
-    buttons.current.get(focusTile.current)?.focus();
-    focusTile.current = '';
+    if (focusCategory.current) {
+      handles.current.get(focusCategory.current)?.focus({ preventScroll: true });
+      focusCategory.current = '';
+    }
+    if (focusTile.current) {
+      buttons.current.get(focusTile.current)?.focus();
+      focusTile.current = '';
+    }
   }, [layout, settings]);
 
   function moveToCategory(key: string, category: string, before?: string) {
@@ -115,7 +137,63 @@ export function LayoutEditor<T extends EditorTile>({ tiles: originalTiles, categ
 
   function endDrag() {
     dragged.current = '';
+    draggedCategory.current = '';
     setDropTarget('');
+    setCategoryDrop(undefined);
+  }
+
+  function sectionHandle(key: string) {
+    if (sectionOrder.length < 2) return null;
+    const name = categoryName(key, categories.get(key) ?? key, settings);
+    return <button type="button" className="category-grip" draggable
+      aria-label={`Reorder ${name} category`} aria-description="Drag the category or use the Up and Down arrow keys."
+      title="Drag category or use arrow keys"
+      ref={element => { if (element) handles.current.set(key, element); else handles.current.delete(key); }}
+      onKeyDown={event => {
+        if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+        event.preventDefault();
+        const up = event.key === 'ArrowUp';
+        const target = sectionOrder[sectionOrder.indexOf(key) + (up ? -1 : 1)];
+        if (target) moveSection(key, target, up ? 'before' : 'after');
+      }}
+      onDragStart={event => {
+        draggedCategory.current = key;
+        event.dataTransfer.setData('text/plain', name);
+        event.dataTransfer.effectAllowed = 'move';
+      }}
+      onDragEnd={endDrag}><GripVertical size={17} aria-hidden="true" /></button>;
+  }
+
+  function sectionDropProps(key: string): CategoryDropProps {
+    const tileDrop = categoryDropProps(key);
+    const insertSide = (event: DragEvent) => {
+      const box = event.currentTarget.getBoundingClientRect();
+      return event.clientY < box.top + box.height / 2 ? 'before' : 'after';
+    };
+    return {
+      ...tileDrop,
+      'data-category-insert': categoryDrop?.key === key ? categoryDrop.side : undefined,
+      onDragOver(event) {
+        if (!draggedCategory.current) return tileDrop.onDragOver?.(event);
+        if (draggedCategory.current === key) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+        const side = insertSide(event);
+        setCategoryDrop(current => current?.key === key && current.side === side ? current : { key, side });
+      },
+      onDragLeave(event) {
+        if (!draggedCategory.current) return tileDrop.onDragLeave?.(event);
+        if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
+        setCategoryDrop(current => current?.key === key ? undefined : current);
+      },
+      onDrop(event) {
+        if (!draggedCategory.current) return tileDrop.onDrop?.(event);
+        if (draggedCategory.current === key) return;
+        event.preventDefault();
+        moveSection(draggedCategory.current, key, insertSide(event));
+        endDrag();
+      },
+    };
   }
 
   function categoryDropProps(key: string, move = moveToCategory, target = key): CategoryDropProps {
@@ -291,7 +369,7 @@ export function LayoutEditor<T extends EditorTile>({ tiles: originalTiles, categ
       {preview ? <p className="muted">Layout preview at your current screen size</p> : <>
         <p className="muted">{grouped
           ? canEditTiles
-            ? 'Drag a tile onto another tile to move it, or select the tile and its destination. Moves between sections update the tile’s category.'
+            ? 'Drag a category handle to reorder sections. Drag or select tiles to move them. Moves between sections update the tile’s category.'
             : 'Drag a tile onto another tile in the same category, or select them in order to swap.'
           : 'Drag tiles or select one, then choose an empty cell to move it or another tile to swap. Select it again to deselect.'}</p>
         <div className="layout-toolbar layout-organize">
@@ -313,7 +391,7 @@ export function LayoutEditor<T extends EditorTile>({ tiles: originalTiles, categ
         {highlighted && <p className="muted" role="status">{matches.size} of {tiles.length} tiles match. All tiles stay in place.</p>}
       </>}
     </div>
-    {grouped ? renderGroups(tiles, settings, preview ? undefined : tileControl, preview ? undefined : categoryDropProps)
+    {grouped ? renderGroups(tiles, settings, preview ? undefined : tileControl, preview ? undefined : sectionDropProps, preview ? undefined : sectionHandle)
       : preview ? <TileGrid tiles={orderedTiles} layout={layout} categories={categories} settings={settings}
       renderTile={(tile, position) => renderTile(tile, position, settings)} /> : <>
       <div className="custom-layout">

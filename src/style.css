@@ -210,6 +210,10 @@ dialog h2, dialog form p { overflow-wrap: anywhere; }
 .category-toggle { display: flex; align-items: center; gap: 8px; margin-block: 12px 6px; }
 .category-divider { display: flex; align-items: center; gap: 10px; min-width: 0; overflow-wrap: anywhere; }
 .category-divider::after { content: ''; flex: 1 0 18px; border-top: 1px solid var(--border); }
+.category-grip { display: inline-grid; place-items: center; flex: none; padding: 4px; cursor: grab; }
+.category-grip:active { cursor: grabbing; }
+.group[data-category-insert="before"] { box-shadow: 0 -3px 0 var(--accent); }
+.group[data-category-insert="after"] { box-shadow: 0 3px 0 var(--accent); }
 :is(.group[data-drop-target="true"] > .category-divider, .category-divider[data-drop-target="true"]) { color: var(--accent); }
 :is(.group[data-drop-target="true"] > .category-divider, .category-divider[data-drop-target="true"])::after { border-color: var(--accent); }
 .custom-grid > .category-divider { grid-column: 1 / -1; grid-row: var(--category-placement, var(--category-row)); }

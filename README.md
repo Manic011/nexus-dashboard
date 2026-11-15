@@ -11,7 +11,7 @@ A self-hosted dashboard for your homelab. Discover services, organize them into 
 | Feature | What you can do |
 | --- | --- |
 | Application dashboard | Create, edit, and delete tiles. Group tiles by category, add multiple tags, and combine search with category and tag filters. |
-| Personal layouts | Rearrange cards directly in their category sections or on a custom grid. Adjust widths, category labels, order, and dividers, then preview the layout before saving. |
+| Personal layouts | Rearrange cards or drag whole category sections. Adjust tile widths, category labels and dividers, or position tiles on a custom grid. Preview before saving. |
 | Appearance | Choose a light, dark, or system theme and comfortable or compact cards. |
 | Service view and vault | Open compatible services inside StackJetty and save logins in an encrypted browser vault. Choose a default or per-tile opening mode for a new browser tab, direct embedding, or Kasm. |
 | Service discovery | Scan reachable private IPv4 subnets with CIDRs, address ranges, exclusions, custom ports, reusable profiles, progress, and cancellation. Compare scans and review live identification evidence before importing or updating tiles. |
