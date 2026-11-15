@@ -10,6 +10,36 @@ import { createApp } from '../server/index.ts';
 import { createSshFixture } from './ssh-fixture.ts';
 import { unlockVault } from '../src/vault.ts';
 
+test('HTTPS dashboard offers a new tab for an HTTP tile', async () => {
+  const live = process.env.NEXUS_UI_MIXED_CONTENT_URL;
+  const dashboard = live ?? 'https://dashboard.example.invalid';
+  const service = 'http://service.example.invalid:8080/';
+  const browser = await chromium.launch({ executablePath: process.env.NEXUS_UI_CHROMIUM_PATH });
+  try {
+    const context = await browser.newContext({ ignoreHTTPSErrors: Boolean(live) });
+    await context.route(dashboard + '/**', async route => {
+      const path = new URL(route.request().url()).pathname;
+      if (path === '/api/session') return route.fulfill({ json: { username: 'viewer', role: 'viewer' } });
+      if (path === '/api/tiles') return route.fulfill({ json: [{ id: 1, title: 'HTTP service', url: service, category: 'Fixtures', tags: [], openMode: 'embedded' }] });
+      if (path.startsWith('/api/')) return route.fulfill({ json: { tiles: [] } });
+      if (live) return route.continue();
+      return route.fulfill({ path: join('dist', path === '/' ? 'index.html' : path.slice(1)) });
+    });
+    await context.route(service, route => route.fulfill({ contentType: 'text/html', body: '<h1>Service loaded</h1>' }));
+    const page = await context.newPage();
+    await page.goto(dashboard);
+    await page.getByRole('button', { name: 'HTTP service', exact: true }).click();
+    const view = page.getByRole('dialog');
+    const link = view.getByRole('link', { name: 'Open in new tab' });
+    await link.waitFor();
+    assert.equal(await view.locator('iframe').count(), 0);
+    assert.equal(await link.getAttribute('href'), service);
+    const popup = page.waitForEvent('popup');
+    await link.click();
+    await (await popup).getByRole('heading', { name: 'Service loaded' }).waitFor();
+  } finally { await browser.close(); }
+});
+
 test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
   const directory = await mkdtemp(join(tmpdir(), 'nexus-ui-'));
   const token = 'fixture-setup-token';

@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Offer a new-tab link when the HTTPS dashboard cannot embed an HTTP service.
 - Discover SSH servers on selected private IPv4 ranges from Add SSH machine and use a result to fill in the address and port.
 - Edit and group saved SSH machines. Search the inventory and use the always-visible bar to batch edit, connect, or disconnect selected machines.
 - Use one account vault for service logins and SSH passwords across StackJetty, with one-time import from older SSH machine vaults.

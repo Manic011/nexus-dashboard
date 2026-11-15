@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { ArrowUpRight, X } from 'lucide-react';
 import { VaultEditor } from './VaultControls.js';
 
 type ServiceDialogProps = {
@@ -73,9 +73,16 @@ export function ServiceDialog({ title, url, username, startRemote, launchRemote,
         <summary>Page not displaying?</summary>
         <p className="muted">The service must allow StackJetty to embed it. Check the saved URL, certificate trust, and the service’s embedding settings. Some sign-in flows also require cookies that your browser may restrict in embedded pages.</p>
       </details>
-    </> : <p role="status">{address.origin === location.origin
-      ? 'Choose a service URL on a different origin to open it here.'
-      : 'Use an HTTPS service URL to open it inside this HTTPS dashboard.'}</p>}
+    </> : address.origin === location.origin
+      ? <p role="status">Choose a service URL on a different origin to open it here.</p>
+      : <>
+        <p role="status">Your browser blocks HTTP services inside an HTTPS page. Open this service in a new tab, or edit the tile to use the service’s HTTPS address if it has one.</p>
+        <div className="service-actions">
+          <a className="primary service-open-link" href={address.href} target="_blank" rel="noopener noreferrer">
+            Open in new tab <ArrowUpRight size={16} aria-hidden="true" />
+          </a>
+        </div>
+      </>}
   </dialog>;
 }
 

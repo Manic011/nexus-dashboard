@@ -52,6 +52,8 @@ The grouped layout regression drags an entire category by its header handle, che
 
 ## Diagnostics verification
 
+Chromium verified the HTTP tile fallback at an HTTPS dashboard address locally and using the deployed Ubuntu frontend. A fixture tile showed the new-tab link and opened the HTTP service in that tab.
+
 The local and Ubuntu browser tests found a fixture SSH server on a custom port, used its result to fill in the machine form, and continued through host key review. API tests verified that a web listener was excluded, public targets and oversized ranges were rejected, and a viewer could not scan.
 
 The SSH bulk actions bar is visible without a toggle, including when the inventory is empty. The updated browser flow passed locally and against a disposable Ubuntu instance. The live frontend was verified on both HTTP and trusted LAN HTTPS.

@@ -187,6 +187,7 @@ dialog h2, dialog form p { overflow-wrap: anywhere; }
 .service-dialog > * + * { margin-top: 12px; }
 .service-address { overflow-wrap: anywhere; }
 .service-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.service-open-link { display: inline-flex; align-items: center; gap: 7px; padding: 9px 12px; border-radius: 8px; text-decoration: none; }
 .service-dialog iframe { display: block; width: 100%; flex: 1; min-height: min(240px, 48dvh); border: 1px solid var(--border); border-radius: 8px; background: white; }
 .credential-panel { border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
 .credential-panel summary, .service-help summary { cursor: pointer; }
