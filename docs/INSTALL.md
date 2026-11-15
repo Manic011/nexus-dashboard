@@ -236,3 +236,7 @@ A populated destination is rejected. The restore keeps accounts and configuratio
 Validate the recovered state on an isolated instance with a matching origin and free port, without exposing a second copy of real accounts publicly. For the final switch, stop the service and add a reviewed systemd drop-in setting `Environment=NEXUS_DATA=/var/lib/nexus-dashboard-recovered` and `ReadWritePaths=/var/lib/nexus-dashboard-recovered`. Run `sudo systemctl daemon-reload` and start the service. The extra write path is necessary because ProtectSystem=strict protects paths outside the managed StateDirectory. Keep the original directory for rollback. Removing that reviewed drop-in and restarting switches back. Do not mix a database backup with application code that cannot read its schema.
 
 Protect and back up `/etc/nexus-dashboard/nexus.env` separately. Never place database backups, environment files, or real deployment screenshots in a release archive.
+
+## Optional SSH diagnostics
+
+Set `NEXUS_SSH=on` in the protected environment file to allow administrator SSH sessions. Configure `NEXUS_ORIGIN` for trusted HTTPS access before entering remote credentials. Restart `nexus-dashboard.service` after changing the environment file. Upgrades must synchronize the complete production dependency set, including `ssh2`, and all built UI assets. [Diagnostics and SSH setup](DIAGNOSTICS.md)

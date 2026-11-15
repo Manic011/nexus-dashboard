@@ -7,6 +7,7 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { chromium } from 'playwright-core';
 import { createApp } from '../server/index.ts';
+import { createSshFixture } from './ssh-fixture.ts';
 
 test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
   const directory = await mkdtemp(join(tmpdir(), 'nexus-ui-'));
@@ -480,6 +481,89 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
       app.closeAllConnections();
       await closed;
     }
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('diagnostic screens, network test, SSH statistics, files and shell', { timeout: 90_000 }, async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'stackjetty-diagnostic-ui-'));
+  const previousSsh = process.env.NEXUS_SSH;
+  process.env.NEXUS_SSH = 'on';
+  const remote = process.env.NEXUS_UI_DIAGNOSTIC_URL;
+  const origin = remote ?? 'http://127.0.0.1:3436';
+  const fixture = remote ? undefined : createSshFixture();
+  const app = remote ? undefined : createApp(directory, 'dist', origin, 'fixture-setup-token');
+  let browser;
+  try {
+    if (fixture) { fixture.server.listen(0, '127.0.0.1'); await once(fixture.server, 'listening'); }
+    if (app) { app.listen(3436, '127.0.0.1'); await once(app, 'listening'); }
+    browser = await chromium.launch({ executablePath: process.env.NEXUS_UI_CHROMIUM_PATH });
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    const field = name => page.getByLabel(name, { exact: true });
+    const button = name => page.getByRole('button', { name, exact: true });
+    await page.goto(origin);
+    await field('Username').fill('admin');
+    await field('Password').fill('fixture-dashboard-password');
+    await field('Setup token').fill('fixture-setup-token');
+    await button('Create account').click();
+    await button('Add tile').click();
+    await field('Name').fill('Diagnostic target');
+    await field('URL').fill(origin);
+    await button('Save tile').click();
+    await button('Diagnostic target').waitFor();
+    await button('Administration').click();
+    await button('Diagnostics').click();
+    await page.getByRole('heading', { name: 'Service uptime', exact: true }).waitFor();
+    await button('Check services now').click();
+    await page.getByText('Reachable', { exact: true }).waitFor();
+    await button('Enable monitoring').click();
+    await button('Pause monitoring').waitFor();
+    await button('Pause monitoring').click();
+    await button('Enable monitoring').waitFor();
+    await button('Dashboard host').click();
+    await page.getByRole('progressbar', { name: 'Host memory usage' }).waitFor();
+    await button('Network test').click();
+    await button('Run network test').click();
+    await page.getByText(/Mbps/).first().waitFor();
+    await button('SSH machines').click();
+    await page.getByText('Add SSH machine', { exact: true }).click();
+    await field('Machine name').fill('Fixture machine');
+    await field('SSH host').fill('127.0.0.1');
+    await field('SSH port').fill(String(fixture?.server.address().port ?? process.env.NEXUS_UI_SSH_PORT));
+    await field('SSH username').fill('fixture');
+    await field('Trusted host fingerprint').fill(fixture?.fingerprint ?? process.env.NEXUS_UI_SSH_FINGERPRINT);
+    await button('Save machine').click();
+    await button('Connect to Fixture machine').click();
+    await field('SSH password').fill('fixture-password');
+    await button('Start SSH session').click();
+    await page.getByRole('progressbar', { name: 'Remote memory usage' }).waitFor();
+    await button('File browser').click();
+    await page.getByRole('button', { name: 'hello.txt', exact: true }).click();
+    await page.locator('pre').filter({ hasText: 'hello' }).waitFor();
+    await button('Shell').click();
+    await button('Open interactive shell').click();
+    await page.getByText('Shell ready', { exact: true }).waitFor();
+    const input = page.locator('.ssh-terminal textarea');
+    await input.waitFor({ state: 'attached' });
+    await page.locator('.ssh-terminal').click();
+    await input.focus();
+    await page.keyboard.type('echo terminal-ready');
+    await page.keyboard.press('Enter');
+    await page.locator('.xterm-accessibility-tree').getByText(/terminal-ready/).first().waitFor({ state: 'attached' });
+    await page.setViewportSize({ width: 320, height: 568 });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await button('Disconnect SSH').click();
+    await button('Connect to Fixture machine').waitFor();
+    await button('Remove Fixture machine').click();
+    await button('Confirm machine removal').click();
+    await page.getByText('No saved machines.', { exact: true }).waitFor();
+  } finally {
+    await browser?.close();
+    if (app?.listening) {
+      const closed = once(app, 'close'); app.close(); app.closeAllConnections(); await closed;
+    }
+    fixture?.server.close();
+    if (previousSsh === undefined) delete process.env.NEXUS_SSH; else process.env.NEXUS_SSH = previousSsh;
     await rm(directory, { recursive: true, force: true });
   }
 });

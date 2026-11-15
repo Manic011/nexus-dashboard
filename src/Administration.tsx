@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
-import { DatabaseBackup, Radar, Server, UsersRound } from 'lucide-react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { Activity, DatabaseBackup, Radar, Server, UsersRound } from 'lucide-react';
+const Diagnostics = lazy(() => import('./Diagnostics.js').then(module => ({ default: module.Diagnostics })));
 import { AdminWorkspace } from './AdminWorkspace.js';
 import { Users } from './Users.js';
 import { ImportCategory } from './ImportCategory.js';
@@ -19,6 +20,7 @@ const sections = [
   { id: 'users', title: 'Users', icon: UsersRound },
   { id: 'backup', title: 'Backup', icon: DatabaseBackup },
   { id: 'system', title: 'System', icon: Server },
+  { id: 'diagnostics', title: 'Diagnostics', icon: Activity },
 ] as const;
 
 export function Administration({ api, onImport, categories }: { api: Api; onImport: () => Promise<void>; categories: string[] }) {
@@ -116,6 +118,7 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
     </nav>
     {status && <p role="status" className="admin-status">{status}</p>}
     {section === 'users' && <Users api={api} onChange={() => setWorkspaceRevision(value => value + 1)} />}
+    {section === 'diagnostics' && <Suspense fallback={<p role="status">Loading diagnostics…</p>}><Diagnostics api={api} /></Suspense>}
     {section === 'system' && <section className="tile"><h2>System information</h2>
       {system ? <dl><dt>Runtime</dt><dd>{system.runtime}</dd><dt>Platform</dt><dd>{system.platform}</dd><dt>Database schema</dt><dd>{system.schema}</dd><dt>Saved tiles</dt><dd>{system.tiles}</dd><dt>Host</dt><dd>{system.hostname}</dd><dt>Kernel and architecture</dt><dd>{system.kernel} · {system.architecture}</dd><dt>Processor</dt><dd>{system.cpu} · {system.logicalCpus} logical cores</dd><dt>Memory</dt><dd>{Math.round(system.freeMemory / 1048576)} MiB free of {Math.round(system.totalMemory / 1048576)} MiB</dd><dt>Service memory</dt><dd>{Math.round(system.serviceMemory / 1048576)} MiB</dd><dt>Uptime</dt><dd>Host {Math.floor(system.machineUptime / 60)} min · StackJetty {Math.floor(system.serviceUptime / 60)} min</dd></dl> : <p className="muted">Loading system information…</p>}
     </section>}
@@ -232,7 +235,7 @@ export function Administration({ api, onImport, categories }: { api: Api; onImpo
         </form>
       </details>
     </>}
-    <AdminWorkspace key={section + workspaceRevision} section={section} api={api} refresh={async () => { await onImport(); setSystem(await api<SystemInfo>('admin/system')); }} inspect={inspect} />
+    {section !== 'diagnostics' && <AdminWorkspace key={section + workspaceRevision} section={section} api={api} refresh={async () => { await onImport(); setSystem(await api<SystemInfo>('admin/system')); }} inspect={inspect} />}
     {section === 'discovery' && comparison && <details className="tile"><summary>Changes since the previous complete scan of the same targets</summary>
       <p className="muted">Missing means no response during this scan; it does not prove a service is offline. Tiles are never removed automatically.</p>
       {(['added', 'changed', 'missing'] as const).map(kind => <div key={kind}><h3>{kind[0].toUpperCase() + kind.slice(1)} ({comparison[kind].length})</h3><ul>{comparison[kind].map(url => <li key={url}>{url}</li>)}</ul></div>)}

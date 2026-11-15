@@ -48,6 +48,12 @@ The Ubuntu browser suite also verified drops on the empty end of a category divi
 
 CI run 43683126684 exposed a first-render race in the tile editor’s Tags field. Saved tags now initialize with the editor state. The browser sign-in test also uses an exact Applications heading to avoid matching the empty-state heading. The browser suite passed locally and against Ubuntu after these changes. The live frontend was updated and its health endpoint verified.
 
+## Diagnostics verification
+
+The local browser suite exercised uptime checks, enabling and pausing monitoring, host metrics, the network transfer test, machine registration, SSH authentication, Linux statistics, SFTP file listing and preview, terminal input, mobile width, disconnect, and machine removal. The diagnostic browser test also passed against a disposable Ubuntu instance. Its temporary loopback SSH server executed statistics and shell commands on Linux. API tests checked host-key rejection, session isolation, duplicate shell input, viewer denial, and the HTTPS/localhost credential requirement.
+
+The live Ubuntu deployment preserved the saved configuration and now collects observations for its configured services. A visible Chrome check verified host statistics, network test results, and the HTTP credential-entry restriction. Real operator SSH credentials and a public HTTPS tunnel remain deployment-specific checks.
+
 ## Ubuntu verification - 2026-11-13
 
 The discovery/import refinement was exercised in the visible in-app browser against a disposable Ubuntu-hosted instance, with a separate state directory from the saved dashboard. The same locally built release was then promoted to the existing port 3000 instance after a SQLite backup. The existing dashboard configuration was preserved.

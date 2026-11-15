@@ -9,6 +9,8 @@ import { discoverServices, discoveryInterfaces } from './discovery.ts';
 import { discoverWebServices, planWebScan, webScope } from './web-discovery.ts';
 import { configureAdministration, machineInfo } from './admin-console.ts';
 import { createJellyfin } from './jellyfin.ts';
+import { configureDiagnostics, DiagnosticError, speedPayload } from './diagnostics.ts';
+import { configureSsh } from './ssh-console.ts';
 
 const derive = promisify(scrypt);
 const credentials = z.object({ username: z.string().trim().min(1).max(64), password: z.string().min(12).max(256) });
@@ -118,6 +120,11 @@ export function createApp(data: string, dist: string, origin: string, setupToken
   }
 
   const consoleAdmin = configureAdministration(db);
+  const diagnostics = configureDiagnostics(db);
+  const configuredOrigin = new URL(origin);
+  const ssh = configureSsh(db, process.env.NEXUS_SSH === 'on',
+    configuredOrigin.protocol === 'https:' || ['localhost', '127.0.0.1', '[::1]'].includes(configuredOrigin.hostname));
+  const speedTests = new Map<string, number>();
   let scanProgress: { checked: number; total: number } | undefined;
   let discoveryRunning = false;
   let scanCancelled = false;
@@ -209,6 +216,7 @@ export function createApp(data: string, dist: string, origin: string, setupToken
       }
       if (!authenticated || !token) throw new RequestError(401, 'Sign in to continue.');
       if (method === 'POST' && path === '/api/logout') {
+        ssh.closeOwner(digest(token));
         db.prepare('DELETE FROM sessions WHERE token=?').run(digest(token));
         res.setHeader('Set-Cookie', cookie('', 0));
         return send(200, {});
@@ -218,6 +226,34 @@ export function createApp(data: string, dist: string, origin: string, setupToken
       }
       if (method !== 'GET' && path.startsWith('/api/tiles') && authenticated.role === 'viewer') {
         throw new RequestError(403, 'Editing access is required.');
+      }
+      if (path.startsWith('/api/admin/diagnostics')) {
+        try {
+          if (path === '/api/admin/diagnostics/speed' && (method === 'GET' || method === 'POST')) {
+            const owner = digest(token) + method;
+            if (Date.now() - (speedTests.get(owner) ?? 0) < 500) throw new DiagnosticError(429, 'Wait a moment before testing again.');
+            speedTests.set(owner, Date.now());
+            for (const [key, at] of speedTests) if (Date.now() - at > 60_000) speedTests.delete(key);
+            if (method === 'POST') {
+              const payload = z.object({ payload: z.string().max(4 * 1024 * 1024) }).parse(await body(req, 5 * 1024 * 1024));
+              return send(200, { bytes: Buffer.byteLength(payload.payload) });
+            }
+            res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Cache-Control': 'no-store, no-transform', 'Content-Length': 4 * 1024 * 1024 });
+            res.end(speedPayload());
+            return;
+          }
+          const input = method === 'GET' || method === 'DELETE' ? undefined : await body(req, 65536);
+          const result = path.startsWith('/api/admin/diagnostics/ssh')
+            ? await ssh.handle(method!, path, input, digest(token))
+            : await diagnostics.handle(method!, path, input);
+          if (result === undefined) return send(404, { error: 'Diagnostic endpoint not found.' });
+          return send(200, result);
+        } catch (error) {
+          if (error instanceof DiagnosticError) return send(error.status, { error: error.message });
+          if (error instanceof z.ZodError) return send(400, { error: 'Check the diagnostic settings and try again.' });
+          if (error instanceof RequestError) throw error;
+          return send(502, { error: 'The diagnostic operation failed. Check the connection and remote account permissions.' });
+        }
       }
       if (!discoveryEnabled && path.startsWith('/api/admin/discovery/')) {
         throw new RequestError(403, 'Network discovery is disabled in the server configuration.');
@@ -442,7 +478,7 @@ export function createApp(data: string, dist: string, origin: string, setupToken
       send(500, { error: 'An internal error occurred.' });
     }
   });
-  server.on('close', () => db.close());
+  server.on('close', () => { diagnostics.close(); ssh.close(); db.close(); });
   return server;
 }
 

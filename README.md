@@ -17,6 +17,8 @@ StackJetty Dashboard is a self-hosted application launcher for homelabs. It help
 | Tile backups | Export tiles as JSON; review new entries and explicitly update matching URLs. Save named server-side configuration snapshots and preview restore changes. Operators can also create and recover consistent full-database backups. |
 | Jellyfin activity | Show the active stream count on a matching tile after configuring a Jellyfin URL and API key on the server. |
 | Ubuntu deployment | Stage a built release and install it as a systemd service under a dedicated account. |
+| Diagnostics | Sample service uptime, inspect the dashboard host, and test the browser-to-server connection. |
+| SSH machines | Verify trusted host keys, view Linux statistics, browse files through SFTP, and open an interactive shell as an administrator. |
 
 See the [release readiness audit](docs/RELEASE_READINESS.md) for verification results and remaining production gates, and [Privacy](PRIVACY.md) for data and publishing boundaries.
 

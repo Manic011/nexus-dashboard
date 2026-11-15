@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Added administrator diagnostics with sampled service uptime, host metrics, browser-to-server throughput testing, and optional SSH machines with Linux statistics, SFTP browsing, and an interactive shell.
+
 - Initialize saved tile tags before opening the editor to prevent an empty field during the first render.
 - Made the browser sign-in test match the Applications heading exactly while dashboard tiles load.
 

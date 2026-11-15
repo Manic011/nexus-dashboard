@@ -1,0 +1,249 @@
+import { createHash, randomBytes } from 'node:crypto';
+import { StringDecoder } from 'node:string_decoder';
+import type { DatabaseSync } from 'node:sqlite';
+import ssh2, { type Client, type ClientChannel, type SFTPWrapper } from 'ssh2';
+import { z } from 'zod';
+import { DiagnosticError } from './diagnostics.ts';
+
+const hostInput = z.object({
+  name: z.string().trim().min(1).max(80),
+  host: z.string().trim().min(1).max(253).regex(/^[a-zA-Z0-9][a-zA-Z0-9.:-]*$/),
+  port: z.number().int().min(1).max(65535),
+  username: z.string().trim().min(1).max(64).regex(/^[a-zA-Z0-9_.@-]+$/),
+  fingerprint: z.string().trim().regex(/^SHA256:[A-Za-z0-9+/]{43}$/),
+});
+type Host = z.infer<typeof hostInput>;
+type Connection = {
+  client: Client; owner: string; hostId: number; touched: number; created: number; closed: boolean;
+  shell?: ClientChannel; sftp?: SFTPWrapper; output: string; offset: number; inputSequence: number;
+  shellOpening?: Promise<void>; cpu?: { total: number; idle: number };
+  network?: { at: number; rx: number; tx: number };
+};
+const remotePath = z.string().min(1).max(4096).refine(value => !value.includes('\0'));
+const statsCommand = `printf '__SYSTEM__\\n'; uname -srm; hostname; printf '__UPTIME__\\n'; cat /proc/uptime; printf '__CPU__\\n'; head -n 1 /proc/stat; getconf _NPROCESSORS_ONLN; printf '__MEMORY__\\n'; cat /proc/meminfo; printf '__LOAD__\\n'; cat /proc/loadavg; printf '__NETWORK__\\n'; cat /proc/net/dev; printf '__DISKS__\\n'; df -Pk; printf '__PROCESSES__\\n'; ps -eo pid,comm,pcpu,pmem --sort=-pcpu | head -n 11`;
+
+function deadline<T>(work: Promise<T>, milliseconds = 10_000): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new DiagnosticError(504, 'The remote operation timed out.')), milliseconds);
+    work.then(resolve, reject).finally(() => clearTimeout(timer));
+  });
+}
+
+export function configureSsh(db: DatabaseSync, enabled: boolean, secureTransport: boolean) {
+  const sessions = new Map<string, Connection>();
+  const connecting = new Set<string>();
+  function close(id: string) {
+    const connection = sessions.get(id);
+    if (!connection) return;
+    connection.shell?.destroy();
+    connection.sftp?.end();
+    connection.client.end();
+    connection.client.destroy();
+    sessions.delete(id);
+  }
+  const timer = setInterval(() => {
+    for (const [id, session] of sessions) {
+      const valid = db.prepare('SELECT 1 FROM sessions WHERE token=? AND expires>?').get(session.owner, Date.now());
+      if (!valid || Date.now() - session.touched > 10 * 60_000 || Date.now() - session.created > 60 * 60_000) close(id);
+    }
+  }, 30_000);
+  timer.unref();
+  function list() {
+    return db.prepare("SELECT id,payload FROM admin_records WHERE kind='ssh-host' ORDER BY label").all()
+      .map(row => ({ id: Number(row.id), ...JSON.parse(String(row.payload)) as Host }));
+  }
+  function owned(id: string, owner: string) {
+    const session = sessions.get(id);
+    if (!session || session.owner !== owner) throw new DiagnosticError(404, 'SSH session not found. Connect again.');
+    if (Date.now() - session.touched > 10 * 60_000 || Date.now() - session.created > 60 * 60_000) {
+      close(id);
+      throw new DiagnosticError(410, 'SSH session expired. Connect again.');
+    }
+    session.touched = Date.now();
+    return session;
+  }
+  async function sftp(session: Connection) {
+    if (session.closed) throw new DiagnosticError(410, 'SSH connection closed.');
+    if (!session.sftp) session.sftp = await deadline(new Promise<SFTPWrapper>((resolve, reject) => {
+      session.client.sftp((error, channel) => error ? reject(error) : resolve(channel));
+    }));
+    return session.sftp;
+  }
+  async function stats(session: Connection) {
+    const output = await deadline(new Promise<string>((resolve, reject) => {
+      session.client.exec(statsCommand, (error, stream) => {
+        if (error) return reject(error);
+        let output = '';
+        stream.on('data', (chunk: Buffer) => {
+          output += chunk.toString();
+          if (output.length > 128_000) { stream.destroy(); reject(new Error('Statistics output too large.')); }
+        });
+        stream.on('error', reject);
+        stream.on('close', () => resolve(output));
+      });
+    }));
+    const sections = new Map<string, string>();
+    const parts = output.split(/__(SYSTEM|UPTIME|CPU|MEMORY|LOAD|NETWORK|DISKS|PROCESSES)__\r?\n/);
+    for (let index = 1; index < parts.length; index += 2) sections.set(parts[index], parts[index + 1].trim());
+    if (!sections.get('MEMORY')?.includes('MemTotal:')) throw new DiagnosticError(422, 'Machine statistics require Linux with procfs and standard system utilities.');
+    const memory = Object.fromEntries((sections.get('MEMORY') ?? '').split('\n').map(line => {
+      const [key, value] = line.split(/:\s*/);
+      return [key, Number.parseInt(value) * 1024];
+    }));
+    const cpuLines = (sections.get('CPU') ?? '').split('\n');
+    const cpu = cpuLines[0].trim().split(/\s+/).slice(1, 9).map(Number);
+    const total = cpu.reduce((sum, value) => sum + value, 0);
+    const idle = (cpu[3] ?? 0) + (cpu[4] ?? 0);
+    const previous = session.cpu;
+    const cpuPercent = previous && total > previous.total
+      ? Math.max(0, Math.min(100, 100 * (1 - (idle - previous.idle) / (total - previous.total)))) : null;
+    session.cpu = { total, idle };
+    let rx = 0;
+    let tx = 0;
+    for (const line of (sections.get('NETWORK') ?? '').split('\n')) {
+      const [name, values] = line.split(':');
+      if (!values || name.trim() === 'lo') continue;
+      const counters = values.trim().split(/\s+/).map(Number);
+      rx += counters[0]; tx += counters[8];
+    }
+    const now = Date.now();
+    const before = session.network;
+    const seconds = before ? (now - before.at) / 1000 : 0;
+    session.network = { at: now, rx, tx };
+    return { system: sections.get('SYSTEM'), uptime: Number((sections.get('UPTIME') ?? '').split(' ')[0]),
+      cores: Number(cpuLines[1]), cpuPercent, load: (sections.get('LOAD') ?? '').split(' ').slice(0, 3).map(Number),
+      memory: { total: memory.MemTotal, available: memory.MemAvailable ?? memory.MemFree, swapTotal: memory.SwapTotal, swapFree: memory.SwapFree },
+      network: { rx, tx, rxPerSecond: before && seconds > 0 ? Math.max(0, (rx - before.rx) / seconds) : null,
+        txPerSecond: before && seconds > 0 ? Math.max(0, (tx - before.tx) / seconds) : null },
+      disks: sections.get('DISKS'), processes: sections.get('PROCESSES') };
+  }
+
+  return {
+    closeOwner(owner: string) { for (const [id, session] of sessions) if (session.owner === owner) close(id); },
+    close() { clearInterval(timer); for (const id of sessions.keys()) close(id); },
+    async handle(method: string, path: string, input: unknown, owner: string) {
+      if (!path.startsWith('/api/admin/diagnostics/ssh')) return undefined;
+      if (method === 'GET' && path === '/api/admin/diagnostics/ssh') return { enabled, secureTransport, hosts: list() };
+      if (!enabled) throw new DiagnosticError(403, 'Enable NEXUS_SSH=on in the server environment to use SSH.');
+      if (method === 'POST' && path === '/api/admin/diagnostics/ssh/hosts') {
+        const host = hostInput.parse(input);
+        const id = db.prepare("INSERT INTO admin_records(kind,label,created,payload) VALUES ('ssh-host',?,?,?)")
+          .run(host.name, new Date().toISOString(), JSON.stringify(host)).lastInsertRowid;
+        return { id: Number(id) };
+      }
+      const hostMatch = /^\/api\/admin\/diagnostics\/ssh\/hosts\/([1-9]\d*)$/.exec(path);
+      if (hostMatch && method === 'DELETE') {
+        const id = Number(hostMatch[1]);
+        for (const [key, session] of sessions) if (session.hostId === id) close(key);
+        if (!db.prepare("DELETE FROM admin_records WHERE kind='ssh-host' AND id=?").run(id).changes) throw new DiagnosticError(404, 'Machine not found.');
+        return {};
+      }
+      if (path === '/api/admin/diagnostics/ssh/connect' && method === 'POST') {
+        if (!secureTransport) throw new DiagnosticError(403, 'SSH credentials require a dashboard configured for HTTPS or localhost.');
+        if (connecting.has(owner) || sessions.size + connecting.size >= 8) throw new DiagnosticError(429, 'An SSH connection is already opening or the session limit was reached.');
+        const credentials = z.object({ hostId: z.number().int().positive(), password: z.string().max(4096).optional(),
+          privateKey: z.string().max(32768).optional(), passphrase: z.string().max(4096).optional() }).parse(input);
+        if (!credentials.password && !credentials.privateKey) throw new DiagnosticError(400, 'Provide a password or private key for this session.');
+        const host = list().find(host => host.id === credentials.hostId);
+        if (!host) throw new DiagnosticError(404, 'Machine not found.');
+        connecting.add(owner);
+        const client = new ssh2.Client();
+        let verified = false;
+        try {
+          await deadline(new Promise<void>((resolve, reject) => {
+            client.once('ready', resolve);
+            client.on('error', reject);
+            client.connect({ host: host.host, port: host.port, username: host.username,
+              password: credentials.password || undefined, privateKey: credentials.privateKey || undefined,
+              passphrase: credentials.passphrase || undefined, readyTimeout: 10_000, keepaliveInterval: 20_000,
+              hostVerifier(key: Buffer) {
+                verified = 'SHA256:' + createHash('sha256').update(key).digest('base64').replace(/=+$/, '') === host.fingerprint;
+                return verified;
+              } });
+          }), 12_000);
+        } catch {
+          client.destroy();
+          throw new DiagnosticError(502, verified ? 'SSH authentication or connection failed.' : 'SSH connection or trusted host-key verification failed.');
+        } finally { connecting.delete(owner); }
+        const id = randomBytes(24).toString('hex');
+        const session: Connection = { client, owner, hostId: host.id, touched: Date.now(), created: Date.now(),
+          closed: false, output: '', offset: 0, inputSequence: 0 };
+        client.on('close', () => { session.closed = true; });
+        sessions.set(id, session);
+        return { id, name: host.name };
+      }
+      const match = /^\/api\/admin\/diagnostics\/ssh\/([a-f0-9]{48})(?:\/(stats|files|file|shell|output|input|resize))?$/.exec(path);
+      if (!match) throw new DiagnosticError(404, 'SSH endpoint not found.');
+      const [, id, resource] = match;
+      const session = owned(id, owner);
+      if (!resource && method === 'DELETE') { close(id); return {}; }
+      if (resource === 'stats' && method === 'GET') return stats(session);
+      if (resource === 'files' && method === 'POST') {
+        const path = z.object({ path: remotePath }).parse(input).path;
+        const channel = await sftp(session);
+        const actual = await deadline(new Promise<string>((resolve, reject) =>
+          channel.realpath(path, (error, result) => error ? reject(error) : resolve(result))));
+        const entries = await deadline(new Promise<{ name: string; directory: boolean; link: boolean; size: number; modified: number }[]>((resolve, reject) => {
+          channel.readdir(actual, (error, entries) => error ? reject(error) : resolve(entries.slice(0, 2000).map(entry => ({
+            name: entry.filename, directory: entry.attrs.isDirectory(), link: entry.attrs.isSymbolicLink(),
+            size: entry.attrs.size, modified: entry.attrs.mtime,
+          }))));
+        }));
+        return { path: actual, entries };
+      }
+      if (resource === 'file' && method === 'POST') {
+        const path = z.object({ path: remotePath }).parse(input).path;
+        const channel = await sftp(session);
+        const result = await deadline(new Promise<Buffer>((resolve, reject) => {
+          const stream = channel.createReadStream(path, { start: 0, end: 131071 });
+          const chunks: Buffer[] = [];
+          stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+          stream.on('error', reject);
+          stream.on('end', () => resolve(Buffer.concat(chunks)));
+        }));
+        return { text: result.includes(0) ? 'Binary file. Text preview is unavailable.' : result.toString('utf8'), limit: 131072 };
+      }
+      if (resource === 'shell' && method === 'POST') {
+        if (!session.shellOpening) session.shellOpening = deadline(new Promise<void>((resolve, reject) => {
+          session.client.shell({ term: 'xterm-256color', cols: 80, rows: 24 }, (error, stream) => {
+            if (error) return reject(error);
+            session.shell = stream;
+            const decoder = new StringDecoder('utf8');
+            stream.on('data', (chunk: Buffer) => {
+              session.output += decoder.write(chunk);
+              if (session.output.length > 262144) {
+                const trim = session.output.length - 262144;
+                session.output = session.output.slice(trim); session.offset += trim;
+              }
+            });
+            stream.on('error', () => {});
+            resolve();
+          });
+        }));
+        await session.shellOpening;
+        return {};
+      }
+      if (resource === 'output' && method === 'POST') {
+        const cursor = z.object({ cursor: z.number().int().nonnegative() }).parse(input).cursor;
+        const start = Math.max(session.offset, Math.min(cursor, session.offset + session.output.length));
+        return { output: session.output.slice(start - session.offset), cursor: session.offset + session.output.length,
+          truncated: cursor < session.offset, closed: session.closed || session.shell?.destroyed === true };
+      }
+      if (resource === 'input' && method === 'POST') {
+        const request = z.object({ sequence: z.number().int().positive(), data: z.string().max(16384) }).parse(input);
+        if (!session.shell || session.shell.destroyed) throw new DiagnosticError(410, 'The shell is closed.');
+        if (request.sequence <= session.inputSequence) return {};
+        if (request.sequence !== session.inputSequence + 1) throw new DiagnosticError(409, 'Shell input is out of order. Reconnect.');
+        session.shell.write(request.data);
+        session.inputSequence = request.sequence;
+        return {};
+      }
+      if (resource === 'resize' && method === 'POST') {
+        const size = z.object({ rows: z.number().int().min(2).max(200), columns: z.number().int().min(10).max(300) }).parse(input);
+        session.shell?.setWindow(size.rows, size.columns, 0, 0);
+        return {};
+      }
+      throw new DiagnosticError(404, 'SSH endpoint not found.');
+    },
+  };
+}

@@ -17,7 +17,7 @@ if [[ -n $(ss -ltnH 'sport = :3000') ]]; then
   echo 'Port 3000 is occupied.' >&2
   exit 1
 fi
-for path in runtime/bin/node server/index.ts dist/index.html package.json node_modules/zod/package.json node_modules/multicast-dns/package.json server/state-backup.ts deploy/nexus-dashboard.service; do
+for path in runtime/bin/node server/index.ts server/diagnostics.ts server/ssh-console.ts dist/index.html package.json node_modules/zod/package.json node_modules/multicast-dns/package.json node_modules/ssh2/package.json server/state-backup.ts deploy/nexus-dashboard.service; do
   test -f "$release/$path"
 done
 for directory in runtime server dist node_modules; do

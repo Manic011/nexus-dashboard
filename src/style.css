@@ -269,3 +269,33 @@ dialog h2, dialog form p { overflow-wrap: anywhere; }
   .custom-grid[data-columns="1"] > article, .custom-grid[data-columns="2"] > article { grid-area: auto; }
   .custom-grid:is([data-columns="1"], [data-columns="2"]) { --category-placement: auto; --layout-slot-display: none; }
 }
+.diagnostics { display: grid; gap: 16px; }
+.diagnostics .tile { min-width: 0; }
+.diagnostics h3 { margin-block: 18px 10px; }
+.diagnostics p { line-height: 1.5; margin-block: 10px; }
+.metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 14px; margin-block: 18px; }
+.metric-grid > div { min-width: 0; overflow-wrap: anywhere; }
+.metric-grid dt { font-size: .85rem; }
+.metric-grid dd { margin: 5px 0; }
+.metric-grid small { color: var(--muted); font-weight: normal; }
+.diagnostic-metrics > div { display: grid; gap: 8px; padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--field); }
+.diagnostic-metrics strong { font-size: 1.5rem; }
+.diagnostic-metrics progress { width: 100%; accent-color: var(--accent); }
+.diagnostic-services { margin-top: 20px; }
+.diagnostic-services > article { padding-block: 18px; border-top: 1px solid var(--border); }
+.diagnostic-service-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.diagnostic-url { overflow-wrap: anywhere; }
+.state-up { color: var(--accent); }
+.uptime-history { display: flex; gap: 3px; margin-bottom: 8px; }
+.uptime-history span { display: block; flex: 1; max-width: 22px; height: 20px; border-radius: 3px; }
+.check-up { background: var(--accent); }
+.check-down { background: var(--error); }
+.machine-console > details > summary { margin-top: 16px; }
+.machine-form { display: grid; gap: 12px; margin-block: 16px; width: 100%; max-width: 550px; }
+.machine-form label { display: grid; gap: 6px; min-width: 0; }
+.machine-form input, .machine-form textarea { width: 100%; }
+.diagnostic-output { max-width: 100%; overflow: auto; max-height: 420px; padding: 14px; background: var(--field); border: 1px solid var(--border); border-radius: 8px; font-size: .85rem; white-space: pre; }
+.diagnostic-system { white-space: pre-line; }
+.ssh-terminal { height: 420px; padding: 10px; background: #10171c; border-radius: 8px; margin-top: 16px; overflow: hidden; }
+.remote-files { max-height: 420px; overflow: auto; }
+.remote-files button { max-width: 100%; overflow-wrap: anywhere; text-align: left; justify-content: flex-start; }

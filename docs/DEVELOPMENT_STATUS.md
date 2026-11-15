@@ -4,6 +4,8 @@ StackJetty is a development preview. The [requirements audit](REQUIREMENTS_AUDIT
 
 ## Available in the preview
 
+- Administrator diagnostics for sampled availability, host information, network throughput, and optional SSH machine statistics, file browsing, and an interactive shell.
+
 - Default tile opening preference and saved per-tile modes for a new browser tab, direct embedding, or Kasm.
 
 - Optional Kasm browser launch inside the service view for administrators. Real provider validation requires a configured Kasm deployment.
@@ -27,7 +29,7 @@ The Ubuntu integration preview has exercised sign-in, tile edits and imports, di
 | Discovery | Add more discovery sources and optional schedules. |
 | Live integrations | Add supported integrations beyond Jellyfin. |
 | Access | Add multiple dashboards, dashboard-specific permissions and passwords, and richer account management. |
-| Operations | Add scheduled/encrypted backups, broader recovery compatibility, diagnostics, and update management. Operator database backup/recovery is available. |
+| Operations | Diagnostics and operator database backup/recovery are available. Add scheduled/encrypted backups, broader recovery compatibility, and update management. |
 
 ## Latest validation
 
