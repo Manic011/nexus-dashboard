@@ -14,9 +14,16 @@ const hostInput = z.object({
   port: z.number().int().min(1).max(65535),
   username: z.string().trim().min(1).max(64).regex(/^[a-zA-Z0-9_.@-]+$/),
   fingerprint: z.union([hostFingerprint, z.literal('')]).optional(),
+  group: z.string().trim().max(60).optional(),
+});
+const batchHostInput = z.object({
+  ids: z.array(z.number().int().positive()).min(1).max(500),
+  changes: hostInput.pick({ group: true, port: true, username: true }).partial()
+    .refine(changes => Object.keys(changes).length > 0),
 });
 const fingerprintOf = (key: Buffer) => 'SHA256:' + createHash('sha256').update(key).digest('base64').replace(/=+$/, '');
 type Host = z.infer<typeof hostInput>;
+const destination = (host: Host) => JSON.stringify([host.host.toLowerCase(), host.port, host.username, host.fingerprint || '']);
 type Connection = {
   client: Client; owner: string; hostId: number; created: number; closed: boolean;
   shell?: ClientChannel; sftp?: SFTPWrapper; output: string; offset: number; inputSequence: number;
@@ -63,6 +70,24 @@ export function configureSsh(db: DatabaseSync, enabled: boolean) {
   function list() {
     return db.prepare("SELECT id,payload FROM admin_records WHERE kind='ssh-host' ORDER BY label").all()
       .map(row => ({ id: Number(row.id), ...JSON.parse(String(row.payload)) as Host }));
+  }
+  function findHost(id: number) {
+    const row = db.prepare("SELECT payload FROM admin_records WHERE kind='ssh-host' AND id=?").get(id);
+    if (!row) throw new DiagnosticError(404, 'Machine not found.');
+    return { id, ...JSON.parse(String(row.payload)) as Host };
+  }
+  function updateHost(previous: Host & { id: number }, changes: Partial<Host>) {
+    const { id, ...host } = previous;
+    const updated = { ...host, ...changes };
+    if (updated.host.toLowerCase() !== host.host.toLowerCase() || updated.port !== host.port) {
+      updated.fingerprint = '';
+    }
+    db.prepare("UPDATE admin_records SET label=?,payload=? WHERE kind='ssh-host' AND id=?")
+      .run(updated.name, JSON.stringify(updated), id);
+    return destination(updated) !== destination(previous);
+  }
+  function closeHosts(ids: Set<number>) {
+    for (const [id, session] of sessions) if (ids.has(session.hostId)) close(id);
   }
   function owned(id: string, owner: string) {
     const session = sessions.get(id);
@@ -136,21 +161,38 @@ export function configureSsh(db: DatabaseSync, enabled: boolean) {
       if (!path.startsWith('/api/admin/diagnostics/ssh')) return undefined;
       if (method === 'GET' && path === '/api/admin/diagnostics/ssh') return { enabled, secureTransport, hosts: list() };
       if (!enabled) throw new DiagnosticError(403, 'Enable NEXUS_SSH=on in the server environment to use SSH.');
+      if (method === 'GET' && path === '/api/admin/diagnostics/ssh/sessions') {
+        return { ids: [...sessions].filter(([, session]) => session.owner === owner).map(([id]) => id) };
+      }
       if (method === 'POST' && path === '/api/admin/diagnostics/ssh/hosts') {
         const host = hostInput.parse(input);
         const id = db.prepare("INSERT INTO admin_records(kind,label,created,payload) VALUES ('ssh-host',?,?,?)")
           .run(host.name, new Date().toISOString(), JSON.stringify(host)).lastInsertRowid;
         return { id: Number(id) };
       }
+      if (method === 'PATCH' && path === '/api/admin/diagnostics/ssh/hosts') {
+        const { ids, changes } = batchHostInput.parse(input);
+        const reconnect = new Set<number>();
+        db.exec('BEGIN');
+        try {
+          for (const id of new Set(ids)) if (updateHost(findHost(id), changes)) reconnect.add(id);
+          db.exec('COMMIT');
+        } catch (error) {
+          db.exec('ROLLBACK');
+          throw error;
+        }
+        closeHosts(reconnect);
+        return { reconnect: [...reconnect] };
+      }
       const trustMatch = /^\/api\/admin\/diagnostics\/ssh\/hosts\/([1-9]\d*)\/(probe|trust)$/.exec(path);
       if (trustMatch && method === 'POST') {
         if (!secureTransport) throw new DiagnosticError(403, 'Open StackJetty over HTTPS or the private SSH tunnel to review host keys.');
         const id = Number(trustMatch[1]);
-        const host = list().find(host => host.id === id);
-        if (!host) throw new DiagnosticError(404, 'Machine not found.');
+        const host = findHost(id);
         if (host.fingerprint) throw new DiagnosticError(409, 'This machine already has a trusted host key.');
         if (trustMatch[2] === 'trust') {
-          const { fingerprint } = z.object({ fingerprint: hostFingerprint }).parse(input);
+          const { fingerprint, expected } = z.object({ fingerprint: hostFingerprint, expected: z.string().max(600).optional() }).parse(input);
+          if (expected !== undefined && expected !== destination(host)) throw new DiagnosticError(409, 'The machine changed. Read its host key again.');
           const updated = db.prepare(`UPDATE admin_records SET payload=json_set(payload,'$.fingerprint',?)
             WHERE kind='ssh-host' AND id=? AND coalesce(json_extract(payload,'$.fingerprint'),'')=''`).run(fingerprint, id);
           if (!updated.changes) throw new DiagnosticError(409, 'The saved machine changed. Reload and try again.');
@@ -169,7 +211,7 @@ export function configureSsh(db: DatabaseSync, enabled: boolean) {
                 return false; // Stop before authenticating.
               } });
           }), 12_000);
-          return { fingerprint };
+          return { fingerprint, expected: destination(host) };
         } catch {
           throw new DiagnosticError(502, 'Could not read the SSH host key. Check the address and port.');
         } finally {
@@ -178,6 +220,14 @@ export function configureSsh(db: DatabaseSync, enabled: boolean) {
         }
       }
       const hostMatch = /^\/api\/admin\/diagnostics\/ssh\/hosts\/([1-9]\d*)$/.exec(path);
+      if (hostMatch && method === 'PATCH') {
+        const { expected, ...host } = hostInput.extend({ expected: z.string().max(600) }).parse(input);
+        const previous = findHost(Number(hostMatch[1]));
+        if (expected !== destination(previous)) throw new DiagnosticError(409, 'The machine changed. Reload it before editing.');
+        const reconnect = updateHost(previous, { ...host, fingerprint: host.fingerprint ?? '' });
+        if (reconnect) closeHosts(new Set([previous.id]));
+        return { reconnect: reconnect ? [previous.id] : [] };
+      }
       if (hostMatch && method === 'DELETE') {
         const id = Number(hostMatch[1]);
         for (const [key, session] of sessions) if (session.hostId === id) close(key);
@@ -188,13 +238,15 @@ export function configureSsh(db: DatabaseSync, enabled: boolean) {
         if (!secureTransport) throw new DiagnosticError(403, 'SSH credentials require HTTPS or a verified localhost connection.');
         if (connecting.has(owner) || sessions.size + connecting.size >= 8) throw new DiagnosticError(429, 'An SSH connection is already opening or the session limit was reached.');
         const credentials = z.object({ hostId: z.number().int().positive(), authentication: z.enum(['password', 'private-key']).optional(), password: z.string().max(4096).optional(),
-          privateKey: z.string().max(32768).optional(), passphrase: z.string().max(4096).optional() }).parse(input);
+          privateKey: z.string().max(32768).optional(), passphrase: z.string().max(4096).optional(), expected: z.string().max(600).optional() }).parse(input);
         const method = credentials.authentication ?? (credentials.privateKey ? 'private-key' : 'password');
         if (method === 'password' ? !credentials.password : !credentials.privateKey) {
           throw new DiagnosticError(400, method === 'password' ? 'Enter the SSH password.' : 'Enter the session private key.');
         }
-        const host = list().find(host => host.id === credentials.hostId);
-        if (!host) throw new DiagnosticError(404, 'Machine not found.');
+        const host = findHost(credentials.hostId);
+        if (credentials.expected !== undefined && credentials.expected !== destination(host)) {
+          throw new DiagnosticError(409, 'The machine changed. Reload it before connecting.');
+        }
         if (!host.fingerprint) throw new DiagnosticError(409, 'Review and trust the machine’s host key before signing in.');
         connecting.add(owner);
         const client = new ssh2.Client();
@@ -223,12 +275,17 @@ export function configureSsh(db: DatabaseSync, enabled: boolean) {
           throw new DiagnosticError(502, verified ? 'SSH authentication or connection failed.' : 'SSH connection or trusted host-key verification failed.');
         } finally { connecting.delete(owner); }
         if (!validOwner(owner)) { client.destroy(); throw new DiagnosticError(401, 'Sign in to continue.'); }
+        const current = list().find(entry => entry.id === host.id);
+        if (!current || destination(current) !== destination(host)) {
+          client.destroy();
+          throw new DiagnosticError(409, 'The machine changed while SSH was connecting.');
+        }
         const id = randomBytes(24).toString('hex');
         const session: Connection = { client, owner, hostId: host.id, created: Date.now(),
           closed: false, output: '', offset: 0, inputSequence: 0, outputEvents: new EventEmitter() };
         client.on('close', () => close(id));
         sessions.set(id, session);
-        return { id, name: host.name };
+        return { id, name: current.name };
       }
       const match = /^\/api\/admin\/diagnostics\/ssh\/([a-f0-9]{48})(?:\/(stats|files|file|file-operation|shell|output|input|resize))?$/.exec(path);
       if (!match) throw new DiagnosticError(404, 'SSH endpoint not found.');

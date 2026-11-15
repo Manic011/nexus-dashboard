@@ -7,6 +7,7 @@ type CredentialVault = {
   available: boolean;
   exists: boolean;
   entries: VaultEntries | undefined;
+  get: (address: string) => Credential | undefined;
   unlock: (password: string, confirmation: string) => Promise<void>;
   lock: () => void;
   save: (address: string, credential?: Credential) => Promise<void>;
@@ -144,5 +145,12 @@ export function CredentialVaultProvider({ username, children }: { username: stri
     catch { return false; }
   }
 
-  return <Context.Provider value={{ available: storage.available, exists, entries, unlock, lock, save, hasLegacy, importLegacy }}>{children}</Context.Provider>;
+  function get(address: string) {
+    const { vault, sealed } = current.current;
+    if (!vault) return undefined;
+    assertCurrent(epoch.current, sealed);
+    return vault.entries[address];
+  }
+
+  return <Context.Provider value={{ available: storage.available, exists, entries, get, unlock, lock, save, hasLegacy, importLegacy }}>{children}</Context.Provider>;
 }

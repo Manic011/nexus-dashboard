@@ -64,9 +64,19 @@ ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
 5. If you left the fingerprint blank, choose **Read server key**, check that it identifies your machine, and select **Trust key and continue**. StackJetty reads the key without sending credentials and remembers the accepted fingerprint. The key shown on first contact is supplied by the server and cannot establish its identity by itself. Compare it with the fingerprint from the machine's trusted console when the network or address is uncertain.
 6. **Password** is selected by default. Enter the remote account's password and choose **Start SSH session**, or open **Saved SSH password** to save it in the browser vault. Choose **Private key** to use a session key and optional passphrase.
 
-The host-key fingerprint must match the key negotiated for the connection. A mismatch rejects the connection. If the server presents another legitimate host-key algorithm, obtain that algorithm's fingerprint through a trusted channel. Replace a saved entry when its host or trusted key changes.
+The host-key fingerprint must match the key negotiated for the connection. A mismatch rejects the connection. If the server presents another legitimate host-key algorithm, obtain that algorithm's fingerprint through a trusted channel before editing the saved fingerprint.
 
 SSH password authentication supports the SSH password method and a single non-echo PAM password prompt. The fingerprint verifies server identity before authentication.
+
+### Edit and organize saved machines
+
+Use **Edit** on a machine to change its name, group, host, port, SSH username, or trusted fingerprint. **More** contains the removal action. Use **Search machines** to filter by name, address, port, username, or group. Machines without a group appear under **Ungrouped**.
+
+Open **Organize machines** and choose individual rows or **Select visible**. Selections survive search changes and the count includes hidden rows. **Batch edit** updates the group, SSH username, or port for every selected machine. For a group change, leave **New group** empty to move the selection to **Ungrouped**.
+
+Choose **Connect selected** with the vault unlocked to open one session per selected machine that has a trusted fingerprint and a matching saved password. Existing sessions stay open. Review the result for machines that need a host-key check, a password, or individual private-key authentication. **Disconnect selected** closes the open sessions for the selected machines in this workspace. The row's **Disconnect** closes all open sessions for that machine, and **Disconnect SSH** inside a session closes that session alone.
+
+Edits to connection details close active sessions for the affected machine. Changing the address or port also clears its trusted host key. The vault associates passwords with the original connection details. After changing them, review the new destination and save its password if needed.
 
 ### Save an encrypted SSH password
 

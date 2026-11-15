@@ -308,6 +308,23 @@ button.diagnostic-launch { border: 0; background: transparent; padding: 0; min-h
 .check-down { background: var(--error); }
 .check-unknown { border: 1px dashed currentColor; opacity: .55; }
 .machine-console > details > summary { margin-top: 16px; }
+.machine-console summary { cursor: pointer; }
+.ssh-machine-toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin-block: 20px; }
+.ssh-machine-toolbar > label { display: grid; gap: 6px; flex: 1 1 240px; min-width: 0; }
+.ssh-batch-actions { flex-basis: 100%; padding: 12px; background: var(--control); border: 1px solid var(--border); border-radius: 8px; }
+.ssh-batch-actions > p { margin: 0 0 8px; }
+.ssh-machine-actions, .ssh-batch-actions .actions { flex-wrap: wrap; }
+.ssh-machine-label { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.ssh-machine-label input { width: auto; }
+.ssh-machine-status { display: block; color: var(--accent); margin-top: 3px; }
+.ssh-machine-group h3 { margin: 18px 0 0; overflow-wrap: anywhere; }
+.ssh-machine-group ul { margin-block: 4px 16px; }
+.ssh-machine-edit { flex-basis: 100%; margin-block: 4px 8px; }
+.ssh-machine-more { position: relative; }
+.ssh-machine-more summary { display: flex; align-items: center; min-height: 40px; padding-inline: 10px; }
+.ssh-machine-more > div { position: absolute; z-index: 2; inset-inline-end: 0; min-width: 140px; max-width: 220px; padding: 6px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
+.ssh-machine-more button { width: 100%; overflow-wrap: anywhere; }
+.ssh-feedback { white-space: pre-line; overflow-wrap: anywhere; }
 .machine-form { display: grid; gap: 12px; margin-block: 16px; width: 100%; max-width: 550px; }
 .machine-form label { display: grid; gap: 6px; min-width: 0; }
 .machine-form input, .machine-form textarea { width: 100%; }

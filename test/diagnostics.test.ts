@@ -70,8 +70,10 @@ test('diagnostic monitoring and SSH sessions enforce access, fingerprints and ow
     const trustPath = 'admin/diagnostics/ssh/hosts/' + unpinned.id;
     const observed = await request(trustPath + '/probe', 'POST');
     assert.equal(observed.status, 200);
-    assert.deepEqual(await observed.json(), { fingerprint });
-    assert.equal((await request(trustPath + '/trust', 'POST', { fingerprint })).status, 200);
+    const review = await observed.json();
+    assert.equal(review.fingerprint, fingerprint);
+    assert.equal((await request(trustPath + '/trust', 'POST', { ...review, expected: 'stale' })).status, 409);
+    assert.equal((await request(trustPath + '/trust', 'POST', review)).status, 200);
     assert.equal((await request(trustPath + '/trust', 'POST', { fingerprint: 'SHA256:' + 'A'.repeat(43) })).status, 409);
     const trustedConnection = await request('admin/diagnostics/ssh/connect', 'POST', signIn);
     assert.equal(trustedConnection.status, 200);
@@ -92,6 +94,18 @@ test('diagnostic monitoring and SSH sessions enforce access, fingerprints and ow
     assert.equal(connected.status, 200);
     const connection = await connected.json();
     const root = 'admin/diagnostics/ssh/' + connection.id;
+    const hostsPath = 'admin/diagnostics/ssh/hosts';
+    const sessionsPath = 'admin/diagnostics/ssh/sessions';
+    const endpoint = JSON.stringify([host.host, host.port, host.username, fingerprint]);
+    const catalog = async () => (await (await request('admin/diagnostics/ssh')).json()).hosts;
+    assert.equal((await request(hostsPath, 'PATCH', { ids: [saved.id, 999999], changes: { group: 'Partial' } })).status, 404);
+    assert.equal((await catalog()).find((entry: { id: number }) => entry.id === saved.id).group, undefined);
+    assert.equal((await request(hostsPath, 'PATCH', { ids: [saved.id, unpinned.id], changes: { group: 'Linux' } })).status, 200);
+    assert.equal((await request(hostsPath + '/' + saved.id, 'PATCH', { ...host, name: 'Renamed machine', expected: endpoint })).status, 200);
+    assert.deepEqual((await (await request(sessionsPath)).json()).ids, [connection.id]);
+    assert.equal((await request(hostsPath, 'PATCH', { ids: [unpinned.id], changes: { port: host.port === 22 ? 23 : 22 } })).status, 200);
+    assert.equal((await catalog()).find((entry: { id: number }) => entry.id === unpinned.id).fingerprint, '');
+    assert.equal((await request('admin/diagnostics/ssh/connect', 'POST', { ...signIn, expected: endpoint })).status, 409);
     const stats = await (await request(root + '/stats')).json();
     assert.equal(stats.cores, 2);
     assert.equal(stats.memory.total, 1024000);
@@ -111,6 +125,7 @@ test('diagnostic monitoring and SSH sessions enforce access, fingerprints and ow
     const secondLogin = await request('login', 'POST', { username: 'admin', password });
     cookie = secondLogin.headers.get('set-cookie')!.split(';')[0];
     assert.equal((await request(root + '/stats')).status, 404);
+    assert.deepEqual((await (await request(sessionsPath)).json()).ids, []);
     cookie = adminCookie;
     assert.equal((await request('admin/users', 'POST', { username: 'reader', password, role: 'viewer' })).status, 201);
     cookie = '';
@@ -118,6 +133,7 @@ test('diagnostic monitoring and SSH sessions enforce access, fingerprints and ow
     cookie = readerLogin.headers.get('set-cookie')!.split(';')[0];
     assert.equal((await request('admin/diagnostics')).status, 403);
     assert.equal((await request('admin/diagnostics/speed')).status, 403);
+    assert.equal((await request(hostsPath, 'PATCH', { ids: [saved.id], changes: { group: 'Forbidden' } })).status, 403);
     assert.equal((await request('admin/diagnostics/ssh/connect', 'POST', { hostId: saved.id, password: 'fixture-password' })).status, 403);
     cookie = adminCookie;
     const shellClosed = once(input, 'shell-close');
