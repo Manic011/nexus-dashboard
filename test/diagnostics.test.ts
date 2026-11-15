@@ -27,7 +27,7 @@ test('diagnostic monitoring and SSH sessions enforce access, fingerprints and ow
   let cookie = '';
   let address = '';
   async function request(path: string, method = 'GET', input?: object) {
-    return fetch(address + '/api/' + path, { method, headers: { cookie, origin, 'Content-Type': 'application/json' },
+    return fetch(address + '/api/' + path, { method, headers: { cookie, origin: address, 'Content-Type': 'application/json' },
       body: method === 'GET' ? undefined : JSON.stringify(input ?? {}) });
   }
   try {

@@ -34,7 +34,7 @@ function deadline<T>(work: Promise<T>, milliseconds = 10_000): Promise<T> {
   });
 }
 
-export function configureSsh(db: DatabaseSync, enabled: boolean, secureTransport: boolean) {
+export function configureSsh(db: DatabaseSync, enabled: boolean) {
   const sessions = new Map<string, Connection>();
   const connecting = new Set<string>();
   const ownerQuery = db.prepare("SELECT 1 FROM sessions JOIN accounts ON accounts.id=sessions.account_id WHERE token=? AND expires>? AND idle_until>? AND role='admin'");
@@ -132,9 +132,9 @@ export function configureSsh(db: DatabaseSync, enabled: boolean, secureTransport
   return {
     closeOwner(owner: string) { for (const [id, session] of sessions) if (session.owner === owner) close(id); },
     close() { clearInterval(timer); for (const id of sessions.keys()) close(id); },
-    async handle(method: string, path: string, input: unknown, owner: string, localTransport = false, requestSignal?: AbortSignal) {
+    async handle(method: string, path: string, input: unknown, owner: string, secureTransport: boolean, requestSignal?: AbortSignal) {
       if (!path.startsWith('/api/admin/diagnostics/ssh')) return undefined;
-      if (method === 'GET' && path === '/api/admin/diagnostics/ssh') return { enabled, secureTransport: secureTransport || localTransport, hosts: list() };
+      if (method === 'GET' && path === '/api/admin/diagnostics/ssh') return { enabled, secureTransport, hosts: list() };
       if (!enabled) throw new DiagnosticError(403, 'Enable NEXUS_SSH=on in the server environment to use SSH.');
       if (method === 'POST' && path === '/api/admin/diagnostics/ssh/hosts') {
         const host = hostInput.parse(input);
@@ -144,7 +144,7 @@ export function configureSsh(db: DatabaseSync, enabled: boolean, secureTransport
       }
       const trustMatch = /^\/api\/admin\/diagnostics\/ssh\/hosts\/([1-9]\d*)\/(probe|trust)$/.exec(path);
       if (trustMatch && method === 'POST') {
-        if (!secureTransport && !localTransport) throw new DiagnosticError(403, 'Open StackJetty over HTTPS or the private SSH tunnel to review host keys.');
+        if (!secureTransport) throw new DiagnosticError(403, 'Open StackJetty over HTTPS or the private SSH tunnel to review host keys.');
         const id = Number(trustMatch[1]);
         const host = list().find(host => host.id === id);
         if (!host) throw new DiagnosticError(404, 'Machine not found.');
@@ -185,7 +185,7 @@ export function configureSsh(db: DatabaseSync, enabled: boolean, secureTransport
         return {};
       }
       if (path === '/api/admin/diagnostics/ssh/connect' && method === 'POST') {
-        if (!secureTransport && !localTransport) throw new DiagnosticError(403, 'SSH credentials require HTTPS or a verified localhost connection.');
+        if (!secureTransport) throw new DiagnosticError(403, 'SSH credentials require HTTPS or a verified localhost connection.');
         if (connecting.has(owner) || sessions.size + connecting.size >= 8) throw new DiagnosticError(429, 'An SSH connection is already opening or the session limit was reached.');
         const credentials = z.object({ hostId: z.number().int().positive(), authentication: z.enum(['password', 'private-key']).optional(), password: z.string().max(4096).optional(),
           privateKey: z.string().max(32768).optional(), passphrase: z.string().max(4096).optional() }).parse(input);

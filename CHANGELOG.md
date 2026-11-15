@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Support simultaneous LAN HTTP and native HTTPS with separate sessions and a shared dashboard database.
 - Add sample-data screenshots and link the diagnostics and SSH guide from the README. Refresh the API reference, privacy notes, and smoke-test records.
 - Retry failed HEAD checks with GET and report unverified HTTPS certificates separately from outages.
 - Put SSH machines in the main navigation and keep concurrent sessions open while switching dashboard views. Close them on sign-out or after 15 minutes of inactivity.

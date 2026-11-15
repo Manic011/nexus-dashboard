@@ -19,6 +19,7 @@ A self-hosted dashboard for your homelab. Discover services, organize them into 
 | Tile backups | Export tiles as JSON; review new entries and explicitly update matching URLs. Save named server-side configuration snapshots and preview restore changes. Operators can also create and recover consistent full-database backups. |
 | Jellyfin activity | Show the active stream count on a matching tile after configuring a Jellyfin URL and API key on the server. |
 | Ubuntu deployment | Stage a built release and install it as a systemd service under a dedicated account. |
+| LAN access | Serve HTTP and HTTPS on separate ports from the same instance. [LAN setup](docs/INSTALL.md#http-and-https-together-on-the-lan) |
 | Diagnostics | Monitor saved URLs, inspect uptime history and host metrics, measure browser-to-server throughput, and open service links using the tile's launch preference. The monitor identifies certificate verification failures separately. |
 | SSH machines | Verify a host key on first connect, sign in with a password or key, and switch between concurrent sessions. View Linux metrics, open a responsive terminal, and use the SFTP file manager to create folders, rename, cut, copy, paste, delete, upload, and download. Saved passwords use an optional encrypted browser vault. |
 

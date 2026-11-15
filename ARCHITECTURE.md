@@ -41,6 +41,8 @@ Jellyfin receives read-only requests at the configured base URL. StackJetty send
 
 ## HTTP API
 
+Native LAN HTTPS and HTTP can listen on different ports and share the same handler and database. Each listener validates its configured browser origin for writes. Native HTTPS uses a separate Secure cookie and binds the session digest to the HTTPS origin, so a token issued over HTTP cannot authenticate to the HTTPS API. Handoff to a reverse proxy remains a separate deployment configuration.
+
 Mutation requests use JSON and require the configured `Origin` header. Authenticated routes use the `nexus_session` cookie. Errors return an object with an `error` message.
 
 | Method and route | Access | Purpose |

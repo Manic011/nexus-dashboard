@@ -1,4 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { createServer as createHttpsServer } from 'node:https';
+import { TLSSocket } from 'node:tls';
 import { randomBytes, createHash, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { DatabaseSync } from 'node:sqlite';
@@ -65,9 +67,14 @@ async function body(req: IncomingMessage, limit = 8192) {
   }
 }
 
-export function createApp(data: string, dist: string, origin: string, setupToken?: string, jellyfinConfig?: { baseUrl: string; apiKey: string }, discoveryEnabled = true, kasmUrl?: string) {
+export function createApp(data: string, dist: string, origin: string, setupToken?: string, jellyfinConfig?: { baseUrl: string; apiKey: string }, discoveryEnabled = true, kasmUrl?: string, httpsOrigin?: string) {
+  const primaryOrigin = new URL(origin);
+  const nativeHttps = httpsOrigin === undefined ? undefined : new URL(httpsOrigin);
+  if (nativeHttps && (primaryOrigin.protocol !== 'http:' || nativeHttps.protocol !== 'https:' || nativeHttps.origin !== httpsOrigin)) {
+    throw new Error('The native HTTPS listener requires an HTTP NEXUS_ORIGIN and a bare HTTPS NEXUS_HTTPS_ORIGIN.');
+  }
   const kasm = kasmUrl === undefined ? undefined : URL.parse(kasmUrl);
-  if (kasmUrl !== undefined && (!kasm || kasm.protocol !== 'https:' || kasm.origin === new URL(origin).origin ||
+  if (kasmUrl !== undefined && (!kasm || kasm.protocol !== 'https:' || kasm.origin === origin || kasm.origin === httpsOrigin ||
       kasm.username || kasm.password || kasm.search || kasm.hash)) {
     throw new Error('NEXUS_KASM_URL must be an HTTPS base URL on a separate origin, without credentials, query, or fragment.');
   }
@@ -125,21 +132,25 @@ export function createApp(data: string, dist: string, origin: string, setupToken
 
   const consoleAdmin = configureAdministration(db);
   const diagnostics = configureDiagnostics(db, Boolean(kasm));
-  const configuredOrigin = new URL(origin);
-  const ssh = configureSsh(db, process.env.NEXUS_SSH === 'on',
-    configuredOrigin.protocol === 'https:' || ['localhost', '127.0.0.1', '[::1]'].includes(configuredOrigin.hostname));
+  const ssh = configureSsh(db, process.env.NEXUS_SSH === 'on');
   const speedTests = new Map<string, number>();
   let scanProgress: { checked: number; total: number } | undefined;
   let discoveryRunning = false;
   let scanCancelled = false;
   let loginAttempts = 0;
   let resetAt = 0;
-  const secure = origin.startsWith('https:') ? '; Secure' : '';
-  const cookie = (token: string, age: number) => `nexus_session=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${age}${secure}`;
   const admin = db.prepare("SELECT 1 FROM accounts WHERE role='admin'");
   const lookup = db.prepare('SELECT * FROM accounts WHERE username=?');
 
   const server = createServer({ requestTimeout: 15000, headersTimeout: 10000 }, async (req, res) => {
+    const accessOrigin = nativeHttps && req.socket instanceof TLSSocket ? nativeHttps : primaryOrigin;
+    const secure = accessOrigin.protocol === 'https:';
+    const cookieName = secure && nativeHttps ? '__Host-stackjetty_session' : 'nexus_session';
+    const cookie = (token: string, age: number) =>
+      `${cookieName}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${age}${secure ? '; Secure' : ''}`;
+    // Cookies are scoped to hostnames by browsers. Bind tokens to the HTTPS origin
+    // on the server too, so renaming a captured HTTP cookie cannot promote it.
+    const sessionDigest = (token: string) => digest(secure && nativeHttps ? nativeHttps.origin + '\0' + token : token);
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Referrer-Policy', 'no-referrer');
@@ -154,16 +165,19 @@ export function createApp(data: string, dist: string, origin: string, setupToken
       const path = new URL(req.url ?? '/', origin).pathname;
       const method = req.method;
       const requestHost = URL.parse('http://' + (req.headers.host ?? ''));
-      const loopbackOrigin = requestHost && requestHost.host === req.headers.host &&
+      const loopbackOrigin = !secure && requestHost && requestHost.host === req.headers.host &&
         ['127.0.0.1', 'localhost', '[::1]'].includes(requestHost.hostname) &&
         ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress ?? '') &&
         ['forwarded', 'x-forwarded-for', 'x-forwarded-host', 'x-forwarded-proto'].every(header => req.headers[header] === undefined)
         ? requestHost.origin : undefined;
       const localTransport = Boolean(loopbackOrigin && (!req.headers.origin || req.headers.origin === loopbackOrigin));
-      const allowedOrigin = req.headers.origin === origin || Boolean(loopbackOrigin && req.headers.origin === loopbackOrigin);
+      const allowedOrigin = req.headers.origin === accessOrigin.origin || Boolean(loopbackOrigin && req.headers.origin === loopbackOrigin);
       if (method === 'GET' && path === '/healthz') {
         db.prepare('SELECT 1').get();
         return send(200, { status: 'ok' });
+      }
+      if (nativeHttps && req.headers.host !== accessOrigin.host && !loopbackOrigin) {
+        throw new RequestError(421, 'Open StackJetty using the configured address for this connection.');
       }
       if (method === 'GET' && !path.startsWith('/api/')) {
         const asset = /^\/assets\/[\w.-]+\.(js|css)$/.test(path);
@@ -182,14 +196,15 @@ export function createApp(data: string, dist: string, origin: string, setupToken
       if (method !== 'GET' && (!allowedOrigin || req.headers['content-type']?.split(';')[0] !== 'application/json')) {
         throw new RequestError(403, 'Request origin or content type is invalid.');
       }
-      const token = req.headers.cookie?.match(/(?:^|; *)nexus_session=([a-f0-9]{64})(?:;|$)/)?.[1];
+      const token = req.headers.cookie?.split(/;\s*/).find(value => value.startsWith(cookieName + '='))?.slice(cookieName.length + 1);
+      const owner = token && /^[a-f0-9]{64}$/.test(token) ? sessionDigest(token) : undefined;
       const configured = !!admin.get();
       const now = Date.now();
-      const authenticated = token ? db.prepare(`
+      const authenticated = owner ? db.prepare(`
         SELECT accounts.id, accounts.username, accounts.role
         FROM sessions JOIN accounts ON accounts.id=sessions.account_id
         WHERE sessions.token=? AND sessions.expires>? AND sessions.idle_until>?
-      `).get(digest(token), now, now) : undefined;
+      `).get(owner, now, now) : undefined;
       if (method === 'GET' && path === '/api/session') {
         return send(200, { setup: !configured, setupTokenRequired: !configured && !!setupToken, username: authenticated?.username ?? null, role: authenticated?.role ?? null, shared: lookup.get('shared')?.role === 'viewer' });
       }
@@ -222,24 +237,24 @@ export function createApp(data: string, dist: string, origin: string, setupToken
           throw new RequestError(401, 'Invalid credentials.');
         }
         const session = randomBytes(32).toString('hex');
-        if (token) ssh.closeOwner(digest(token));
-        db.prepare('DELETE FROM sessions WHERE expires <= ? OR idle_until <= ? OR token = ?').run(now, now, token ? digest(token) : '');
-        db.prepare('INSERT INTO sessions (token, expires, account_id, idle_until) VALUES (?, ?, ?, ?)').run(digest(session), now + lifetime * 1000, setup ? 1 : account!.id, now + 15 * 60_000);
+        if (owner) ssh.closeOwner(owner);
+        db.prepare('DELETE FROM sessions WHERE expires <= ? OR idle_until <= ? OR token = ?').run(now, now, owner ?? '');
+        db.prepare('INSERT INTO sessions (token, expires, account_id, idle_until) VALUES (?, ?, ?, ?)').run(sessionDigest(session), now + lifetime * 1000, setup ? 1 : account!.id, now + 15 * 60_000);
         res.setHeader('Set-Cookie', cookie(session, lifetime));
         return send(200, { setup: false, setupTokenRequired: false, username, role: setup ? 'admin' : account!.role });
       }
-      if (!authenticated || !token) throw new RequestError(401, 'Sign in to continue.');
+      if (!authenticated || !owner) throw new RequestError(401, 'Sign in to continue.');
       if (method === 'POST' && path === '/api/session/activity') {
         await body(req);
         const timestamp = Date.now();
         const renewed = db.prepare('UPDATE sessions SET idle_until=? WHERE token=? AND expires>? AND idle_until>?')
-          .run(timestamp + 15 * 60_000, digest(token), timestamp, timestamp);
+          .run(timestamp + 15 * 60_000, owner, timestamp, timestamp);
         if (!renewed.changes) throw new RequestError(401, 'Sign in to continue.');
         return send(200, {});
       }
       if (method === 'POST' && path === '/api/logout') {
-        ssh.closeOwner(digest(token));
-        db.prepare('DELETE FROM sessions WHERE token=?').run(digest(token));
+        ssh.closeOwner(owner);
+        db.prepare('DELETE FROM sessions WHERE token=?').run(owner);
         res.setHeader('Set-Cookie', cookie('', 0));
         return send(200, {});
       }
@@ -252,9 +267,9 @@ export function createApp(data: string, dist: string, origin: string, setupToken
       if (path.startsWith('/api/admin/diagnostics')) {
         try {
           if (path === '/api/admin/diagnostics/speed' && (method === 'GET' || method === 'POST')) {
-            const owner = digest(token) + method;
-            if (Date.now() - (speedTests.get(owner) ?? 0) < 500) throw new DiagnosticError(429, 'Wait a moment before testing again.');
-            speedTests.set(owner, Date.now());
+            const speedKey = owner + method;
+            if (Date.now() - (speedTests.get(speedKey) ?? 0) < 500) throw new DiagnosticError(429, 'Wait a moment before testing again.');
+            speedTests.set(speedKey, Date.now());
             for (const [key, at] of speedTests) if (Date.now() - at > 60_000) speedTests.delete(key);
             if (method === 'POST') {
               const payload = z.object({ payload: z.string().max(4 * 1024 * 1024) }).parse(await body(req, 5 * 1024 * 1024));
@@ -270,7 +285,7 @@ export function createApp(data: string, dist: string, origin: string, setupToken
           const controller = new AbortController();
           res.once('close', () => controller.abort());
           const result = path.startsWith('/api/admin/diagnostics/ssh')
-            ? await ssh.handle(method!, path, input, digest(token), localTransport, controller.signal)
+            ? await ssh.handle(method!, path, input, owner, secure || localTransport, controller.signal)
             : await diagnostics.handle(method!, path, input);
           if (result === undefined) return send(404, { error: 'Diagnostic endpoint not found.' });
           return send(200, result);
@@ -512,6 +527,15 @@ if (import.meta.main) {
   const port = Number(process.env.NEXUS_PORT ?? 3000);
   const host = process.env.NEXUS_HOST ?? '127.0.0.1';
   const origin = new URL(process.env.NEXUS_ORIGIN ?? `http://127.0.0.1:${port}`).origin;
+  const { NEXUS_HTTPS_ORIGIN, NEXUS_HTTPS_CERT, NEXUS_HTTPS_KEY, NEXUS_HTTPS_HOST } = process.env;
+  const httpsEnabled = NEXUS_HTTPS_ORIGIN !== undefined || NEXUS_HTTPS_CERT !== undefined || NEXUS_HTTPS_KEY !== undefined || NEXUS_HTTPS_HOST !== undefined;
+  const httpsOrigin = NEXUS_HTTPS_ORIGIN ? new URL(NEXUS_HTTPS_ORIGIN) : undefined;
+  const httpsPort = Number(httpsOrigin?.port || 443);
+  if (httpsEnabled && (!NEXUS_HTTPS_CERT || !NEXUS_HTTPS_KEY || !httpsOrigin || httpsPort === port)) {
+    throw new Error('Set NEXUS_HTTPS_ORIGIN on a separate port, NEXUS_HTTPS_CERT, and NEXUS_HTTPS_KEY to enable LAN HTTPS.');
+  }
+  const tls = NEXUS_HTTPS_CERT && NEXUS_HTTPS_KEY
+    ? { cert: readFileSync(NEXUS_HTTPS_CERT), key: readFileSync(NEXUS_HTTPS_KEY) } : undefined;
   const { NEXUS_JELLYFIN_URL, NEXUS_JELLYFIN_API_KEY } = process.env;
   const jellyfin = NEXUS_JELLYFIN_URL && NEXUS_JELLYFIN_API_KEY
     ? { baseUrl: NEXUS_JELLYFIN_URL, apiKey: NEXUS_JELLYFIN_API_KEY } : undefined;
@@ -519,7 +543,17 @@ if (import.meta.main) {
   if (discovery !== undefined && discovery !== 'on' && discovery !== 'off') {
     throw new Error('NEXUS_DISCOVERY must be on or off.');
   }
-  const server = createApp(process.env.NEXUS_DATA ?? 'data', process.env.NEXUS_DIST ?? 'dist', origin, process.env.NEXUS_SETUP_TOKEN, jellyfin, discovery !== 'off', process.env.NEXUS_KASM_URL);
+  const server = createApp(process.env.NEXUS_DATA ?? 'data', process.env.NEXUS_DIST ?? 'dist', origin, process.env.NEXUS_SETUP_TOKEN,
+    jellyfin, discovery !== 'off', process.env.NEXUS_KASM_URL, NEXUS_HTTPS_ORIGIN);
+  const httpsServer = tls && createHttpsServer({ ...tls, requestTimeout: 15000, headersTimeout: 10000 },
+    (req, res) => { server.emit('request', req, res); });
   server.listen(port, host, () => console.log(`StackJetty listening on ${host}:${port}`));
-  for (const signal of ['SIGTERM', 'SIGINT'] as const) process.once(signal, () => server.close());
+  if (httpsServer) {
+    const httpsHost = NEXUS_HTTPS_HOST ?? host;
+    httpsServer.listen(httpsPort, httpsHost, () => console.log(`StackJetty HTTPS listening on ${httpsHost}:${httpsPort}`));
+  }
+  for (const signal of ['SIGTERM', 'SIGINT'] as const) process.once(signal, () => {
+    if (httpsServer) httpsServer.close(() => server.close());
+    else server.close();
+  });
 }

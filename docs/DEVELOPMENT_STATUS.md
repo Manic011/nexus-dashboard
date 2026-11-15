@@ -33,6 +33,8 @@ The Ubuntu integration preview has exercised sign-in, tile edits and imports, di
 
 ## Latest validation
 
+The LAN HTTP and HTTPS listeners passed an Ubuntu integration check using a test certificate. The check verified shared tile state, independent login cookies, rejection of wrong origins and replayed session tokens, and the SSH credential transport restriction. Both live LAN listeners were also reachable from the workstation, with certificate validation enabled on HTTPS.
+
 November 15, 2026: The local production build, all eight automated API tests, and all three browser scenarios passed. The eight API tests and the diagnostics and SSH browser scenario also passed against a disposable Ubuntu instance. See the [UI audit](UI_AUDIT.md) for the tested flows and limits.
 
 Service monitoring retries a failed HEAD check with GET. It distinguishes unverified certificates from service failures and omits inconclusive observations from availability. The diagnostics API tests passed locally and on Ubuntu.

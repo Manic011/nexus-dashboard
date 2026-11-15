@@ -115,6 +115,9 @@ StackJetty was previously called Nexus Dashboard. Existing deployments continue 
 | `NEXUS_HOST` | Bind address. The app default is `127.0.0.1`. |
 | `NEXUS_PORT` | Listen port. Defaults to `3000`. |
 | `NEXUS_ORIGIN` | Exact browser origin used for write requests and cookie security. Defaults to loopback HTTP on the configured port. |
+| `NEXUS_HTTPS_ORIGIN` | Optional native HTTPS origin on a separate port. The primary `NEXUS_ORIGIN` must use HTTP. |
+| `NEXUS_HTTPS_HOST` | Optional bind address for the HTTPS listener. Defaults to `NEXUS_HOST`. |
+| `NEXUS_HTTPS_CERT`, `NEXUS_HTTPS_KEY` | PEM certificate and unencrypted private key files for native HTTPS. Give the dedicated service account read access and restrict access to the key. |
 | `NEXUS_DATA` | SQLite state directory. Defaults to `data` locally. The systemd service uses `/var/lib/nexus-dashboard`. |
 | `NEXUS_DIST` | Directory containing the built frontend. Defaults to `dist` relative to the working directory. |
 | `NEXUS_KASM_URL` | Optional HTTPS base URL for a separate Kasm Workspaces server. Enables the remote browser action for administrators. |
@@ -124,6 +127,24 @@ StackJetty was previously called Nexus Dashboard. Existing deployments continue 
 | `NEXUS_JELLYFIN_API_KEY` | Jellyfin API key used only on the server. |
 
 Edit the environment file with `sudoedit /etc/nexus-dashboard/nexus.env` and restart the service after changes. Keep this file readable only by the administrator.
+
+## HTTP and HTTPS together on the LAN
+
+Keep the existing HTTP settings and add native HTTPS to the protected environment file. Use the actual LAN address or hostname from the certificate's subject alternative name. Use an unused port above 1023 for the standard systemd service.
+
+```ini
+NEXUS_HOST=0.0.0.0
+NEXUS_PORT=3000
+NEXUS_ORIGIN=http://192.168.1.10:3000
+NEXUS_HTTPS_ORIGIN=https://192.168.1.10:3443
+NEXUS_HTTPS_HOST=192.168.1.10
+NEXUS_HTTPS_CERT=/opt/nexus-dashboard/tls/lan.crt
+NEXUS_HTTPS_KEY=/opt/nexus-dashboard/tls/lan.key
+```
+
+Install the certificate and key before restarting. Keep the TLS directory root-owned and readable by the service account. If a private certificate authority signs the server certificate, distribute only the public CA certificate and verify its SHA256 fingerprint through a trusted channel. Trust it on the devices that will use HTTPS. For a command-line check, use `curl --cacert lan-ca.crt https://192.168.1.10:3443/healthz`.
+
+Both addresses share accounts and dashboard data. Sign in separately at each address. Browser preferences and saved vaults are scoped to the address used to create them. LAN HTTP is suitable for a trusted network and does not permit SSH credentials. Use HTTPS to sign in on networks you do not trust.
 
 ## HTTPS behind a reverse proxy
 
@@ -172,7 +193,7 @@ If an upgrade fails, stop the service. Restore the previous application files, e
 | Symptom | Check |
 | --- | --- |
 | Service exits during startup | Run `sudo journalctl -u nexus-dashboard -n 100 --no-pager`. Check the Linux runtime architecture, release contents, and SQLite schema compatibility. |
-| Page loads, but sign-in or saving returns 403 | Check that the exact browser origin matches `NEXUS_ORIGIN`, and confirm proxy routing sends both the frontend and API to StackJetty. |
+| Page loads, but sign-in or saving returns 403 or 421 | Check that the exact browser address matches the configured origin for the connection, including its scheme and port. For a reverse proxy, confirm that the frontend and API reach StackJetty through the same origin. |
 | Browser cannot connect | Check `systemctl is-active nexus-dashboard`, the listen address and port, and the reverse proxy. Run the Ubuntu health check from the installation step to confirm that the app responds on the server. |
 | First-run token is rejected | Check that you are connecting to the intended instance and using the token from its protected environment file. |
 | Jellyfin reports unavailable | Check the configured base URL, API key, network reachability, and the server's trust of the upstream HTTPS certificate. |
