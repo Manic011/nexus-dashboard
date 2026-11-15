@@ -50,14 +50,15 @@ StackJetty accepts this alternate origin only for a direct loopback connection w
 
 1. Open **SSH machines → Add SSH machine**.
 2. Enter a display name, hostname or IP address, SSH port, and remote username.
-3. Enter the trusted SHA256 host-key fingerprint. Obtain it from the target's trusted console or your administrator. For an OpenSSH server using an Ed25519 host key:
+3. Leave **Trusted host fingerprint** blank to review the key on first connection. If you already have a verified SHA256 fingerprint, paste it here to skip that review. For an OpenSSH server using an Ed25519 host key, get the fingerprint from the target's trusted console:
 
 ```bash
 ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
 ```
 
-4. Select **Save machine and continue**. StackJetty stores the machine details and opens the connection form. If you're using plain LAN HTTP, **Save machine** stores the details. Switch to HTTPS or the workstation tunnel and select **Connect to** to enter credentials.
-5. **Password** is selected by default. Enter the remote account's password and choose **Start SSH session**, or open **Saved SSH password** to save it in the browser vault. Choose **Private key** to use a session key and optional passphrase.
+4. Select **Save machine and continue**. If you're using plain LAN HTTP, choose **Save machine**, switch to HTTPS or the workstation tunnel, and select **Connect to**.
+5. If you left the fingerprint blank, choose **Read server key**, check that it identifies your machine, and select **Trust key and continue**. StackJetty reads the key without sending credentials and remembers the accepted fingerprint. The key shown on first contact is supplied by the server and cannot establish its identity by itself. Compare it with the fingerprint from the machine's trusted console when the network or address is uncertain.
+6. **Password** is selected by default. Enter the remote account's password and choose **Start SSH session**, or open **Saved SSH password** to save it in the browser vault. Choose **Private key** to use a session key and optional passphrase.
 
 The host-key fingerprint must match the key negotiated for the connection. A mismatch rejects the connection. If the server presents another legitimate host-key algorithm, obtain that algorithm's fingerprint through a trusted channel. Replace a saved entry when its host or trusted key changes.
 

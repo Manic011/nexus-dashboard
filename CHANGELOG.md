@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Make an SSH host fingerprint optional at registration. Review and trust the server's key on first connection when no fingerprint was entered.
 - Open and focus the password form after saving an SSH machine over HTTPS or a private tunnel.
 - Made SSH password authentication the default, added single-prompt PAM support, encrypted browser-local SSH password vaults, and direct-loopback access for private SSH tunnels.
 

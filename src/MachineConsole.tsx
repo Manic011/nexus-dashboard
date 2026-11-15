@@ -5,7 +5,7 @@ import '@xterm/xterm/css/xterm.css';
 import { formatBytes, formatUptime, type DiagnosticApi } from './Diagnostics.js';
 import { VaultForm } from './ServiceDialog.js';
 
-type Host = { id: number; name: string; host: string; port: number; username: string; fingerprint: string };
+type Host = { id: number; name: string; host: string; port: number; username: string; fingerprint?: string };
 type Catalog = { enabled: boolean; secureTransport: boolean; hosts: Host[] };
 type Connection = { id: string; name: string };
 type FileListing = { path: string; entries: { name: string; directory: boolean; link: boolean; size: number; modified: number }[] };
@@ -105,6 +105,7 @@ export function MachineConsole({ api, username }: { api: DiagnosticApi; username
   const [pendingRemoval, setPendingRemoval] = useState<number>();
   const [shellOpen, setShellOpen] = useState(false);
   const [authentication, setAuthentication] = useState('password');
+  const [observedKey, setObservedKey] = useState<{ hostId: number; fingerprint: string }>();
   const addMachineDetails = useRef<HTMLDetailsElement>(null);
   const connectionHeading = useRef<HTMLHeadingElement>(null);
   async function load() { setCatalog(await api('admin/diagnostics/ssh')); }
@@ -149,7 +150,7 @@ export function MachineConsole({ api, username }: { api: DiagnosticApi; username
   const secure = window.isSecureContext && catalog?.secureTransport;
   useEffect(() => {
     if (selectedHost && secure && !connection) connectionHeading.current?.focus();
-  }, [selectedHost?.id, secure, connection?.id]);
+  }, [selectedHost?.id, selectedHost?.fingerprint, secure, connection?.id]);
   return <section className="tile machine-console">
     <h2>SSH machines</h2>
     <p className="muted">Sign in with the remote machine’s username and password, or a private key. Saved passwords are encrypted in this browser. Connections close after ten minutes without activity or one hour total.</p>
@@ -158,7 +159,7 @@ export function MachineConsole({ api, username }: { api: DiagnosticApi; username
       {!secure && <p className="error">Open StackJetty over HTTPS or through an SSH-encrypted localhost connection to enter SSH credentials.</p>}
       {!connection && <>
         <details ref={addMachineDetails}><summary>Add SSH machine</summary>
-          <p className="muted">Obtain the SHA256 host-key fingerprint from the machine’s trusted console or your administrator. On Linux, use ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub. Use an account with the access you need.</p>
+          <p className="muted">Leave the fingerprint blank to review the server’s key on your first connection.</p>
           <form className="machine-form" onSubmit={event => {
             event.preventDefault();
             const form = event.currentTarget;
@@ -178,8 +179,8 @@ export function MachineConsole({ api, username }: { api: DiagnosticApi; username
             <label>SSH host<input name="host" autoComplete="off" required maxLength={253} placeholder="server.example.com" /></label>
             <label>SSH port<input name="port" type="number" defaultValue={22} min={1} max={65535} required /></label>
             <label>SSH username<input name="username" autoComplete="off" required maxLength={64} /></label>
-            <label>Trusted host fingerprint<input name="fingerprint" autoComplete="off" placeholder="SHA256:…" required /></label>
-            <p className="muted">{secure ? 'You’ll enter the SSH password on the next step.' : 'Save the machine here, then use HTTPS or the SSH tunnel to enter its password.'}</p>
+            <label>Trusted host fingerprint (optional)<input name="fingerprint" autoComplete="off" placeholder="SHA256:…" /></label>
+            <p className="muted">{secure ? 'You’ll continue to the connection setup.' : 'Save the machine here, then use HTTPS or the SSH tunnel to connect.'}</p>
             <button disabled={busy}>{secure ? 'Save machine and continue' : 'Save machine'}</button>
           </form>
         </details>
@@ -198,7 +199,23 @@ export function MachineConsole({ api, username }: { api: DiagnosticApi; username
             })}>Confirm machine removal</button><button onClick={() => setPendingRemoval(undefined)}>Cancel removal</button></div>}
         </li>)}</ul>
         {!catalog.hosts.length && <p>No saved machines.</p>}
-        {selectedHost && secure && <div key={hostId}><form className="machine-form" onSubmit={event => {
+        {selectedHost && secure && !selectedHost.fingerprint && <div className="machine-form" key={hostId}>
+          <h3 ref={connectionHeading} tabIndex={-1}>Review host key for {selectedHost.name}</h3>
+          <p className="muted">{selectedHost.host}:{selectedHost.port}</p>
+          {observedKey?.hostId === selectedHost.id ? <>
+            <p><code className="service-address">{observedKey.fingerprint}</code></p>
+            <p className="muted">Confirm this is your machine before trusting the key. StackJetty will reject future connections if the key changes.</p>
+            <button className="primary" disabled={busy} onClick={() => void run(async () => {
+              await api('admin/diagnostics/ssh/hosts/' + selectedHost.id + '/trust', 'POST', { fingerprint: observedKey.fingerprint });
+              setObservedKey(undefined);
+              await load();
+            })}>Trust key and continue</button>
+          </> : <button disabled={busy} onClick={() => void run(async () => {
+            const result = await api<{ fingerprint: string }>('admin/diagnostics/ssh/hosts/' + selectedHost.id + '/probe', 'POST');
+            setObservedKey({ hostId: selectedHost.id, fingerprint: result.fingerprint });
+          })}>{busy ? 'Reading host key…' : 'Read server key'}</button>}
+        </div>}
+        {selectedHost && secure && selectedHost.fingerprint && <div key={hostId}><form className="machine-form" onSubmit={event => {
           event.preventDefault();
           const form = event.currentTarget;
           const data = Object.fromEntries(new FormData(form));

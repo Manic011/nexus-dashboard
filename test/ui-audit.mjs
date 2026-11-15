@@ -553,8 +553,10 @@ test('diagnostic screens, network test, SSH statistics, files and shell', { time
     await field('SSH host').fill('127.0.0.1');
     await field('SSH port').fill(String(fixture?.server.address().port ?? process.env.NEXUS_UI_SSH_PORT));
     await field('SSH username').fill('fixture');
-    await field('Trusted host fingerprint').fill(fixture?.fingerprint ?? process.env.NEXUS_UI_SSH_FINGERPRINT);
     await button('Save machine and continue').click();
+    await button('Read server key').click();
+    await page.getByText(fixture?.fingerprint ?? process.env.NEXUS_UI_SSH_FINGERPRINT, { exact: true }).waitFor();
+    await button('Trust key and continue').click();
     const connectionHeading = page.getByRole('heading', { name: 'Connect to Fixture machine', exact: true });
     await connectionHeading.waitFor();
     assert.ok(await connectionHeading.evaluate(element => document.activeElement === element));

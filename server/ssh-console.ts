@@ -5,13 +5,15 @@ import ssh2, { type Client, type ClientChannel, type SFTPWrapper } from 'ssh2';
 import { z } from 'zod';
 import { DiagnosticError } from './diagnostics.ts';
 
+const hostFingerprint = z.string().trim().regex(/^SHA256:[A-Za-z0-9+/]{43}$/);
 const hostInput = z.object({
   name: z.string().trim().min(1).max(80),
   host: z.string().trim().min(1).max(253).regex(/^[a-zA-Z0-9][a-zA-Z0-9.:-]*$/),
   port: z.number().int().min(1).max(65535),
   username: z.string().trim().min(1).max(64).regex(/^[a-zA-Z0-9_.@-]+$/),
-  fingerprint: z.string().trim().regex(/^SHA256:[A-Za-z0-9+/]{43}$/),
+  fingerprint: z.union([hostFingerprint, z.literal('')]).optional(),
 });
+const fingerprintOf = (key: Buffer) => 'SHA256:' + createHash('sha256').update(key).digest('base64').replace(/=+$/, '');
 type Host = z.infer<typeof hostInput>;
 type Connection = {
   client: Client; owner: string; hostId: number; touched: number; created: number; closed: boolean;
@@ -131,6 +133,41 @@ export function configureSsh(db: DatabaseSync, enabled: boolean, secureTransport
           .run(host.name, new Date().toISOString(), JSON.stringify(host)).lastInsertRowid;
         return { id: Number(id) };
       }
+      const trustMatch = /^\/api\/admin\/diagnostics\/ssh\/hosts\/([1-9]\d*)\/(probe|trust)$/.exec(path);
+      if (trustMatch && method === 'POST') {
+        if (!secureTransport && !localTransport) throw new DiagnosticError(403, 'Open StackJetty over HTTPS or the private SSH tunnel to review host keys.');
+        const id = Number(trustMatch[1]);
+        const host = list().find(host => host.id === id);
+        if (!host) throw new DiagnosticError(404, 'Machine not found.');
+        if (host.fingerprint) throw new DiagnosticError(409, 'This machine already has a trusted host key.');
+        if (trustMatch[2] === 'trust') {
+          const { fingerprint } = z.object({ fingerprint: hostFingerprint }).parse(input);
+          const updated = db.prepare(`UPDATE admin_records SET payload=json_set(payload,'$.fingerprint',?)
+            WHERE kind='ssh-host' AND id=? AND coalesce(json_extract(payload,'$.fingerprint'),'')=''`).run(fingerprint, id);
+          if (!updated.changes) throw new DiagnosticError(409, 'The saved machine changed. Reload and try again.');
+          return {};
+        }
+        if (connecting.has(owner) || sessions.size + connecting.size >= 8) throw new DiagnosticError(429, 'An SSH connection is already opening or the session limit was reached.');
+        const client = new ssh2.Client();
+        connecting.add(owner);
+        try {
+          const fingerprint = await deadline(new Promise<string>((resolve, reject) => {
+            client.on('error', reject);
+            client.once('close', () => reject(new Error('SSH connection closed.')));
+            client.connect({ host: host.host, port: host.port, username: host.username, readyTimeout: 10_000,
+              hostVerifier(key: Buffer) {
+                resolve(fingerprintOf(key));
+                return false; // Stop before authenticating.
+              } });
+          }), 12_000);
+          return { fingerprint };
+        } catch {
+          throw new DiagnosticError(502, 'Could not read the SSH host key. Check the address and port.');
+        } finally {
+          client.destroy();
+          connecting.delete(owner);
+        }
+      }
       const hostMatch = /^\/api\/admin\/diagnostics\/ssh\/hosts\/([1-9]\d*)$/.exec(path);
       if (hostMatch && method === 'DELETE') {
         const id = Number(hostMatch[1]);
@@ -149,6 +186,7 @@ export function configureSsh(db: DatabaseSync, enabled: boolean, secureTransport
         }
         const host = list().find(host => host.id === credentials.hostId);
         if (!host) throw new DiagnosticError(404, 'Machine not found.');
+        if (!host.fingerprint) throw new DiagnosticError(409, 'Review and trust the machine’s host key before signing in.');
         connecting.add(owner);
         const client = new ssh2.Client();
         let verified = false;
@@ -167,7 +205,7 @@ export function configureSsh(db: DatabaseSync, enabled: boolean, secureTransport
               privateKey: method === 'private-key' ? credentials.privateKey : undefined,
               passphrase: method === 'private-key' ? credentials.passphrase : undefined, readyTimeout: 10_000, keepaliveInterval: 20_000,
               hostVerifier(key: Buffer) {
-                verified = 'SHA256:' + createHash('sha256').update(key).digest('base64').replace(/=+$/, '') === host.fingerprint;
+                verified = fingerprintOf(key) === host.fingerprint;
                 return verified;
               } });
           }), 12_000);

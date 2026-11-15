@@ -4,7 +4,7 @@ StackJetty is a development preview. The [requirements audit](REQUIREMENTS_AUDIT
 
 ## Available in the preview
 
-- Administrator diagnostics for sampled availability, host information, network throughput, and optional SSH machine statistics, file browsing, and an interactive shell. SSH supports password and private-key authentication, browser-local encrypted saved passwords, and private localhost access through a workstation SSH tunnel.
+- Administrator diagnostics for sampled availability, host information, network throughput, and optional SSH machine statistics, file browsing, and an interactive shell. SSH supports first-connection host key review, password and private-key authentication, browser-local encrypted saved passwords, and private localhost access through a workstation SSH tunnel.
 
 - Default tile opening preference and saved per-tile modes for a new browser tab, direct embedding, or Kasm.
 

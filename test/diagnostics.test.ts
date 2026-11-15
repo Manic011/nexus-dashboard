@@ -46,6 +46,18 @@ test('diagnostic monitoring and SSH sessions enforce access, fingerprints and ow
     const sshAddress = sshServer.address(); assert.ok(sshAddress && typeof sshAddress !== 'string');
     const host = { name: 'Fixture machine', host: '127.0.0.1', port: sshAddress.port, username: 'fixture', fingerprint };
     const saved = await (await request('admin/diagnostics/ssh/hosts', 'POST', host)).json();
+    const unpinned = await (await request('admin/diagnostics/ssh/hosts', 'POST', { ...host, fingerprint: '' })).json();
+    const signIn = { hostId: unpinned.id, authentication: 'password', password: 'fixture-password' };
+    assert.equal((await request('admin/diagnostics/ssh/connect', 'POST', signIn)).status, 409);
+    const trustPath = 'admin/diagnostics/ssh/hosts/' + unpinned.id;
+    const observed = await request(trustPath + '/probe', 'POST');
+    assert.equal(observed.status, 200);
+    assert.deepEqual(await observed.json(), { fingerprint });
+    assert.equal((await request(trustPath + '/trust', 'POST', { fingerprint })).status, 200);
+    assert.equal((await request(trustPath + '/trust', 'POST', { fingerprint: 'SHA256:' + 'A'.repeat(43) })).status, 409);
+    const trustedConnection = await request('admin/diagnostics/ssh/connect', 'POST', signIn);
+    assert.equal(trustedConnection.status, 200);
+    await request('admin/diagnostics/ssh/' + (await trustedConnection.json()).id, 'DELETE');
     const wrong = await (await request('admin/diagnostics/ssh/hosts', 'POST', { ...host, fingerprint: 'SHA256:' + 'A'.repeat(43) })).json();
     assert.equal((await request('admin/diagnostics/ssh/connect', 'POST', { hostId: wrong.id, password: 'fixture-password' })).status, 502);
     assert.equal((await request('admin/diagnostics/ssh/connect', 'POST', { hostId: saved.id, authentication: 'password', password: 'incorrect' })).status, 502);
