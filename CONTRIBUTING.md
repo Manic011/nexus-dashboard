@@ -1,6 +1,6 @@
 # Contributing to StackJetty Dashboard
 
-Develop in the local Git checkout and use Ubuntu as the integration environment. Keep credentials, local databases, deployment settings, and preview data out of commits. The repository is private.
+Develop in the local Git checkout and use Ubuntu as the integration environment. The repository is public. Keep credentials, local databases, and deployment settings out of commits.
 
 ## Development workflow
 
@@ -28,3 +28,5 @@ For every new or changed screen, follow the [UI audit](docs/UI_AUDIT.md) and rec
 ## Privacy review
 
 Use generic account names, private-address examples, and reserved example domains in fixtures. Preserve operator state outside the repository. Do not commit user profiles, real deployment screenshots, backups, logs, hostnames, SSH settings, credential material, or personal workspace paths. Keep private operational helpers and original-history backups outside the checkout. Update the [release audit](docs/RELEASE_READINESS.md) when verification or production gates change.
+
+Capture documentation screenshots from a disposable instance with sample data. Store reviewed images in `docs/screenshots/` and use descriptive alt text when adding them to the README.

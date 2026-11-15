@@ -1,8 +1,10 @@
-# StackJetty Dashboard — Self-hosted homelab dashboard
+# StackJetty Dashboard
 
-StackJetty Dashboard is a self-hosted application launcher for homelabs. It helps you discover web services on your local network, organize them into a searchable dashboard, and share access with other users.
+A self-hosted dashboard for your homelab. Discover services, organize them into searchable tiles, and check on the machines that run them.
 
-**Status:** Development preview. Built locally with Node.js and SQLite, with native Ubuntu systemd deployment and recovery paths verified in the development audit. Stable-release gates remain open.
+**Development preview** · [Get started](#get-started) · [Screenshots](#screenshots) · [Documentation](#documentation)
+
+![StackJetty dashboard showing infrastructure and media services organized into categorized tiles](docs/screenshots/dashboard.png)
 
 ## Features
 
@@ -17,10 +19,10 @@ StackJetty Dashboard is a self-hosted application launcher for homelabs. It help
 | Tile backups | Export tiles as JSON; review new entries and explicitly update matching URLs. Save named server-side configuration snapshots and preview restore changes. Operators can also create and recover consistent full-database backups. |
 | Jellyfin activity | Show the active stream count on a matching tile after configuring a Jellyfin URL and API key on the server. |
 | Ubuntu deployment | Stage a built release and install it as a systemd service under a dedicated account. |
-| Diagnostics | Open Diagnostics from the main header to inspect uptime and host metrics, test the connection, and launch services using their tile preferences. |
-| SSH machines | Switch between concurrent sessions from the main navigation. View Linux statistics, manage files over SFTP, and use interactive shells. Sign in with a password or key, with optional encrypted browser storage for passwords. |
+| Diagnostics | Monitor saved URLs, inspect uptime history and host metrics, measure browser-to-server throughput, and open service links using the tile's launch preference. The monitor identifies certificate verification failures separately. |
+| SSH machines | Verify a host key on first connect, sign in with a password or key, and switch between concurrent sessions. View Linux metrics, open a responsive terminal, and use the SFTP file manager to create folders, rename, cut, copy, paste, delete, upload, and download. Saved passwords use an optional encrypted browser vault. |
 
-See the [release readiness audit](docs/RELEASE_READINESS.md) for verification results and remaining production gates, and [Privacy](PRIVACY.md) for data and publishing boundaries.
+StackJetty stores its state locally in SQLite and has no application telemetry. See the [release readiness audit](docs/RELEASE_READINESS.md) for deployment and recovery checks, and [Privacy](PRIVACY.md) for data handling.
 
 ## Get started
 
@@ -34,12 +36,39 @@ The installer prompts for your dashboard URL, installs missing system packages, 
 
 For **local development**, open **Code** on this repository's GitHub page. Copy the clone URL into your Git client, use **Open with GitHub Desktop**, or choose **Download ZIP** to try the app without Git history. Then follow the [local development guide](docs/LOCAL_DEVELOPMENT.md) for your operating system.
 
+## Screenshots
+
+These screenshots show StackJetty running with demo data. Select a view to expand it.
+
+<details>
+<summary>Personal layout editor</summary>
+
+![Layout editor with category settings, category and tag highlights, and movable tiles](docs/screenshots/layout-editor.png)
+
+</details>
+
+<details>
+<summary>Service diagnostics</summary>
+
+![Diagnostics showing reachability, an HTTP error, latency, and uptime for demo services](docs/screenshots/diagnostics.png)
+
+</details>
+
+<details>
+<summary>SSH file manager and terminal</summary>
+
+![SSH workspace with two open sessions, file history navigation, and file actions](docs/screenshots/ssh-files.png)
+
+![The second SSH session showing the interactive shell](docs/screenshots/ssh-terminal.png)
+
+</details>
 
 ## Documentation
 
 | Guide | Contents |
 | --- | --- |
-| [User guide](docs/USER_GUIDE.md) | Setup, dashboard editing, discovery, import, access, backups, and Jellyfin. |
+| [User guide](docs/USER_GUIDE.md) | Setup, tile editing, layouts, discovery, import, access, backups, and Jellyfin. |
+| [Diagnostics and SSH](docs/DIAGNOSTICS.md) | Uptime checks, host metrics, network tests, verified SSH connections, saved passwords, file management, and terminal sessions. |
 | [Security and remote access](docs/SECURITY.md) | Audit findings and Cloudflare Access deployment checklist. |
 | [Ubuntu installation](docs/INSTALL.md) | Build a release, install with systemd, configure HTTPS, and back up or recover a deployment. |
 | [Local development](docs/LOCAL_DEVELOPMENT.md) | Build, test, and run on Linux, macOS, or Windows. |
@@ -47,3 +76,4 @@ For **local development**, open **Code** on this repository's GitHub page. Copy 
 | [Architecture and API](ARCHITECTURE.md) | Application layout, data model, authorization, and API reference. |
 | [Contributing](CONTRIBUTING.md) | Development workflow, verification, and documentation requirements. |
 | [Changelog](CHANGELOG.md) and [roadmap](docs/DEVELOPMENT_STATUS.md) | Implemented changes, remaining work, and release milestones. |
+| [UI audit](docs/UI_AUDIT.md) and [requirements audit](docs/REQUIREMENTS_AUDIT.md) | What has been exercised and which requirements remain open. |

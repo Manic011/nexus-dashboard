@@ -47,8 +47,8 @@ Administrators can select **Open in remote browser** when the operator has confi
 ## Discover and import services
 
 1. Sign in as administrator and open **Administration → Discovery**.
-2. Choose the server network and confirm permission to check the displayed range.
-3. Select **Discover services**. The web check is limited to the selected local IPv4 range, capped at a /24. StackJetty checks every address and port combination in the selected range. Larger ranges can take several minutes.
+2. Choose the server network and optionally enter your own ranges, exclusions, or ports. The default scope uses the displayed local subnet, capped at a /24. See [Configure and run discovery](#configure-and-run-discovery) for routed private ranges.
+3. Select **Review scan scope**, confirm permission for the resulting targets, then select **Discover services**. Larger scopes can take several minutes.
 4. Under **Review import**, select the entries you want. Use **Edit details** to revise a name, category, or tags before saving.
 5. Select **Import selected**. StackJetty skips URLs that are already saved and repeated URLs within the import.
 
@@ -72,11 +72,13 @@ In **Administration → Backup**, select **Download JSON**. The export contains 
 
 To merge an export into the dashboard, use **Preview a backup**, select entries, and review the details before importing. StackJetty accepts version 1 backups with up to 500 entries and a request limit of 2 MiB. A merge selects new URLs by default. Existing URLs are unselected and marked **Update existing**. Selecting one explicitly replaces its name, category, description, and tags; its ID and permissions stay intact. A stale update preview is rejected if saved tiles have changed, so reopen the preview before retrying. Use the Ubuntu state backup procedure for accounts, sessions, and the full SQLite database. [Backup and recovery](INSTALL.md#backup-upgrade-and-recovery)
 
-## Jellyfin and system information
+## Monitor services and connect to machines
 
-Administrators can open **Diagnostics** from the main header for service availability, dashboard host metrics, and a browser-to-server network test. Select a service name or URL to follow that tile's opening preference. Enable monitoring to start collecting uptime history.
+Administrators can open **Diagnostics** from the main header for service availability, dashboard host metrics, and a browser-to-server network test. Select a service name or URL to follow that tile's opening preference. Use **Check services now** for a one-time check or **Enable monitoring** to collect uptime history. **Certificate unverified** means the endpoint answered but the dashboard server could not verify its HTTPS certificate.
 
 Open **SSH machines** directly from the main header to connect and switch between sessions. Each has its own shell, statistics, and SFTP file manager. The dashboard signs out after 15 minutes of inactivity and closes all SSH sessions tied to that login. SSH requires operator enablement and HTTPS or a private localhost tunnel. [Diagnostics and SSH guide](DIAGNOSTICS.md)
+
+## Jellyfin and system information
 
 When the operator configures Jellyfin, a tile with the matching base URL displays the aggregate active stream count. **Jellyfin activity unavailable** means StackJetty could not fetch a usable response. Administrators can view the Node.js version, platform, database schema version, and tile count under **Administration → System**. [Jellyfin setup](INSTALL.md#jellyfin-activity)
 

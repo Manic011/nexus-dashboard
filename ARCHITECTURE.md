@@ -2,9 +2,11 @@
 
 ## Runtime and storage
 
-Diagnostics records opt-in service monitoring settings, seven-day sample history, and SSH host metadata in `admin_records`. The monitor uses bounded concurrent HTTP requests and aggregates recent samples. SSH connections use ssh2, with a required SHA256 host-key fingerprint and credentials held for the current session. Each connection is owned by one authenticated session digest. Timers close expired or revoked sessions, and logout closes that session's connections. xterm.js displays the terminal. Same-origin JSON requests carry ordered shell input, terminal output, SFTP paths, and statistics. Remote statistics use a fixed Linux command. File paths are passed to SFTP directly.
+Diagnostics records opt-in monitoring settings, seven-day sample history, and SSH host metadata in `admin_records`. Monitoring uses bounded HTTP requests and retries rejected or failing HEAD checks with GET. Certificate verification stays enabled. Unverified certificates and older inconclusive failures are recorded separately and excluded from availability.
 
-All `/api/admin/diagnostics` routes require administrator access. GET returns the summary. PUT `/monitor` controls sampling. POST `/check` runs a batch. GET and POST `/speed` perform bounded transfers. SSH routes register or remove machine metadata, connect with verified host keys, read statistics and files, and manage shell channels. SSH is operator-enabled with `NEXUS_SSH=on` and requires HTTPS or direct loopback transport.
+Each SSH connection belongs to the authenticated dashboard session that opened it. The workspace keeps independent terminal, file browser, and clipboard state for each connection across in-app navigation. The server caps connection lifetime at one hour and permits eight open or opening connections in total. Logout, revocation, and expiry close the corresponding connections. xterm.js displays the terminal. Same-origin JSON requests batch ordered shell input, wait for active terminal output, and carry SFTP operations and statistics. Remote statistics use a fixed Linux command. File operations use SFTP rather than shell commands, and the remote account's permissions govern access.
+
+All `/api/admin/diagnostics` routes require administrator access, including the SSH routes used by the separate **SSH machines** screen. Enable SSH with `NEXUS_SSH=on`. Credential entry, host key review, and file operations require HTTPS or the private loopback connection. An administrator can register a verified SHA256 fingerprint or approve the key presented on first contact. The fingerprint probe ends before authentication. Later SSH handshakes must match the stored fingerprint.
 
 An alternate loopback browser origin is accepted only when the TCP peer is loopback, the Host is literal localhost, and forwarding headers are absent. The write Origin must match the request Host exactly. This supports an SSH-encrypted local port forward while retaining the configured network origin. Password authentication tries the SSH password method and a recognized single PAM password prompt. Optional machine passwords reuse the browser vault's encryption and concurrency controls, with a separate per-user, per-machine storage key and an encrypted entry bound to the destination and trusted fingerprint.
 
@@ -14,7 +16,7 @@ The tile service view loads a sandboxed frame directly in the browser. The sandb
 
 The React interface is built with Vite and served by the Node.js process alongside the TypeScript API. Browser requests share one origin. The backend validates input with Zod and uses prepared statements with Node's built-in SQLite bindings.
 
-SQLite uses WAL mode and transactional migrations tracked with `PRAGMA user_version`. The database stores accounts, session token digests, and application tiles. Tiles have a single category and a JSON array of tags. The migration to schema 3 adds an empty tag array to existing tiles. Schema 5 adds a tile opening mode that defaults to the viewer’s preference. Version 1 JSON exports include the mode and accept older entries without a mode or tags. Older configuration snapshots restore missing modes as **Use my default**.
+SQLite uses WAL mode and transactional migrations tracked with `PRAGMA user_version`. The database stores accounts, session token digests, and application tiles. Tiles have a single category and a JSON array of tags. Schema 3 adds tags, schema 5 adds the tile opening mode, and schema 6 adds an idle deadline for dashboard sessions. Version 1 JSON exports include the mode and accept older entries without a mode or tags. Older configuration snapshots restore missing modes as **Use my default**.
 
 | Directory | Responsibility |
 | --- | --- |
@@ -48,6 +50,7 @@ Mutation requests use JSON and require the configured `Origin` header. Authentic
 | `POST /api/setup` | Setup token | Create the first administrator using `username`, `password`, and `token`. |
 | `POST /api/login` | Public | Start a session using `username` and `password`. |
 | `POST /api/logout` | Signed in | End the current session. Send an empty JSON object. |
+| `POST /api/session/activity` | Signed in | Extend the idle deadline of a valid session by 15 minutes. The browser reports user interaction and periodic reads do not extend the deadline. |
 | `GET /api/tiles` | Signed in | List saved tiles, including IDs and tags. |
 | `POST /api/tiles` | Editor or administrator | Create a tile. |
 | `PUT /api/tiles/{id}` | Editor or administrator | Update a tile. Omitting tags preserves the existing tags. |
@@ -105,6 +108,23 @@ Web targets are expanded lazily across 48 workers, with bounded individual reque
 Complete scans of identical effective scope compare URL sets with the most recent retained complete, non-truncated result. Comparisons contain `added`, `missing`, and `changed` URL arrays. Changed means title or identification-source changes. Stopped or truncated results do not produce a comparison. Missing URLs never trigger tile removal.
 
 `POST /api/admin/backup/preview` returns a SHA-256 `revision` of the saved tile rows along with `tiles`, `existing`, and `skipped`. Imports accept optional `updateUrls` (defaults to empty) and `revision`. Matching URLs are only updated when explicitly listed; updates require the current revision or return HTTP 409. Imports and updates run in one SQLite transaction and preserve tile IDs and access-rule rows. Existing clients that omit `updateUrls` retain the previous insert-only behavior. Duplicate legacy saved URLs all receive the selected metadata update. `updated` is present when at least one unique URL is updated; `skipped` includes existing URLs, so the UI subtracts the updated URL count for its skipped summary.
+
+## Diagnostics and SSH API
+
+These routes are relative to `/api/admin/diagnostics`. The server checks that the current dashboard login owns the referenced SSH session.
+
+| Route | Purpose |
+| --- | --- |
+| `GET /` | Summarize monitoring history, service outcomes, and dashboard host metrics. |
+| `PUT /monitor`, `POST /check` | Set `enabled` or run a check immediately. |
+| `GET /speed`, `POST /speed` | Measure download and upload throughput using bounded transfers. |
+| `GET /ssh`, `POST /ssh/hosts`, `DELETE /ssh/hosts/{hostId}` | List, register, or remove saved machines. Removing a machine closes its sessions. |
+| `POST /ssh/hosts/{hostId}/probe`, `POST /ssh/hosts/{hostId}/trust` | Read the key before sending credentials and approve its fingerprint on first use. |
+| `POST /ssh/connect`, `DELETE /ssh/{sessionId}` | Authenticate with a password or private key and close a connection. |
+| `GET /ssh/{sessionId}/stats` | Return Linux system and process data. |
+| `POST /ssh/{sessionId}/files`, `POST /ssh/{sessionId}/file` | List a remote directory or preview a file. |
+| `POST /ssh/{sessionId}/file-operation` | Create, rename, move, copy, delete, upload, or download through SFTP. |
+| `POST /ssh/{sessionId}/{shell,input,output,resize}` | Open and operate the terminal, including ordered input and a cancellable long poll for output. |
 
 ## Operator recovery boundary
 

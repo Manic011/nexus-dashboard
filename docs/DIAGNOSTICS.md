@@ -2,6 +2,8 @@
 
 Administrators can open **Diagnostics** or **SSH machines** from the main header. Editors and viewers cannot access these APIs.
 
+See the [service diagnostics](screenshots/diagnostics.png) and [SSH file manager](screenshots/ssh-files.png) screenshots for examples with demo data.
+
 ## Service uptime
 
 **Check services now** checks the first 500 saved services from the StackJetty server. **Enable monitoring** repeats the check every 60 seconds. **Pause monitoring** stops future scheduled checks. A check already in progress finishes normally.

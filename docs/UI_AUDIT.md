@@ -50,6 +50,8 @@ CI run 43683126684 exposed a first-render race in the tile editor’s Tags field
 
 ## Diagnostics verification
 
+The November 15, 2026 documentation smoke test ran the full local Chromium suite and all eight API tests locally and on Ubuntu. The Ubuntu-hosted browser scenario exercised tile opening preferences, uptime sampling, host metrics, network transfers, first-use SSH key approval, saved password locking and reuse, concurrent workspaces, shell input, file actions, and independent disconnect. Screenshots were captured separately in a disposable local browser with fictional tiles, a fixture SSH server, and sample files. The download exercise verified the browser event and payload. It did not verify a file saved to disk.
+
 The service monitor regression verified that a 501 response to HEAD can recover via GET, that a persistent HTTP 503 still counts as unavailable, and that certificate verification errors are distinct from timeouts and refused connections. The diagnostic browser test passed locally, and the API regressions passed on Ubuntu.
 
 The SSH workspace browser test passed locally and against a disposable Ubuntu backend. It opened two sessions to one host, returned to the first shell after visiting the dashboard, and verified independent disconnect. It also exercised folder creation, copy, paste, rename, cut, confirmed deletion, file upload, and the download event and payload. The headless environment did not verify the saved download on disk. API tests verified that sign-out and an expired idle deadline close the underlying SSH shell. The live Ubuntu service passed its health and asset checks after the schema 6 update.

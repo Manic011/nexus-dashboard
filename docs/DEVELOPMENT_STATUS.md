@@ -33,6 +33,8 @@ The Ubuntu integration preview has exercised sign-in, tile edits and imports, di
 
 ## Latest validation
 
+November 15, 2026: The local production build, all eight automated API tests, and all three browser scenarios passed. The eight API tests and the diagnostics and SSH browser scenario also passed against a disposable Ubuntu instance. See the [UI audit](UI_AUDIT.md) for the tested flows and limits.
+
 Service monitoring retries a failed HEAD check with GET. It distinguishes unverified certificates from service failures and omits inconclusive observations from availability. The diagnostics API tests passed locally and on Ubuntu.
 
 See the [security audit and remote access guide](SECURITY.md) for the code review, runtime security baseline, and remaining checks before a deployment is made accessible through Cloudflare.

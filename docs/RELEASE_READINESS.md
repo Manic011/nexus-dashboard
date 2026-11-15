@@ -4,6 +4,8 @@ For Internet-facing deployment gates and the Cloudflare Access checklist, see [S
 
 Audit date: 2026-11-14. Scope: the current development preview, its permission model, recovery tools, Ubuntu service installation, browser workflows, and distributable-file privacy.
 
+Follow-up on 2026-11-15: The current local build, API suite, and Chromium suite passed. The API suite and diagnostics/SSH browser scenario passed against a disposable Ubuntu instance. The [UI audit](UI_AUDIT.md) records the exercised flows and remaining checks.
+
 ## Decision
 
 The application remains a **development preview**, not a generally available production release. Permission and recovery checks pass. The dedicated systemd deployment, restart, and browser checks pass. A passing application smoke test does not establish host security, reboot recovery, or a supported upgrade policy.
