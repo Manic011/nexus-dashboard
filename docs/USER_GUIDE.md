@@ -20,7 +20,9 @@ Select a tile's pencil button to edit it. Select its trash button and confirm to
 3. Select a tile to change its width. Use **Add row** to make more room, or leave cells empty to space out groups of tiles.
 4. Choose **Save layout** to apply your changes or **Cancel** to discard them. To return to automatic category sections, choose **Grouped by category** from the **Layout** menu and save.
 
-The custom grid can mix tiles from different categories. Search and filters show a compact list of matching tiles in the saved order. Narrow screens also use the saved order in a responsive grid. New tiles are placed after the last saved tile. A change to a tile's destination URL gives it a fresh position.
+The layout editor shows each tile’s category and a preview of its tags. Use **Highlight category** and **Highlight tag** together to locate matching tiles while keeping every tile in its current position. The editor starts with any category or tag selected on the Applications page. **Arrange by category** starts each category on a fresh row and keeps the current tile widths and order within each category. You can adjust that draft before saving.
+
+The custom grid can mix tiles from different categories. Select a category or tag on a tile to filter the dashboard. Search and filters show matching tiles in a compact grid in the saved order. Narrow screens also follow the saved order. New tiles are placed after the last saved tile. A change to a tile's destination URL gives it a fresh position.
 
 Layout preferences are personal, including for viewers. They are saved for the signed-in account in the current browser profile and are cleared with other site data. Server backups do not carry them.
 

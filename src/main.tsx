@@ -132,6 +132,7 @@ function App() {
 
   function renderTile(tile: Tile, position?: Position) {
     const placement = position && gridPlacement(position);
+    const categoryKey = tile.category.toLowerCase();
     return <article key={tile.id} className="tile app-tile" style={placement && {
       '--tile-row': placement.gridRow, '--tile-column': placement.gridColumn,
     } as CSSProperties}>
@@ -143,7 +144,10 @@ function App() {
         ? <a className="tile-launch" href={tile.url} target="_blank" rel="noopener noreferrer">{tile.title}<ArrowUpRight size={16} aria-hidden="true" /></a>
         : <button className="tile-launch" aria-haspopup="dialog" onClick={event => { serviceTrigger.current = event.currentTarget; setBrowsing(tile); }}>{tile.title}<PanelTop size={16} aria-hidden="true" /></button>}
       <p className="muted">{tile.description || new URL(tile.url).host}</p>
-      {tile.tags.length > 0 && <div className="tags">{tile.tags.map(tag => <button key={tag} aria-pressed={activeTag === tag.toLowerCase()} onClick={() => setTagFilter(activeTag === tag.toLowerCase() ? '' : tag.toLowerCase())}>{tag}</button>)}</div>}
+      {(customLayout || tile.tags.length > 0) && <div className="tags">
+        {customLayout && <button className="tile-category" aria-label={`Category: ${tile.category}`} aria-pressed={activeCategory === categoryKey} onClick={() => setCategoryFilter(activeCategory === categoryKey ? '' : categoryKey)}>{tile.category}</button>}
+        {tile.tags.map(tag => <button key={tag} aria-pressed={activeTag === tag.toLowerCase()} onClick={() => setTagFilter(activeTag === tag.toLowerCase() ? '' : tag.toLowerCase())}>{tag}</button>)}
+      </div>}
       {jellyfin?.tiles.includes(tile.id) && <p className="muted">{jellyfin.state === 'available'
         ? `${jellyfin.streams} active ${jellyfin.streams === 1 ? 'stream' : 'streams'}`
         : 'Jellyfin activity unavailable'}</p>}
@@ -200,7 +204,8 @@ function App() {
           {session.role !== 'viewer' && !editingLayout && <button className="primary" onClick={() => { setError(''); setEditing('new'); }}><Plus size={19} /> Add tile</button>}
         </div>
       </div>
-      {editingLayout ? <LayoutEditor tiles={tiles} saved={customLayout} onCancel={closeLayout} onSave={tileLayout => {
+      {editingLayout ? <LayoutEditor tiles={tiles} categories={categories} tags={tags} initialCategory={activeCategory} initialTag={activeTag}
+        saved={customLayout} onCancel={closeLayout} onSave={tileLayout => {
         const persisted = preferences.update({ tileLayout });
         setLayoutMessage(persisted ? 'Layout saved.' : 'Layout applied for this session. Browser storage is unavailable.');
         closeLayout();

@@ -45,16 +45,29 @@ export function arrangeTiles(tiles: LayoutTile[], saved?: TileLayout | null, col
   return { columns, positions };
 }
 
-export function changeColumns(layout: TileLayout, columns: number): TileLayout {
+function packRows(layout: TileLayout, columns: number, categories?: ReadonlyMap<string, string>): TileLayout {
   const entries = Object.entries(layout.positions).sort(([, a], [, b]) => comparePositions(a, b));
+  const groups = categories ? Map.groupBy(entries, ([key]) => categories.get(key)) : new Map([[undefined, entries]]);
   let slot = 0;
-  return { columns, positions: Object.fromEntries(entries.map(([key, position]) => {
-    const width = Math.min(position.width, columns);
-    if (slot % columns + width > columns) slot += columns - slot % columns;
-    const next = { row: Math.floor(slot / columns), column: slot % columns, width };
-    slot += width;
-    return [key, next];
-  })) };
+  const positions: TileLayout['positions'] = {};
+  for (const group of groups.values()) {
+    slot = Math.ceil(slot / columns) * columns;
+    for (const [key, position] of group) {
+      const width = Math.min(position.width, columns);
+      if (slot % columns + width > columns) slot += columns - slot % columns;
+      positions[key] = { row: Math.floor(slot / columns), column: slot % columns, width };
+      slot += width;
+    }
+  }
+  return { columns, positions };
+}
+
+export function changeColumns(layout: TileLayout, columns: number) {
+  return packRows(layout, columns);
+}
+
+export function groupByCategory(layout: TileLayout, tiles: (LayoutTile & { category: string })[]) {
+  return packRows(layout, layout.columns, new Map(tiles.map(tile => [tileKey(tile), tile.category.toLowerCase()])));
 }
 
 export function moveTile(layout: TileLayout, key: string, target: Position, swap?: string): TileLayout | null {

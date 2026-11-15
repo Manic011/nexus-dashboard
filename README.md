@@ -9,7 +9,7 @@ StackJetty Dashboard is a self-hosted application launcher for homelabs. It help
 | Feature | What you can do |
 | --- | --- |
 | Application dashboard | Create, edit, and delete tiles. Group tiles by category, add multiple tags, and combine search with category and tag filters. |
-| Personal layouts | Drag, swap, and resize tiles on a grid with up to six columns. Leave gaps or switch back to category sections. |
+| Personal layouts | Drag, swap, and resize tiles on a grid with up to six columns. Highlight by category or tag, arrange related tiles together, or return to category sections. |
 | Appearance | Choose a light, dark, or system theme and comfortable or compact cards. |
 | Service view and vault | Open compatible services inside StackJetty and save logins in an encrypted browser vault. Choose a default or per-tile opening mode for a new browser tab, direct embedding, or Kasm. |
 | Service discovery | Scan reachable private IPv4 subnets with CIDRs, address ranges, exclusions, custom ports, reusable profiles, progress, and cancellation. Compare scans and review live identification evidence before importing or updating tiles. |

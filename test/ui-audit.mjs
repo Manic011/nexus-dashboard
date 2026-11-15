@@ -79,6 +79,12 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
       await button('Other app').waitFor();
       await button('Customize layout').click();
       const board = page.getByRole('region', { name: 'Customize layout' });
+      await field('Highlight category').selectOption('utilities');
+      await field('Highlight tag').selectOption('lab');
+      await board.getByText(/^1 of 2 tiles match/).waitFor();
+      assert.equal(await board.getByRole('button', { name: /^Local tools, row/ }).getAttribute('data-match'), 'true');
+      assert.equal(await board.getByRole('button', { name: /^Other app, row/ }).getAttribute('data-match'), 'false');
+      await button('Clear highlights').click();
       await field('Columns').selectOption('3');
       await button('Add row').click();
       await board.getByRole('button', { name: /^Other app, row/ }).dragTo(button('Empty cell, row 3, column 2'));
@@ -99,6 +105,9 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
       await customCard.waitFor();
       assert.equal(await customCard.evaluate(card => getComputedStyle(card).gridRowStart), '2');
       assert.equal(await customCard.evaluate(card => getComputedStyle(card).gridColumnEnd), 'span 2');
+      await customCard.getByRole('button', { name: 'Category: Utilities' }).click();
+      assert.equal(await field('Filter by category').inputValue(), 'utilities');
+      await customCard.getByRole('button', { name: 'Category: Utilities' }).click();
       await field('Search applications').fill('Other app');
       await button('Local tools').waitFor({ state: 'hidden' });
       assert.equal(await customCard.evaluate(card => getComputedStyle(card).gridRowStart), 'auto');
@@ -175,6 +184,11 @@ test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
       await field('New category').fill('Networking');
       await button('Save tile').click();
       await page.getByRole('heading', { name: /^Networking/ }).waitFor();
+      await button('Customize layout').click();
+      await button('Arrange by category').click();
+      await board.getByRole('button', { name: 'Local tools, row 1, column 1' }).waitFor();
+      await board.getByRole('button', { name: 'Other app, row 2, column 1' }).waitFor();
+      await board.getByRole('button', { name: 'Cancel', exact: true }).click();
       await button('Edit Local tools').click();
       assert.equal(await field('Category').locator('option:checked').textContent(), 'Networking');
       assert.deepEqual(await field('Category').locator('option').allTextContents(), ['Networking', 'Utilities', 'Create a category…']);

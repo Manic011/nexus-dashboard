@@ -34,6 +34,8 @@ The browser suite also checks discovery progress and source labels using control
 
 The personal layout regression checks drag and keyboard placement, tile width, rejection of a move beyond the grid, persistence on reload, search, mobile reflow, cancel/reset, and separate administrator and viewer layouts. It passed against a disposable Ubuntu instance. The live service was verified to serve the tested frontend assets and report healthy after the update.
 
+The category and tag regression verified combined highlights, continued access to tiles outside the highlights, filtering from a custom tile’s category, and packing different categories onto separate rows. The browser suite passed on Ubuntu and the live service served the verified build.
+
 ## Ubuntu verification - 2026-11-13
 
 The discovery/import refinement was exercised in the visible in-app browser against a disposable Ubuntu-hosted instance, with a separate state directory from the saved dashboard. The same locally built release was then promoted to the existing port 3000 instance after a SQLite backup. The existing dashboard configuration was preserved.

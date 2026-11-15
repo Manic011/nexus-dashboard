@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Added category and tag highlights in the layout editor, a category arrangement action that preserves tile widths, and category filters on custom grid tiles.
+
 - Added personal dashboard layouts with drag-and-drop, keyboard and touch placement, adjustable columns, tile widths, and gaps. Layouts are saved per account in the current browser.
 
 - Renamed Nexus Dashboard to StackJetty Dashboard in the app, documentation, and installer bundle. Existing service and storage identifiers are retained for upgrades.
