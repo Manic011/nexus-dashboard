@@ -708,7 +708,7 @@ test('diagnostic screens, network test, SSH statistics, files and shell', { time
     await field('Trusted host fingerprint (optional)').fill(machine.fingerprint);
     await button('Save machine and continue').click();
     await button('Connect to Fixture secondary').waitFor();
-    await button('Organize machines').click();
+    await page.getByRole('checkbox', { name: 'Select Fixture primary', exact: true }).waitFor();
     await button('Select visible').click();
     await button('Batch edit').click();
     await field('New group').fill('Lab machines');
@@ -723,7 +723,6 @@ test('diagnostic screens, network test, SSH statistics, files and shell', { time
     await page.getByText('SSH session disconnected.', { exact: true }).waitFor();
     await button('Disconnect selected').click();
     await page.getByRole('navigation', { name: 'Open SSH sessions' }).waitFor({ state: 'detached' });
-    await button('Done organizing').click();
     for (const name of ['Fixture primary', 'Fixture secondary']) {
       await page.getByLabel('More actions for ' + name, { exact: true }).click();
       await button('Remove ' + name).click();
@@ -731,6 +730,8 @@ test('diagnostic screens, network test, SSH statistics, files and shell', { time
       await button('Connect to ' + name).waitFor({ state: 'detached' });
     }
     await page.getByText('No saved machines.', { exact: true }).waitFor();
+    assert.ok(await button('Batch edit').isVisible());
+    assert.ok(await button('Batch edit').isDisabled());
     await button('Vault').click();
     await vaultDialog.getByRole('listitem').filter({ hasText: 'SSH · fixture@' }).getByRole('button', { name: 'Remove', exact: true }).click();
     await button('Confirm removal').click();

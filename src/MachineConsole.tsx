@@ -181,7 +181,6 @@ export function MachineConsole({ api, visible }: { api: DiagnosticApi; visible: 
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<Host>();
-  const [organizing, setOrganizing] = useState(false);
   const [selected, setSelected] = useState<number[]>([]);
   const [batchEdit, setBatchEdit] = useState(false);
   const [pendingRemoval, setPendingRemoval] = useState<number>();
@@ -329,12 +328,9 @@ export function MachineConsole({ api, visible }: { api: DiagnosticApi; visible: 
             <button disabled={busy}>{secure ? 'Save machine and continue' : 'Save machine'}</button>
           </form>
         </details>
-        {catalog.hosts.length > 0 && <div className="ssh-machine-toolbar">
-          <label>Search machines<input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Name, address, or group" /></label>
-          <button disabled={busy} aria-expanded={organizing} onClick={() => {
-            setOrganizing(!organizing); setSelected([]); setBatchEdit(false);
-          }}>{organizing ? 'Done organizing' : 'Organize machines'}</button>
-          {organizing && <div className="ssh-batch-actions">
+        <div className="ssh-machine-toolbar">
+          <label>Search machines<input type="search" value={query} disabled={!catalog.hosts.length} onChange={event => setQuery(event.target.value)} placeholder="Name, address, or group" /></label>
+          <div className="ssh-batch-actions" role="group" aria-label="Bulk machine actions">
             <p role="status">{selected.length} selected</p>
             <div className="actions">
               <button disabled={busy || !shown.length} onClick={() => setSelected([...new Set([...selected, ...shown.map(host => host.id)])])}>Select visible</button>
@@ -348,8 +344,8 @@ export function MachineConsole({ api, visible }: { api: DiagnosticApi; visible: 
                 await saveHosts(hostPath, { ids: selected, changes });
                 setBatchEdit(false); setNotice('Selected machines updated.');
               })} />}
-          </div>}
-        </div>}
+          </div>
+        </div>
         {catalog.hosts.length > 0 && !shown.length && <p>No machines match your search.</p>}
         {[...groups].sort(([left], [right]) => Number(!left) - Number(!right) || left.localeCompare(right)).map(([group, hosts]) => <section key={group} className="ssh-machine-group">
           <h3>{group || 'Ungrouped'} <small className="muted">{hosts.length}</small></h3>
@@ -357,9 +353,9 @@ export function MachineConsole({ api, visible }: { api: DiagnosticApi; visible: 
           const open = connections.filter(session => session.hostId === host.id);
           return <li key={host.id}>
           <div className="ssh-machine-label">
-            {organizing && <input type="checkbox" aria-label={'Select ' + host.name} disabled={busy} checked={selected.includes(host.id)} onChange={event => {
+            <input type="checkbox" aria-label={'Select ' + host.name} disabled={busy} checked={selected.includes(host.id)} onChange={event => {
               setSelected(event.target.checked ? [...selected, host.id] : selected.filter(id => id !== host.id));
-            }} />}
+            }} />
             <div><strong>{host.name}</strong><br /><small className="muted">{host.username}@{host.host}:{host.port}</small>
               {open.length > 0 && <small className="ssh-machine-status">{open.length} open {open.length === 1 ? 'session' : 'sessions'}</small>}</div>
           </div>

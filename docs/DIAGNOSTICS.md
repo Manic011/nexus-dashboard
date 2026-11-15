@@ -72,7 +72,7 @@ SSH password authentication supports the SSH password method and a single non-ec
 
 Use **Edit** on a machine to change its name, group, host, port, SSH username, or trusted fingerprint. **More** contains the removal action. Use **Search machines** to filter by name, address, port, username, or group. Machines without a group appear under **Ungrouped**.
 
-Open **Organize machines** and choose individual rows or **Select visible**. Selections survive search changes and the count includes hidden rows. **Batch edit** updates the group, SSH username, or port for every selected machine. For a group change, leave **New group** empty to move the selection to **Ungrouped**.
+The bulk actions bar is always visible. Choose individual row checkboxes or **Select visible**. Selections survive search changes and the count includes hidden rows. **Batch edit** updates the group, SSH username, or port for every selected machine. For a group change, leave **New group** empty to move the selection to **Ungrouped**.
 
 Choose **Connect selected** with the vault unlocked to open one session per selected machine that has a trusted fingerprint and a matching saved password. Existing sessions stay open. Review the result for machines that need a host-key check, a password, or individual private-key authentication. **Disconnect selected** closes the open sessions for the selected machines in this workspace. The row's **Disconnect** closes all open sessions for that machine, and **Disconnect SSH** inside a session closes that session alone.
 
