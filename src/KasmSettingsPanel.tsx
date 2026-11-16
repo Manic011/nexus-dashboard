@@ -98,7 +98,7 @@ export function KasmSettingsPanel({ api, tiles, onSave }: {
         </div>}
         {saved.enabled && tiles.length === 0 && <small className="muted">Add a tile to test an embedded launch.</small>}
       </section>
-      {test && <ServiceDialog title={test.title} url={test.url} startRemote launchRemote={launch} onClose={() => setTest(undefined)} />}
+      {test && <ServiceDialog title={test.title} url={test.url} showVault startRemote launchRemote={launch} onClose={() => setTest(undefined)} />}
     </>}
   </section>;
 }

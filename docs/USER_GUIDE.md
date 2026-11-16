@@ -48,7 +48,9 @@ The vault requires a secure browser context, such as HTTPS or localhost, and an 
 
 Administrators can select **Open in remote browser** when the operator has configured Kasm. The remote browser opens the saved service and streams it into the same StackJetty view. Sign in to Kasm and the service as needed. Use **Return to direct view** to switch back. End the remote session through Kasm when finished.
 
-Under **Administration → Kasm**, set the provider's HTTPS address, enable the integration, and save. Set a default browser workspace for your account in Kasm. Try **Open Kasm Workspaces** to check the provider directly, or select a saved tile and choose **Test embedded launch**. If the embedded session is blank, open **Kasm session help** in the service view for the direct launch link. Browser permissions for audio, clipboard, microphone, and camera are optional and start off.
+Under **Administration → Kasm**, set the provider's HTTPS address, enable the integration, and save. Set a default browser workspace for your account in Kasm. Try **Open Kasm Workspaces** to check the provider directly, or select a saved tile and choose **Test embedded launch**. Browser permissions for audio, clipboard, microphone, and camera are optional and start off.
+
+Open **Password vault & Kasm help** below remote Chrome. Unlock your existing StackJetty vault on HTTPS or localhost, then copy the saved username or password for the selected tile. Paste each value into the corresponding field in remote Chrome. For direct paste, enable **Clipboard access** under **Administration → Kasm** and allow clipboard use in Kasm and your browser. You can also transfer text with **Clipboard** in the Kasm control panel when permitted. The panel also has a direct launch link for troubleshooting.
 
 ## Discover and import services
 

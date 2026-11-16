@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowUpRight, X } from 'lucide-react';
 import { VaultEditor } from './VaultControls.js';
 import { kasmPermissions, type KasmLaunch } from '../server/kasm-types.js';
@@ -6,13 +6,13 @@ import { kasmPermissions, type KasmLaunch } from '../server/kasm-types.js';
 type ServiceDialogProps = {
   title: string;
   url: string;
-  username?: string;
+  showVault?: boolean;
   startRemote: boolean;
   launchRemote?: () => Promise<KasmLaunch>;
   onClose: () => void;
 };
 
-export function ServiceDialog({ title, url, username, startRemote, launchRemote, onClose }: ServiceDialogProps) {
+export function ServiceDialog({ title, url, showVault, startRemote, launchRemote, onClose }: ServiceDialogProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const address = new URL(url);
   const [remote, setRemote] = useState<KasmLaunch>();
@@ -57,7 +57,7 @@ export function ServiceDialog({ title, url, username, startRemote, launchRemote,
       <button aria-label="Close service view" onClick={close} autoFocus><X size={19} /></button>
     </div>
     <p className="muted service-address">{address.origin}</p>
-    {username && <CredentialPanel address={address.href} />}
+    {showVault && !remoteSelected && <CredentialPanel address={address.href} />}
     {(launchRemote || remoteSelected) && <div className="service-actions">
       {remoteSelected ? <button type="button" onClick={() => selectView(false)}>Return to direct view</button>
         : <button type="button" onClick={() => selectView(true)}>Open in remote browser</button>}
@@ -68,10 +68,12 @@ export function ServiceDialog({ title, url, username, startRemote, launchRemote,
           allow={kasmPermissions.filter(({ id }) => remote.permissions?.includes(id))
             .flatMap(({ features }) => features.map(feature => feature + " 'src'")).join('; ') || undefined}
           sandbox="allow-scripts allow-forms allow-same-origin" referrerPolicy="no-referrer" />
-        <details className="service-help"><summary>Kasm session help</summary>
+        <CredentialPanel address={showVault ? address.href : undefined}
+          title={showVault ? 'Password vault & Kasm help' : 'Kasm session help'}>
+          {showVault && <p className="muted">Copy one field at a time and paste it into the matching field in remote Chrome. If direct paste is unavailable, use Clipboard in the Kasm control panel.</p>}
           <p className="muted">Check the Kasm certificate and sign in directly if the embedded page is blank or returns to the workspace list.</p>
           <a href={remote.url} target="_blank" rel="noopener noreferrer">Open this Kasm session in a new tab</a>
-        </details>
+        </CredentialPanel>
       </>
         : remoteError ? <p role="alert">{remoteError}</p>
         : <p role="status">{launchRemote ? 'Opening remote browser…' : 'Kasm is unavailable. It requires a configured provider and a StackJetty administrator account.'}</p>
@@ -95,10 +97,13 @@ export function ServiceDialog({ title, url, username, startRemote, launchRemote,
   </dialog>;
 }
 
-function CredentialPanel({ address }: { address: string }) {
+function CredentialPanel({ address, title = 'Saved login', children }: { address?: string; title?: string; children?: ReactNode }) {
   const [open, setOpen] = useState(false);
   return <details className="credential-panel" onToggle={event => setOpen(event.currentTarget.open)}>
-    <summary>Saved login</summary>
-    {open && <VaultEditor address={address} />}
+    <summary>{title}</summary>
+    {open && <div className={children ? 'kasm-vault-content' : undefined}>
+      {address && <VaultEditor address={address} />}
+      {children}
+    </div>}
   </details>;
 }

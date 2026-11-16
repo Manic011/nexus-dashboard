@@ -231,6 +231,26 @@ test('Kasm administration persists and tests the selected tile', { timeout: 60_0
     await frame.contentFrame().getByRole('heading', { name: 'Workspace session' }).waitFor();
     assert.equal(await frame.getAttribute('allow'), "clipboard-read 'src'; clipboard-write 'src'");
     assert.equal(new URLSearchParams(new URL(await frame.getAttribute('src')).hash.split('?')[1]).get('kasm_url'), target);
+    await page.getByText('Password vault & Kasm help', { exact: true }).click();
+    await field('Master password').fill('fixture-vault-password');
+    await field('Confirm master password').fill('fixture-vault-password');
+    await button('Create vault').click();
+    await field('Service username').fill('fixture-service-user');
+    await field('Service password').fill('fixture-service-password');
+    await button('Save login').click();
+    await page.evaluate(() => {
+      let copied = '';
+      Object.defineProperty(navigator, 'clipboard', { value: {
+        writeText: async value => { copied = value; },
+        readText: async () => copied,
+      } });
+    });
+    await button('Copy username').click();
+    await page.getByText('Username copied.', { exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => navigator.clipboard.readText()), 'fixture-service-user');
+    await button('Copy password').click();
+    await page.getByText('Password copied.', { exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => navigator.clipboard.readText()), 'fixture-service-password');
     await button('Close service view').click();
     await enabled.uncheck();
     await button('Save Kasm settings').click();

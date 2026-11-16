@@ -269,6 +269,8 @@ dialog h2, dialog form p { overflow-wrap: anywhere; }
 .service-dialog iframe { display: block; width: 100%; flex: 1; min-height: min(240px, 48dvh); border: 1px solid var(--border); border-radius: 8px; background: white; }
 .credential-panel { border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
 .credential-panel summary, .service-help summary { cursor: pointer; }
+.kasm-vault-content { max-height: min(36dvh, 300px); overflow-y: auto; margin-top: 8px; padding: 0 4px 2px; }
+.kasm-vault-content > p { margin-block: 0 8px; font-size: .875rem; }
 .service-help { font-size: .875rem; }
 .service-help p { margin-top: 6px; }
 .vault-form { max-width: 520px; margin-top: 12px; }

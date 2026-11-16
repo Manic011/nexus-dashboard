@@ -348,7 +348,7 @@ function App() {
       </>}
     </>}
     </main>
-    {browsing && <ServiceDialog title={browsing.title} url={browsing.url} startRemote={openingMode(browsing) === 'kasm'} launchRemote={browsing.remoteBrowser ? launchRemote : undefined} username={session.username === 'shared' ? undefined : session.username} onClose={() => { setBrowsing(null); serviceTrigger.current?.focus(); }} />}
+    {browsing && <ServiceDialog title={browsing.title} url={browsing.url} startRemote={openingMode(browsing) === 'kasm'} launchRemote={browsing.remoteBrowser ? launchRemote : undefined} showVault={session.username !== 'shared'} onClose={() => { setBrowsing(null); serviceTrigger.current?.focus(); }} />}
     <dialog ref={dialog} aria-labelledby="dialog-title" onCancel={event => { event.preventDefault(); if (!busy) closeDialog(); }}>
       {(editing || deleting) && <>
         <div className="dialog-head"><h2 id="dialog-title">{deleting ? 'Delete tile' : selected ? 'Edit tile' : 'Add tile'}</h2><button aria-label="Close" disabled={busy} onClick={closeDialog}><X size={19} /></button></div>
