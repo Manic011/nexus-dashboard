@@ -38,7 +38,7 @@ async function probe(url: URL, method: 'HEAD' | 'GET', fingerprint?: string) {
   return response.status;
 }
 
-export function configureDiagnostics(db: DatabaseSync, remoteBrowser = false) {
+export function configureDiagnostics(db: DatabaseSync, remoteBrowser = () => false) {
   let running: Promise<void> | undefined;
   let stopped = false;
   let sampleVersion = 0;
@@ -120,6 +120,7 @@ export function configureDiagnostics(db: DatabaseSync, remoteBrowser = false) {
   }
 
   function summary() {
+    const hasRemoteBrowser = remoteBrowser();
     if (!cached || cached.version !== sampleVersion || Date.now() - cached.at > 60_000) {
       cached = { version: sampleVersion, at: Date.now(), histories: readHistories() };
     }
@@ -132,7 +133,7 @@ export function configureDiagnostics(db: DatabaseSync, remoteBrowser = false) {
       services: db.prepare('SELECT id,title,url,category,open_mode FROM tiles ORDER BY category,title').all().map(({ open_mode, ...tile }) => {
         const state = histories.get(JSON.stringify([tile.id, tile.url]));
         const percentage = (up = 0, count = 0) => count ? Math.round(up / count * 10000) / 100 : null;
-        return { ...tile, openMode: open_mode, remoteBrowser, certificateTrust: certificateTrust(Number(tile.id), String(tile.url)),
+        return { ...tile, openMode: open_mode, remoteBrowser: hasRemoteBrowser, certificateTrust: certificateTrust(Number(tile.id), String(tile.url)),
           last: state?.history.at(-1) ?? null, samples: state?.samples ?? 0, daySamples: state?.daySamples ?? 0,
           excluded: state?.excluded ?? 0, dayExcluded: state?.dayExcluded ?? 0,
           dayPercent: percentage(state?.dayUp, state?.daySamples), weekPercent: percentage(state?.up, state?.samples), history: state?.history ?? [] };

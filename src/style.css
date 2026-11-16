@@ -79,6 +79,10 @@ dialog::backdrop { background: #03080bba; }
 .admin-inset label { display: grid; gap: 6px; min-width: 0; }
 .admin-inset input { width: 100%; }
 .admin-inset input[type="checkbox"] { width: auto; }
+.kasm-settings .admin-inset p { margin: 0; }
+.kasm-settings .admin-form-actions { margin-top: 8px; }
+.kasm-test { margin-top: 16px; }
+.kasm-test select { width: 100%; }
 .account-settings { max-width: 620px; margin-block: 20px; }
 .account-settings .account-editor { border: 0; padding: 0; }
 .account-editor label { display: grid; gap: 6px; min-width: 0; }

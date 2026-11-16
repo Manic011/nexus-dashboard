@@ -182,6 +182,67 @@ test('service uptime certificate approval and removal', { timeout: 60_000 }, asy
   }
 });
 
+test('Kasm administration persists and tests the selected tile', { timeout: 60_000 }, async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'stackjetty-kasm-ui-'));
+  const remote = process.env.NEXUS_UI_KASM_URL;
+  const origin = remote ?? 'http://127.0.0.1:3441';
+  const app = remote ? undefined : createApp(directory, 'dist', origin, 'fixture-setup-token');
+  const provider = 'https://browser.example.invalid/';
+  const target = 'http://service.example.invalid/';
+  let browser;
+  try {
+    if (app) { app.listen(3441, '127.0.0.1'); await once(app, 'listening'); }
+    browser = await chromium.launch({ executablePath: process.env.NEXUS_UI_CHROMIUM_PATH });
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.route(provider + '**', route => route.fulfill({
+      contentType: 'text/html', body: '<h1>Workspace session</h1>',
+    }));
+    const button = name => page.getByRole('button', { name, exact: true });
+    const field = name => page.getByLabel(name, { exact: true });
+    await page.goto(origin);
+    await field('Username').fill('administrator');
+    await field('Password').fill('fixture-dashboard-password');
+    await field('Setup token').fill('fixture-setup-token');
+    await button('Create account').click();
+    await button('Add tile').click();
+    await field('Name').fill('Fixture service');
+    await field('URL').fill(target);
+    await button('Save tile').click();
+    await button('Administration').click();
+    await button('Kasm').click();
+    await field('Kasm HTTPS address').fill(provider);
+    const enabled = field('Enable Kasm for StackJetty administrators');
+    await enabled.check();
+    await field('Clipboard access').check();
+    await button('Save Kasm settings').click();
+    await page.getByRole('status').filter({ hasText: 'Kasm settings saved.' }).waitFor();
+    await page.reload();
+    await button('Administration').click();
+    await button('Kasm').click();
+    await enabled.waitFor();
+    assert.ok(await enabled.isChecked());
+    assert.equal(await field('Kasm HTTPS address').inputValue(), provider);
+    assert.ok(await field('Clipboard access').isChecked());
+    await page.setViewportSize({ width: 320, height: 740 });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await field('Tile to test').selectOption({ label: 'Fixture service · ' + target });
+    await button('Test embedded launch').click();
+    const frame = page.locator('iframe[title="Fixture service remote browser"]');
+    await frame.contentFrame().getByRole('heading', { name: 'Workspace session' }).waitFor();
+    assert.equal(await frame.getAttribute('allow'), "clipboard-read 'src'; clipboard-write 'src'");
+    assert.equal(new URLSearchParams(new URL(await frame.getAttribute('src')).hash.split('?')[1]).get('kasm_url'), target);
+    await button('Close service view').click();
+    await enabled.uncheck();
+    await button('Save Kasm settings').click();
+    await page.getByText('Disabled · Saved here', { exact: true }).waitFor();
+    assert.equal(await button('Test embedded launch').count(), 0);
+  } finally {
+    await browser?.close();
+    if (app) { const closed = once(app, 'close'); app.close(); app.closeAllConnections(); await closed; }
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test('desktop and mobile UI flows', { timeout: 90_000 }, async () => {
   const directory = await mkdtemp(join(tmpdir(), 'nexus-ui-'));
   const token = 'fixture-setup-token';

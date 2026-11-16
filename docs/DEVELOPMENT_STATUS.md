@@ -14,7 +14,7 @@ StackJetty is a development preview. The [requirements audit](REQUIREMENTS_AUDIT
 
 SSH setup uses Discover and Enter manually tabs, with compact scan controls, a scrolling results list, and grouped batch settings. Desktop and phone layouts passed browser checks against Ubuntu.
 
-- Optional Kasm browser launch inside the service view for administrators. Real provider validation requires a configured Kasm deployment.
+- Optional Kasm browser launch inside the service view for administrators, with connection settings, browser permissions, and a saved-tile test in **Administration → Kasm**.
 
 - Sandboxed service view and a unified browser-local vault for each account's service logins and SSH passwords. Cross-device vault sync and recovery are outside the current implementation.
 

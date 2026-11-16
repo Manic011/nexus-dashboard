@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Configure Kasm under Administration. Save the HTTPS address, enable remote browsing, set browser permissions, and test an embedded launch with a saved tile.
 - Monitor local HTTPS services by approving their exact certificate per tile. Show certificate details, count approved responses toward availability, and flag certificate changes for review.
 - Protect the first-run primary administrator from deletion, demotion, and edits by other users. Add account editing, additional administrators, required password changes, and My account settings with session revocation.
 - Refresh every administration tab with consistent panels, compact scan controls, grouped account and permission forms, clearer backup actions, and readable host and application information.

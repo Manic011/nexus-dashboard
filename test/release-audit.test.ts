@@ -53,6 +53,23 @@ test('release audit: permissions, stale restores, full database recovery, and re
     assert.ok(launch.hash.startsWith('#/go?'));
     assert.equal(new URLSearchParams(launch.hash.split('?')[1]).get('kasm_url'), tile.url);
     assert.equal((await request('admin/remote-browser/99999')).status, 404);
+    assert.equal((await (await request('admin/kasm')).json()).source, 'environment');
+    const override = { url: 'https://other-browser.example.invalid/kasm/', enabled: true, permissions: ['clipboard', 'audio'] };
+    for (const url of ['http://browser.example.invalid/', 'https://dashboard.example.invalid:444/',
+      'https://user:secret@browser.example.invalid/', 'https://browser.example.invalid/?custom=go', 'https://browser.example.invalid/#/cast']) {
+      assert.equal((await request('admin/kasm', 'PUT', { ...override, url })).status, 400);
+    }
+    assert.equal((await request('admin/kasm', 'PUT', override, 'https://untrusted.invalid')).status, 403);
+    assert.equal((await request('admin/kasm', 'PUT', override)).status, 200);
+    const changedLaunch = await (await request(remotePath)).json();
+    assert.equal(new URL(changedLaunch.url).pathname, '/kasm/');
+    assert.deepEqual(changedLaunch.permissions, override.permissions);
+    assert.equal((await request('admin/kasm', 'PUT', { ...override, enabled: false })).status, 200);
+    assert.equal((await request(remotePath)).status, 404);
+    assert.equal((await (await request('admin/diagnostics')).json()).services[0].remoteBrowser, false);
+    assert.equal((await (await request('tiles')).json())[0].remoteBrowser, undefined);
+    assert.equal((await (await request('admin/kasm', 'PUT', { useServerDefault: true })).json()).source, 'environment');
+    assert.equal((await request(remotePath)).status, 200);
     const group = await (await request('admin/groups', 'POST', { name: 'Fixture group', users: [viewer.id] })).json();
     await request('admin/tile-access/' + created.id, 'PUT', { restricted: true, users: [], groups: [group.id] });
     const snapshot = await (await request('admin/snapshots', 'POST', { name: 'Restricted baseline' })).json();
@@ -66,9 +83,10 @@ test('release audit: permissions, stale restores, full database recovery, and re
     assert.equal(readerTiles.length, 1);
     assert.equal(readerTiles[0].remoteBrowser, undefined);
     assert.equal((await request(remotePath)).status, 403);
+    assert.equal((await request('admin/kasm', 'PUT', override)).status, 403);
     assert.equal((await request('tiles/' + created.id, 'PUT', tile)).status, 403);
     assert.equal((await request('tiles/' + created.id, 'DELETE')).status, 403);
-    const adminRoutes = ['users', 'system', 'console', 'backup', 'scans/' + snapshot.id, 'discovery/profiles', 'discovery/interfaces', 'discovery/progress', 'snapshots/' + snapshot.id];
+    const adminRoutes = ['users', 'system', 'kasm', 'console', 'backup', 'scans/' + snapshot.id, 'discovery/profiles', 'discovery/interfaces', 'discovery/progress', 'snapshots/' + snapshot.id];
     for (const path of adminRoutes) assert.equal((await request('admin/' + path)).status, 403, path);
     for (const path of ['groups', 'snapshots', 'backup/import', 'backup/preview', 'discovery/plan', 'discovery/web', 'discovery/cancel']) {
       assert.equal((await request('admin/' + path, 'POST', {})).status, 403, path);
@@ -87,6 +105,7 @@ test('release audit: permissions, stale restores, full database recovery, and re
     assert.equal((await fetch(base + '/server/index.ts')).status, 404);
 
     cookie = administrator;
+    assert.equal((await request('admin/kasm', 'PUT', { ...override, enabled: false })).status, 200);
     await request('admin/discovery/profiles', 'POST', { name: 'Generic profile', address: '10.42.0.14', range: '10.42.0.0/24', exclude: '', ports: '80' });
     const archive = join(directory, 'database-backup.sqlite');
     await backupState(join(state, 'nexus.sqlite'), archive);
@@ -108,6 +127,9 @@ test('release audit: permissions, stale restores, full database recovery, and re
     cookie = administrator;
     assert.equal((await request('tiles')).status, 401, 'Restored sessions must be revoked');
     await login('administrator');
+    assert.deepEqual(await (await request('admin/kasm')).json(), {
+      ...override, enabled: false, source: 'dashboard', hasEnvironment: false,
+    });
     assert.equal((await (await request('admin/console')).json()).groups.length, 1);
     assert.equal((await (await request('admin/discovery/profiles')).json()).length, 1);
     assert.equal((await (await request('admin/console')).json()).backups.length, 1);

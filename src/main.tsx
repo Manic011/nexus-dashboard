@@ -3,6 +3,7 @@ import { ArrowUpRight, Boxes, Globe, LayoutGrid, LogOut, PanelTop, Pencil, Plus,
 import { createRoot } from 'react-dom/client';
 import './style.css';
 import { Administration } from './Administration.js';
+import type { KasmLaunch } from '../server/kasm-types.js';
 import { openModes, usePreferences, type OpenMode } from './preferences.js';
 import { CategoryPicker } from './CategoryPicker.js';
 import { ServiceDialog } from './ServiceDialog.js';
@@ -61,7 +62,7 @@ function App() {
   }
   const serviceTrigger = useRef<HTMLButtonElement>(null);
   const browsingId = browsing?.id;
-  const launchRemote = useCallback(() => api<{ url: string }>('admin/remote-browser/' + browsingId), [browsingId]);
+  const launchRemote = useCallback(() => api<KasmLaunch>('admin/remote-browser/' + browsingId), [browsingId]);
   function openingMode(tile: Tile) {
     return tile.openMode && tile.openMode !== 'default' ? tile.openMode : preferences.value.openMode;
   }
@@ -306,7 +307,7 @@ function App() {
         <MachineConsole api={api} visible={page === 'ssh'} />
       </Suspense></div>}
       {page === 'ssh' ? null : page === 'account' ? <><h1>My account</h1><AccountSettings api={api} onSaved={accountSignedOut} /></>
-      : page === 'administration' ? <><h1>Administration</h1><Administration api={api} onImport={refresh} categories={[...categories.values()]} currentAccountId={session.id} onAccountSignedOut={accountSignedOut} /></>
+      : page === 'administration' ? <><h1>Administration</h1><Administration api={api} onImport={refresh} categories={[...categories.values()]} tiles={tiles} currentAccountId={session.id} onAccountSignedOut={accountSignedOut} /></>
       : page === 'diagnostics' ? <><h1>Diagnostics</h1><Suspense fallback={<p role="status">Loading diagnostics…</p>}>
         <Diagnostics api={api} serviceLink={(service, label) => serviceLink({ ...service, description: '', tags: [] }, label, 'diagnostic-launch')} />
       </Suspense></> : <><div className="intro"><div><h1>Applications</h1><p className="muted">Organize and open the services you use.</p></div>

@@ -122,7 +122,7 @@ StackJetty was previously called Nexus Dashboard. Existing deployments continue 
 | `NEXUS_HTTPS_CERT`, `NEXUS_HTTPS_KEY` | PEM certificate and unencrypted private key files for native HTTPS. Give the dedicated service account read access and restrict access to the key. |
 | `NEXUS_DATA` | SQLite state directory. Defaults to `data` locally. The systemd service uses `/var/lib/nexus-dashboard`. |
 | `NEXUS_DIST` | Directory containing the built frontend. Defaults to `dist` relative to the working directory. |
-| `NEXUS_KASM_URL` | Optional HTTPS base URL for a separate Kasm Workspaces server. Enables the remote browser action for administrators. |
+| `NEXUS_KASM_URL` | Optional default HTTPS address for Kasm Workspaces on a different hostname from StackJetty. Settings saved under **Administration → Kasm** take precedence. |
 | `NEXUS_DISCOVERY` | `on` by default. Set to `off` to disable active web and mDNS discovery, interface enumeration, and scan profile endpoints. |
 | `NEXUS_SSH_DISCOVERY` | Follows `NEXUS_DISCOVERY` when unset. With `NEXUS_SSH=on`, set to `on` or `off` to control SSH discovery independently. |
 | `NEXUS_SETUP_TOKEN` | Secret used when creating the first administrator. |
@@ -167,9 +167,12 @@ Set up Kasm on a supported LAN host with access to the services you intend to op
 
 1. In Kasm, assign the user a default browser workspace and configure its documented launch and resume behavior for the **/go** URL. Use authenticated sessions. Limit the workspace's network access to the services that user is allowed to reach. [Kasm browser launch configuration](https://docs.kasm.com/docs/develop/tutorials/remote-browser-isolation)
 2. Configure Kasm to support embedding from the StackJetty page. Use the provider's documented cookie settings and prefer sibling HTTPS hostnames under your control. If the sites use Cloudflare Access, verify both login flows. [Kasm iframe setup](https://docs.kasm.com/docs/develop/how-to/workspaces-sessions/container-workspace/embed-kasm-in-iframe)
-3. Set `NEXUS_KASM_URL=https://browser.example.net/` in the protected StackJetty environment file and restart StackJetty. Open a saved tile as administrator, select **Open in remote browser**, and sign in to Kasm if prompted. Verify that the target loads in the StackJetty tab and **Return to direct view** works. End sessions from Kasm when finished.
+3. Sign in to StackJetty as an administrator and open **Administration → Kasm**. Enter the Kasm HTTPS address (including its port or base path if applicable) on a different hostname from StackJetty, enable Kasm, and save. Leave browser permissions off unless needed for your sessions. Settings apply without restarting StackJetty.
+4. Use **Open Kasm Workspaces** to verify direct access. Select a saved tile and use **Test embedded launch** to verify the complete launch and sign-in flow in your browser. Use the HTTPS StackJetty address for embedded browser features. End sessions through Kasm when finished.
 
 StackJetty sends the saved tile URL to Kasm as the browser destination. Use tile URLs without secrets. Kasm manages authentication, browser sessions, and session expiry. Closing the StackJetty view disconnects the frame, while Kasm may keep the browser session running.
+
+If `NEXUS_KASM_URL` is configured, **Use server configuration** removes the dashboard override. Saving the integration as disabled overrides an enabled environment default. Dashboard settings are included in a full database backup. Tile JSON exports and configuration snapshots do not contain the Kasm connection settings.
 
 ## Jellyfin activity
 

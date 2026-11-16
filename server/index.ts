@@ -7,6 +7,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
+import { configureKasm, kasmBaseUrl, kasmInput } from './kasm.ts';
 import { discoverServices, discoveryInterfaces } from './discovery.ts';
 import { discoverWebServices, planWebScan, webScope } from './web-discovery.ts';
 import { configureAdministration, machineInfo } from './admin-console.ts';
@@ -89,10 +90,10 @@ export function createApp(data: string, dist: string, origin: string, setupToken
   if (nativeHttps && (primaryOrigin.protocol !== 'http:' || nativeHttps.protocol !== 'https:' || nativeHttps.origin !== httpsOrigin)) {
     throw new Error('The native HTTPS listener requires an HTTP NEXUS_ORIGIN and a bare HTTPS NEXUS_HTTPS_ORIGIN.');
   }
-  const kasm = kasmUrl === undefined ? undefined : URL.parse(kasmUrl);
-  if (kasmUrl !== undefined && (!kasm || kasm.protocol !== 'https:' || kasm.origin === origin || kasm.origin === httpsOrigin ||
-      kasm.username || kasm.password || kasm.search || kasm.hash)) {
-    throw new Error('NEXUS_KASM_URL must be an HTTPS base URL on a separate origin, without credentials, query, or fragment.');
+  const dashboardHosts = [primaryOrigin, nativeHttps].flatMap(url => url ? [url.hostname.replace(/\.$/, '')] : []);
+  const environmentKasm = kasmUrl === undefined ? '' : kasmBaseUrl(kasmUrl, dashboardHosts);
+  if (environmentKasm === null) {
+    throw new Error('NEXUS_KASM_URL must be an HTTPS base URL on a separate hostname, without credentials, query, or fragment.');
   }
   const jellyfin = createJellyfin(jellyfinConfig);
   mkdirSync(data, { recursive: true, mode: 0o700 });
@@ -163,7 +164,8 @@ export function createApp(data: string, dist: string, origin: string, setupToken
   }
 
   const consoleAdmin = configureAdministration(db);
-  const diagnostics = configureDiagnostics(db, Boolean(kasm));
+  const kasm = configureKasm(db, environmentKasm, dashboardHosts);
+  const diagnostics = configureDiagnostics(db, () => kasm.read().enabled);
   const ssh = configureSsh(db, process.env.NEXUS_SSH === 'on',
     process.env.NEXUS_SSH_DISCOVERY === 'on' || (process.env.NEXUS_SSH_DISCOVERY !== 'off' && discoveryEnabled));
   const speedTests = new Map<string, number>();
@@ -514,15 +516,30 @@ export function createApp(data: string, dist: string, origin: string, setupToken
         const tiles = jellyfin ? urls.filter(item => canSee(item.id) && jellyfin.matches(String(item.url))).map(item => item.id) : [];
         return send(200, tiles.length ? { tiles, ...await jellyfin!.summary() } : { tiles });
       }
+      if (path === '/api/admin/kasm') {
+        if (method === 'GET') return send(200, kasm.read());
+        if (method === 'PUT') {
+          const parsed = kasmInput.safeParse(await body(req, 8192));
+          if (!parsed.success) throw new RequestError(400, 'Check the Kasm address and permissions.');
+          const actor = activeAccount(owner);
+          if (actor?.role !== 'admin' || actor.must_reset_password) throw new RequestError(403, 'Your administrator session changed. Sign in again.');
+          if ('useServerDefault' in parsed.data) return send(200, kasm.save());
+          const { url, enabled, permissions } = parsed.data;
+          const canonical = url ? kasmBaseUrl(url, dashboardHosts) : '';
+          if (canonical === null || (enabled && !canonical)) {
+            throw new RequestError(400, 'Enter an HTTPS Kasm address on a different hostname from StackJetty, without credentials, a query, or a fragment.');
+          }
+          return send(200, kasm.save({ url: canonical, enabled, permissions: [...new Set(permissions)] }));
+        }
+      }
       const remote = /^\/api\/admin\/remote-browser\/([1-9]\d{0,14})$/.exec(path);
       if (method === 'GET' && remote) {
+        const settings = kasm.read();
         const row = db.prepare('SELECT url FROM tiles WHERE id=?').get(Number(remote[1]));
-        if (!kasm || !row) throw new RequestError(404, 'Remote browser is unavailable for this tile.');
+        if (!settings.enabled || !row) throw new RequestError(404, 'Remote browser is unavailable for this tile.');
         const target = tile.shape.url.safeParse(row.url);
         if (!target.success) throw new RequestError(400, 'The tile needs a valid web URL.');
-        const launch = new URL(kasm);
-        launch.hash = '/go?' + new URLSearchParams({ kasm_url: new URL(target.data).href });
-        return send(200, { url: launch.href });
+        return send(200, kasm.launch(target.data, settings));
       }
       if ((method === 'GET' && path === '/api/tiles') || (method === 'PATCH' && path === '/api/tiles/categories')) {
         if (method === 'PATCH') {
@@ -548,7 +565,7 @@ export function createApp(data: string, dist: string, origin: string, setupToken
         }
         const visible = db.prepare('SELECT * FROM tiles ORDER BY category COLLATE NOCASE, title COLLATE NOCASE, id').all()
           .filter(item => canSee(item.id)).map(readTile);
-        return send(200, kasm && authenticated.role === 'admin'
+        return send(200, authenticated.role === 'admin' && kasm.read().enabled
           ? visible.map(item => ({ ...item, remoteBrowser: true })) : visible);
       }
       if (method === 'GET' && path === '/api/admin/backup') {

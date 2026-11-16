@@ -15,6 +15,8 @@ The Node.js November 2026 release includes fixes in bundled HTTP parsing, SQLite
 
 ## Application review
 
+- Kasm settings and tile launch URLs are administrator-only. The provider must use HTTPS and a different hostname from StackJetty. Kasm handles sign-in and remote sessions. StackJetty stores the provider address and permission choices in its database. Browser permissions are off by default and can be delegated to the Kasm frame. The Verify setup workflow launches from the administrator's browser, with no outbound connection from the StackJetty server.
+
 - The first setup account is the primary administrator. API checks and database triggers protect it from deletion and demotion. Only its owner can edit it. Other administrators can manage other accounts, and individual non-administrators can update only their own account with current-password verification. Account updates use revision checks and recheck the actor's active session after password hashing. Changes revoke the affected account's dashboard sessions and SSH connections.
 
 - A required password change restricts the session to account changes, activity renewal, and sign-out until a different password is saved. The API rejects role fields in self-service updates. Existing accounts retain their legacy vault identity, while newly created accounts use an ID-based vault namespace. Renaming an account preserves its encrypted vault. These controls follow the authentication and session lifecycle guidance in the OWASP cheat sheets. [Authentication guidance](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html), [session management guidance](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)

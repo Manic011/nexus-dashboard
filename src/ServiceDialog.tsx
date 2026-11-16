@@ -1,32 +1,33 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowUpRight, X } from 'lucide-react';
 import { VaultEditor } from './VaultControls.js';
+import { kasmPermissions, type KasmLaunch } from '../server/kasm-types.js';
 
 type ServiceDialogProps = {
   title: string;
   url: string;
   username?: string;
   startRemote: boolean;
-  launchRemote?: () => Promise<{ url: string }>;
+  launchRemote?: () => Promise<KasmLaunch>;
   onClose: () => void;
 };
 
 export function ServiceDialog({ title, url, username, startRemote, launchRemote, onClose }: ServiceDialogProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const address = new URL(url);
-  const [remote, setRemote] = useState<string>();
+  const [remote, setRemote] = useState<KasmLaunch>();
   const [remoteSelected, setRemoteSelected] = useState(startRemote);
   const [remoteError, setRemoteError] = useState('');
 
   useEffect(() => {
     if (!remoteSelected || !launchRemote) return;
     let active = true;
-    launchRemote().then(({ url }) => {
+    launchRemote().then(({ url, permissions }) => {
       const workspace = new URL(url);
-      if (workspace.protocol !== 'https:' || workspace.origin === location.origin) {
-        throw new Error('Remote browser requires a separate HTTPS origin.');
+      if (workspace.protocol !== 'https:' || workspace.hostname.replace(/\.$/, '') === location.hostname.replace(/\.$/, '')) {
+        throw new Error('Remote browser requires HTTPS and a different hostname from StackJetty.');
       }
-      if (active) setRemote(workspace.href);
+      if (active) setRemote({ url: workspace.href, permissions });
     }).catch(error => {
       if (active) setRemoteError(error instanceof Error ? error.message : 'Unable to open the remote browser.');
     });
@@ -62,8 +63,16 @@ export function ServiceDialog({ title, url, username, startRemote, launchRemote,
         : <button type="button" onClick={() => selectView(true)}>Open in remote browser</button>}
     </div>}
     {remoteSelected ? (
-      remote ? <iframe title={title + ' remote browser'} src={remote}
-        sandbox="allow-scripts allow-forms allow-same-origin" referrerPolicy="no-referrer" />
+      remote ? <>
+        <iframe title={title + ' remote browser'} src={remote.url}
+          allow={kasmPermissions.filter(({ id }) => remote.permissions?.includes(id))
+            .flatMap(({ features }) => features.map(feature => feature + " 'src'")).join('; ') || undefined}
+          sandbox="allow-scripts allow-forms allow-same-origin" referrerPolicy="no-referrer" />
+        <details className="service-help"><summary>Kasm session help</summary>
+          <p className="muted">Check the Kasm certificate and sign in directly if the embedded page is blank or returns to the workspace list.</p>
+          <a href={remote.url} target="_blank" rel="noopener noreferrer">Open this Kasm session in a new tab</a>
+        </details>
+      </>
         : remoteError ? <p role="alert">{remoteError}</p>
         : <p role="status">{launchRemote ? 'Opening remote browser…' : 'Kasm is unavailable. It requires a configured provider and a StackJetty administrator account.'}</p>
     )    : canEmbed ? <>

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { DatabaseBackup, Radar, Server, UsersRound } from 'lucide-react';
+import { DatabaseBackup, PanelsTopLeft, Radar, Server, UsersRound } from 'lucide-react';
 import { AdminWorkspace } from './AdminWorkspace.js';
+import { KasmSettingsPanel, type KasmTestTile } from './KasmSettingsPanel.js';
 import { Users } from './Users.js';
 import { ImportCategory } from './ImportCategory.js';
 import { ScanField } from './ScanField.js';
@@ -18,11 +19,12 @@ const sections = [
   { id: 'discovery', title: 'Discovery', icon: Radar },
   { id: 'users', title: 'Users', icon: UsersRound },
   { id: 'backup', title: 'Backup', icon: DatabaseBackup },
+  { id: 'kasm', title: 'Kasm', icon: PanelsTopLeft },
   { id: 'system', title: 'System', icon: Server },
 ] as const;
 
-export function Administration({ api, onImport, categories, currentAccountId, onAccountSignedOut }: {
-  api: Api; onImport: () => Promise<void>; categories: string[]; currentAccountId?: number; onAccountSignedOut: () => Promise<void>;
+export function Administration({ api, onImport, categories, tiles, currentAccountId, onAccountSignedOut }: {
+  api: Api; onImport: () => Promise<void>; categories: string[]; tiles: KasmTestTile[]; currentAccountId?: number; onAccountSignedOut: () => Promise<void>;
 }) {
   const [section, setSection] = useState<(typeof sections)[number]['id']>('discovery');
   const [interfaces, setInterfaces] = useState<Network[]>([]);
@@ -117,6 +119,7 @@ export function Administration({ api, onImport, categories, currentAccountId, on
       }}><Icon size={17} />{title}</button>)}
     </nav>
     {status && <p role="status" className="admin-status">{status}</p>}
+    {section === 'kasm' && <KasmSettingsPanel api={api} tiles={tiles} onSave={onImport} />}
     {section === 'users' && <Users api={api} currentId={currentAccountId} onSignedOut={onAccountSignedOut} onChange={() => setWorkspaceRevision(value => value + 1)} />}
     {section === 'system' && <section className="tile admin-panel"><h2>System information</h2>
       <p className="muted">Application details and the machine running StackJetty.</p>
@@ -308,7 +311,7 @@ export function Administration({ api, onImport, categories, currentAccountId, on
         </form>
       </>}
     </section>}
-    <AdminWorkspace key={section + workspaceRevision} section={section} api={api} refresh={async () => { await onImport(); setSystem(await api<SystemInfo>('admin/system')); }} inspect={inspect} />
+    {section !== 'kasm' && <AdminWorkspace key={section + workspaceRevision} section={section} api={api} refresh={async () => { await onImport(); setSystem(await api<SystemInfo>('admin/system')); }} inspect={inspect} />}
     {section === 'discovery' && comparison && <details className="tile admin-panel"><summary>Changes since the previous complete scan of the same targets</summary>
       <p className="muted">Missing means no response during this scan; it does not prove a service is offline. Tiles are never removed automatically.</p>
       <div className="admin-comparison-grid">
