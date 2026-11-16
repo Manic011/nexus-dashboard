@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { OpenMode } from './preferences.js';
+import { ServiceCertificate } from './ServiceCertificate.js';
 
 export type DiagnosticApi = <T>(path: string, method?: string, body?: object, signal?: AbortSignal) => Promise<T>;
 export function formatBytes(value: number) {
@@ -12,7 +13,8 @@ export function formatUptime(seconds: number) {
   return Math.floor(seconds / 86400) + 'd ' + Math.floor(seconds / 3600 % 24) + 'h ' + Math.floor(seconds / 60 % 60) + 'm';
 }
 const outcomeLabels = {
-  reachable: 'Reachable', 'http-error': 'HTTP error', 'tls-unverified': 'Certificate unverified',
+  reachable: 'Reachable', 'reachable-pinned': 'Reachable · trusted certificate', 'http-error': 'HTTP error', 'tls-unverified': 'Certificate unverified',
+  'certificate-changed': 'Certificate changed',
   timeout: 'Timed out', 'connection-failed': 'Connection failed', unclassified: 'Unconfirmed',
 };
 type Sample = { at: string; available: boolean | null; outcome: keyof typeof outcomeLabels; status: number | null; latency: number; error?: string };
@@ -23,7 +25,7 @@ type Summary = {
     totalMemory: number; freeMemory: number; machineUptime: number; serviceUptime: number; serviceMemory: number;
     load: number[]; cpuTimes: { user: number; nice: number; sys: number; idle: number; irq: number }[];
     interfaces: { name: string; address: string; family: string; internal: boolean }[] };
-  services: (DiagnosticService & { last: Sample | null; samples: number; daySamples: number;
+  services: (DiagnosticService & { certificateTrust?: { fingerprint: string }; last: Sample | null; samples: number; daySamples: number;
     dayPercent: number | null; weekPercent: number | null; dayExcluded: number; excluded: number; history: Sample[] })[];
 };
 
@@ -71,7 +73,7 @@ export function Diagnostics({ api, serviceLink }: { api: DiagnosticApi; serviceL
     {error && <p role="alert" className="error">{error}</p>}
     {tab === 'services' && <section className="tile">
       <h2>Service uptime</h2>
-      <p className="muted">Checks run from the StackJetty server. Sign-in responses count as reachable. Checks with unverified certificates are shown separately and excluded from availability.</p>
+      <p className="muted">Checks run from the StackJetty server. Sign-in responses count as reachable. Approve a local HTTPS certificate below to include that service in availability monitoring.</p>
       <div className="admin-controls">
         <button disabled={busy || !summary || summary.running} onClick={() => void run(async () => {
           await api('admin/diagnostics/monitor', 'PUT', { enabled: !summary!.enabled });
@@ -98,6 +100,8 @@ export function Diagnostics({ api, serviceLink }: { api: DiagnosticApi; serviceL
           <span key={index} className={sample.available === null ? 'check-unknown' : sample.available ? 'check-up' : 'check-down'}
             title={new Date(sample.at).toLocaleString() + ' · ' + outcomeLabels[sample.outcome] + (sample.status ? ' · HTTP ' + sample.status : '') + ' · ' + sample.latency + ' ms'} />)}</div>
         {service.last?.error && <small className="muted">{service.last.error}</small>}
+        {service.url.startsWith('https:') && <ServiceCertificate key={service.url} api={api} service={service}
+          onChanged={async () => setSummary(await api('admin/diagnostics'))} />}
       </article>)}</div>
     </section>}
     {tab === 'host' && <section className="tile"><h2>Dashboard host</h2>{host ? <>

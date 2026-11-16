@@ -389,7 +389,10 @@ export function createApp(data: string, dist: string, origin: string, setupToken
           res.once('close', () => controller.abort());
           const result = path.startsWith('/api/admin/diagnostics/ssh')
             ? await ssh.handle(method!, path, input, owner, secure || localTransport, controller.signal)
-            : await diagnostics.handle(method!, path, input);
+            : await diagnostics.handle(method!, path, input, () => {
+              const actor = activeAccount(owner);
+              return actor?.role === 'admin' && !actor.must_reset_password;
+            });
           if (result === undefined) return send(404, { error: 'Diagnostic endpoint not found.' });
           return send(200, result);
         } catch (error) {

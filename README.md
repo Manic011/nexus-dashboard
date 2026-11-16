@@ -22,7 +22,7 @@ A self-hosted dashboard for your homelab. Discover services, organize them into 
 | Jellyfin activity | Show the active stream count on a matching tile after configuring a Jellyfin URL and API key on the server. |
 | Ubuntu deployment | Stage a built release and install it as a systemd service under a dedicated account. |
 | LAN access | Serve HTTP and HTTPS on separate ports from the same instance. [LAN setup](docs/INSTALL.md#http-and-https-together-on-the-lan) |
-| Diagnostics | Monitor saved URLs, inspect uptime history and host metrics, measure browser-to-server throughput, and open service links using the tile's launch preference. The monitor identifies certificate verification failures separately. |
+| Diagnostics | Monitor saved URLs, approve local HTTPS certificates for uptime checks, inspect history and host metrics, measure browser-to-server throughput, and open service links using the tile's launch preference. Certificate changes are flagged for review. |
 | SSH machines | Discover SSH servers with hostname suggestions, review names, and assign saved vault credentials while adding machines in batches. Edit, group, and search the inventory. Batch edit, connect, or disconnect machines, view Linux metrics, open a terminal, and use the SFTP file manager. |
 
 Administration groups discovery, access, backups, and system information into four tabs, with responsive forms and scrolling record lists.

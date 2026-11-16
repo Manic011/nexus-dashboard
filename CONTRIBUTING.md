@@ -10,6 +10,8 @@ Develop in the local Git checkout and use Ubuntu as the integration environment.
 4. For changes to a user workflow, integration, or deployment, exercise the normal entry point on Ubuntu. For schema changes, verify both a fresh database and an existing one.
 5. Commit the code and documentation together. Push the branch and check the CI result. Describe any verification that still needs to happen in the pull request.
 
+TLS monitoring tests generate disposable certificates with OpenSSL. Install OpenSSL for development or set `OPENSSL_PATH` to its executable. On Windows the test helper also checks the default Git for Windows OpenSSL location. Certificate generation is used by tests.
+
 ## Documentation checklist
 
 Use this checklist when reviewing a feature, behavior change, or deployment change.

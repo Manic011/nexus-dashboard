@@ -4,6 +4,7 @@ StackJetty is a development preview. The [requirements audit](REQUIREMENTS_AUDIT
 
 ## Available in the preview
 
+- Per-service certificate approval for LAN HTTPS uptime checks, with fingerprint verification before HTTP requests and review when certificates change.
 - Protected first-run primary administrator, editable administrator/editor/viewer accounts, forced password changes, My account settings, and session revocation when accounts change.
 - Consistent administration layouts for discovery, accounts and permissions, backups and restore, and system information, with responsive forms and scrolling record lists.
 - Administrator diagnostics for sampled availability, host information, and network throughput. The separate SSH workspace supports concurrent Linux statistics, SFTP file management, and interactive shells. SSH supports first-connection host key review, password and private-key authentication, browser-local encrypted saved passwords, and private localhost access through a workstation SSH tunnel. Dashboard sessions time out after 15 minutes of inactivity and close their SSH connections.

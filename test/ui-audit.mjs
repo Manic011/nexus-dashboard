@@ -4,11 +4,13 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from 'node:http';
+import { createServer as createHttpsServer } from 'node:https';
 import { once } from 'node:events';
 import { chromium } from 'playwright-core';
 import { createApp } from '../server/index.ts';
 import { createSshFixture } from './ssh-fixture.ts';
 import { unlockVault } from '../src/vault.ts';
+import { createTlsFixture } from './tls-fixture.ts';
 
 test('HTTPS dashboard offers a new tab for an HTTP tile', async () => {
   const live = process.env.NEXUS_UI_MIXED_CONTENT_URL;
@@ -130,6 +132,52 @@ test('account editing, primary administrator protection, and required password c
     if (app) {
       const closed = once(app, 'close'); app.close(); app.closeAllConnections(); await closed;
     }
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('service uptime certificate approval and removal', { timeout: 60_000 }, async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'stackjetty-certificate-ui-'));
+  const remote = process.env.NEXUS_UI_CERTIFICATE_URL;
+  const origin = remote ?? 'http://127.0.0.1:3441';
+  const endpoint = remote ? undefined : createHttpsServer(createTlsFixture(directory), (_req, res) => { res.writeHead(401); res.end(); });
+  const app = remote ? undefined : createApp(join(directory, 'state'), 'dist', origin, 'fixture-token');
+  let browser;
+  try {
+    if (endpoint) { endpoint.listen(0, '127.0.0.1'); await once(endpoint, 'listening'); }
+    if (app) { app.listen(3441, '127.0.0.1'); await once(app, 'listening'); }
+    const address = endpoint?.address();
+    const port = address && typeof address !== 'string' ? address.port : process.env.NEXUS_UI_TLS_PORT;
+    browser = await chromium.launch({ executablePath: process.env.NEXUS_UI_CHROMIUM_PATH });
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    const field = name => page.getByLabel(name, { exact: true });
+    const button = name => page.getByRole('button', { name, exact: true });
+    await page.goto(origin);
+    await field('Username').fill('administrator'); await field('Password').fill('fixture-dashboard-password');
+    await field('Setup token').fill('fixture-token'); await button('Create account').click();
+    await button('Add tile').click(); await field('Name').fill('LAN HTTPS fixture');
+    await field('URL').fill('https://127.0.0.1:' + port + '/'); await button('Save tile').click();
+    await button('Diagnostics').click(); await button('Check services now').click();
+    await page.getByText('Certificate unverified', { exact: true }).waitFor();
+    await page.getByText('HTTPS certificate', { exact: true }).click();
+    await button('Trust certificate for monitoring').waitFor();
+    assert.match(await page.locator('.certificate-fingerprint').innerText(), /^(?:[A-F0-9]{2}:){31}[A-F0-9]{2}$/);
+    await button('Trust certificate for monitoring').click();
+    await page.getByText('Certificate trusted for monitoring', { exact: true }).waitFor();
+    await button('Check services now').click();
+    await page.getByText('Reachable · trusted certificate', { exact: true }).waitFor();
+    await page.getByText(/100%/).first().waitFor();
+    if (process.env.NEXUS_UI_CERTIFICATE_SCREENSHOT) await page.screenshot({ path: process.env.NEXUS_UI_CERTIFICATE_SCREENSHOT, fullPage: true });
+    await page.setViewportSize({ width: 320, height: 700 });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await button('Remove certificate trust').click();
+    await page.getByText('HTTPS certificate', { exact: true }).waitFor();
+    await button('Check services now').click();
+    await page.getByText('Certificate unverified', { exact: true }).waitFor();
+  } finally {
+    await browser?.close();
+    if (app) { const closed = once(app, 'close'); app.close(); app.closeAllConnections(); await closed; }
+    if (endpoint) { const closed = once(endpoint, 'close'); endpoint.close(); endpoint.closeAllConnections(); await closed; }
     await rm(directory, { recursive: true, force: true });
   }
 });

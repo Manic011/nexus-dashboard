@@ -12,6 +12,14 @@ Each check sends an HTTP HEAD request to the saved URL. If HEAD returns 405 or a
 
 **Certificate unverified** means StackJetty reached the HTTPS endpoint but could not verify its certificate. These checks and older failures with an inconclusive cause are excluded from the availability percentage. If a private certificate authority signs your service certificates, configure the installed StackJetty runtime to trust that CA's public PEM certificate with `NODE_EXTRA_CA_CERTS`, then restart it. The URL hostname must still match the certificate. [Node.js certificate configuration](https://nodejs.org/download/release/v24.11.0/docs/api/cli.html#node_extra_ca_certsfile)
 
+For a self-signed LAN service, open **HTTPS certificate** on its uptime card. Check the subject, issuer, expiry date, and SHA-256 fingerprint against the service's certificate. Select **Trust certificate for monitoring**, then **Check services now**. Successful responses appear as **Reachable · trusted certificate** and count toward availability.
+
+Approval binds the exact certificate to that tile and saved URL. StackJetty checks the certificate fingerprint before sending an HTTP request. **Certificate changed** requires reviewing and approving the replacement certificate. Those observations are excluded from uptime calculations until the service can be checked with its approved certificate. Changing the tile URL requires a new approval.
+
+Explicit approval uses the exact certificate fingerprint in place of standard CA, hostname, and validity verification for that service's monitoring requests. Review the displayed expiry date as well as the fingerprint. It does not install a browser certificate, change iBrowser embedding rules, or guarantee that the service's application is healthy beyond its HTTP response.
+
+Use **Read certificate again** to refresh the displayed certificate, or **Remove certificate trust** to restore standard certificate verification for future checks. Certificate trust applies to monitoring requests made by StackJetty. The approval is saved in the local database and included in full-database backups. Tile JSON exports and configuration snapshots cover their documented tile/group data.
+
 Each card shows the latest result and response time, sampled availability for 24 hours and seven days, the number of observations, and the last 30 checks. Automatic checks continue without an open browser while the StackJetty service runs. History is retained in the SQLite database for seven days and is included in full-database backups. Tile JSON exports and configuration snapshots do not include monitoring history.
 
 Select a service name or URL to open it using the tile's saved mode, or your **Open tiles by default** preference when the tile uses your default. Embedded and Kasm views stay inside StackJetty. Closing the view returns focus to the service link.

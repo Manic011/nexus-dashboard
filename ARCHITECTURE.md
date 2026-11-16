@@ -123,6 +123,8 @@ These routes are relative to `/api/admin/diagnostics`. The server checks that th
 | --- | --- |
 | `GET /` | Summarize monitoring history, service outcomes, and dashboard host metrics. |
 | `PUT /monitor`, `POST /check` | Set `enabled` or run a check immediately. |
+| `POST /services/{id}/certificate` | Read the saved HTTPS URL's public certificate. Send the current canonical `url`. |
+| `PUT /services/{id}/tls` | Approve an observed SHA-256 `fingerprint` for the current `url`, or send `fingerprint: null` to remove approval. Administrator access is rechecked before saving. |
 | `GET /speed`, `POST /speed` | Measure download and upload throughput using bounded transfers. |
 | `GET /ssh`, `POST /ssh/hosts`, `DELETE /ssh/hosts/{hostId}` | List, register, or remove saved machines. Removing a machine closes its sessions. |
 | `GET /ssh/discover`, `POST /ssh/discover` | Suggest attached private subnets or scan selected addresses and ports for SSH, including optional reverse DNS hostname suggestions. Requires secure transport and discovery enablement. |
