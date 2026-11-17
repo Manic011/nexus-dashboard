@@ -125,7 +125,10 @@ export function VaultMenu() {
     <dialog ref={dialog} aria-labelledby="credential-vault-title" onClose={() => setOpen(false)}>
       <div className="dialog-head">
         <h2 id="credential-vault-title">Credential vault</h2>
-        <button type="button" aria-label="Close credential vault" onClick={() => dialog.current?.close()}><X size={18} /></button>
+        <button type="button" aria-label="Close credential vault" onClick={() => {
+          setOpen(false);
+          dialog.current?.close();
+        }}><X size={18} /></button>
       </div>
       {open && <VaultContents />}
     </dialog>

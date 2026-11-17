@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Clear the vault dialog contents as it closes so hidden unlock fields cannot conflict with the SSH vault workflow.
 - Open the encrypted password vault from the bottom of the Kasm view and copy a saved tile’s username or password for pasting into remote Chrome.
 - Configure Kasm under Administration. Save the HTTPS address, enable remote browsing, set browser permissions, and test an embedded launch with a saved tile.
 - Monitor local HTTPS services by approving their exact certificate per tile. Show certificate details, count approved responses toward availability, and flag certificate changes for review.

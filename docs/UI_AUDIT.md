@@ -13,6 +13,8 @@ Review every new or changed screen before merging. Apply the same review to dial
 
 ## Current coverage
 
+GitHub CI exposed a vault-close timing issue where the closed vault dialog and SSH form both retained a Master password field. Closing the vault now clears its contents immediately, and the browser regression waits for that form to detach before continuing with SSH. All seven browser scenarios and twelve API tests passed locally, the dependency audit reported zero vulnerabilities, and the affected diagnostics/SSH scenario passed against an isolated Ubuntu backend. The live frontend was verified over HTTP and trusted HTTPS. GitHub-hosted CI must rerun after publishing.
+
 The embedded Kasm vault flow saved a fixture login and checked the exact username and password passed to the clipboard locally and against the Ubuntu preview. The live Ubuntu frontend served the updated panel over HTTP and trusted HTTPS. Clipboard transfer into a real Kasm session remains unverified.
 
 The Kasm administration browser flow passed locally and against a disposable Ubuntu instance. It saved the provider and clipboard permission, reloaded the settings, launched the selected tile in a fixture Kasm frame at 320 pixels, and disabled the integration. API coverage verifies administrator access, rejection of foreign origins and invalid provider URLs, immediate launcher and Diagnostics updates, environment fallback, and full database recovery. The live Ubuntu deployment passed HTTP and trusted HTTPS health and asset checks while preserving the saved configuration. The real provider's embedded sign-in and streaming still require a browser with access to and trust for that provider.

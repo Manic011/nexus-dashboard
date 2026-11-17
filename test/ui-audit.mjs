@@ -950,6 +950,7 @@ test('diagnostic screens, network test, SSH statistics, files and shell', { time
     assert.equal(await vaultDialog.getByRole('listitem').count(), 2);
     await vaultDialog.getByRole('button', { name: 'Lock vault' }).click();
     await button('Close credential vault').click();
+    await vaultDialog.getByLabel('Master password', { exact: true }).waitFor({ state: 'detached' });
     await field('Master password').waitFor();
     await page.reload();
     await button('Diagnostics').click();
